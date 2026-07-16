@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -e .
+      - name: Lint
+        run: ruff check src tests
+      - name: Tests
+        run: pytest -q --cov=squidsec2 --cov-report=term-missing
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t squidsec2:ci .
+      - name: Run container smoke test
+        run: |
+          docker run -d --name squidsec2-ci -p 8443:8443 squidsec2:ci
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8443/api/v1/health; then
+              echo "healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs squidsec2-ci
+          exit 1
+      - name: Cleanup
+        if: always()
+        run: docker rm -f squidsec2-ci || true
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Audit dependencies
+        run: pip-audit -r requirements.txt || true

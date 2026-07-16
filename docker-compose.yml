@@ -1,0 +1,41 @@
+services:
+  squidsec2:
+    build: .
+    image: squidsec2:latest
+    container_name: squidsec2
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+      # Map additional listener ports as needed, e.g.:
+      # - "4444:4444"
+    environment:
+      SQUIDSEC2_HOST: "0.0.0.0"
+      SQUIDSEC2_PORT: "8443"
+      SQUIDSEC2_DATA_DIR: "/data"
+      SQUIDSEC2_MCP_ENABLED: "true"
+      SQUIDSEC2_AI_ENABLED: "true"
+    volumes:
+      - squidsec2-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8443/api/v1/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # Resource limits for cheap droplets
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
+
+volumes:
+  squidsec2-data:
