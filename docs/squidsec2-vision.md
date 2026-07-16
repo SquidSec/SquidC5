@@ -70,15 +70,20 @@ Governs humans, external AI, and admin AI:
 - external AI determinism rules
 - admin AI sandbox rules
 
+## Operator CLI
+
+`ss2` / `squidsec2-cli` (`src/squidsec2/cli.py`) is the primary local harness for remote C2 control. It stores non-secret path config under `~/.config/squidsec2/` (token local-only). Full command surface is documented in `AGENTS.md` and `docs/operator-runbook.md`.
+
 ## Technology Stack
 
 | Layer | Choice |
 |-------|--------|
 | Language | Python 3.11+ |
 | API | FastAPI + Uvicorn |
+| Operator CLI | `ss2` (httpx) |
 | MCP | HTTP MCP-lite (allow-listed tools) |
 | DB | SQLite (aiosqlite) |
-| Deploy | Docker (primary), standalone binaries planned |
+| Deploy | Docker host-network (primary), standalone binaries planned |
 | Tests | pytest |
 | CI | GitHub Actions |
 

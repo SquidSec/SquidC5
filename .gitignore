@@ -43,3 +43,9 @@ nuitka-crash-report.xml
 payloads/out/
 .secrets/
 admin_token.txt
+**/admin_token.txt
+data/*
+!data/.gitkeep
+# Local operator CLI config (contains tokens)
+.config/squidsec2/
+**/squidsec2/config.json

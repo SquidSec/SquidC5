@@ -4,10 +4,9 @@ services:
     image: squidsec2:latest
     container_name: squidsec2
     restart: unless-stopped
-    ports:
-      - "8443:8443"
-      # Map additional listener ports as needed, e.g.:
-      # - "4444:4444"
+    # Host networking so reverse-shell / TCP listeners can bind any host port
+    # (bridge mode only publishes ports listed under `ports:`).
+    network_mode: host
     environment:
       SQUIDSEC2_HOST: "0.0.0.0"
       SQUIDSEC2_PORT: "8443"
@@ -28,7 +27,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    # Resource limits for cheap droplets
     deploy:
       resources:
         limits:

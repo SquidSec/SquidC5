@@ -45,6 +45,8 @@ dev = [
 
 [project.scripts]
 squidsec2 = "squidsec2.main:cli"
+ss2 = "squidsec2.cli:main"
+squidsec2-cli = "squidsec2.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

