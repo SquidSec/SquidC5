@@ -211,7 +211,51 @@ On first start: written once to `$SQUIDC5_DATA_DIR/admin_token.txt` — **never 
 docker exec squidc5 cat /data/admin_token.txt
 ```
 
-### Deploy / update droplet
+### Production deploy policy (MANDATORY for agents)
+
+**Do not deploy source trees, Docker rebuilds-from-WIP, or local unmerged code to prod.**
+
+Prod is updated **only** with the **standalone `squidc5` executable** produced by CI after a clean merge pipeline:
+
+1. Feature work lands via **PR**
+2. **All tests pass** on the PR (CI green)
+3. PR is **merged to `main` / `master`**
+4. CI **builds** Linux/Windows binaries (`sc5`, `squidc5`) on that merge
+5. Agent downloads the **Linux `squidc5` artifact** from that successful main-branch run
+6. Agent deploys **that binary only** to the droplet (replace process; keep `data/`)
+
+```text
+PR → tests green → merge main → CI binaries → deploy squidc5 binary to prod
+```
+
+**Forbidden on prod:**
+- `rsync` of the working tree / unmerged branches
+- `docker compose up --build` from local dirty checkout
+- Deploying a binary built only on a feature branch (must be main CI artifact)
+- Hot-patching prod with untested edits
+
+**Allowed on prod:**
+- Install/restart the main-built `squidc5` binary under e.g. `/opt/squidc5/bin/squidc5`
+- Preserve `/opt/squidc5/data` (DB, admin token, LLMs)
+- Env: `SQUIDC5_*` (public host, ports, etc.)
+
+Example (after downloading main CI artifact):
+
+```bash
+# from operator machine — ARTIFACT is linux squidc5 from main CI
+scp -i <key> squidc5 root@<droplet>:/opt/squidc5/bin/squidc5.new
+ssh -i <key> root@<droplet> '
+  set -e
+  systemctl stop squidc5 || pkill -x squidc5 || true
+  mv /opt/squidc5/bin/squidc5.new /opt/squidc5/bin/squidc5
+  chmod +x /opt/squidc5/bin/squidc5
+  systemctl start squidc5   # or: SQUIDC5_DATA_DIR=/opt/squidc5/data /opt/squidc5/bin/squidc5
+'
+```
+
+Docker remains valid for **local/lab** use only, not the default prod path once binary deploy is active.
+
+Legacy source rsync + compose (lab only — **not prod**):
 
 ```bash
 rsync -az -e "ssh -i <key>" \
@@ -221,7 +265,7 @@ ssh -i <key> root@<droplet> \
   'cd /opt/squidc5 && docker compose up -d --build --force-recreate'
 ```
 
-Also: `scripts/deploy_droplet.sh <ip>`
+Also: `scripts/deploy_droplet.sh <ip>` (lab/Docker; not the prod binary path)
 
 **Do not store live tokens, SSH private keys, or API keys in this file.**
 
@@ -277,6 +321,7 @@ docker exec squidc5 cat /data/admin_token.txt
 - Update this `AGENTS.md` when CLI surface, deploy model, security boundaries, or defaults change
 - Do not weaken MCP tool restrictions, Admin AI sandbox, admin UI gate, or unlock `public_docs`
 - Never commit tokens, keys, or `data/` DB files
+- **Prod deploy:** only the main-CI `squidc5` binary after PR merge (see Production deploy policy above)
 
 ## Testing Focus
 
