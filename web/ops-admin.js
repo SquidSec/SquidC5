@@ -230,6 +230,31 @@
     `, true));
   }
 
+  // ----- Observability extras -----
+  if (can("metrics:read") || can("audit:read") || can("admin")) {
+    parts.push(panel("obsExtraPanel", "🗺 Timeline / report", `
+      <div class="row">
+        <button type="button" id="anomalyBtn">Anomalies</button>
+        <button type="button" id="reportBtn">Export report</button>
+        <button type="button" id="timelineBtn">Timeline</button>
+      </div>
+      <div class="outbox empty-out" id="obsExtraOut" style="margin-top:8px">—</div>
+    `, false));
+  }
+
+  // ----- Collab chat -----
+  if (can("collab:use") || can("admin")) {
+    parts.push(panel("chatPanel", "💬 Operator chat", `
+      <label for="chatMsg">Message</label>
+      <input id="chatMsg" placeholder="handoff note…" autocomplete="off" />
+      <div class="row">
+        <button type="button" class="primary" id="chatSendBtn">Send</button>
+        <button type="button" id="chatReloadBtn">Reload</button>
+      </div>
+      <div class="outbox empty-out" id="chatOut" style="margin-top:8px">—</div>
+    `, false));
+  }
+
   // ----- C2 Profiles -----
   if (can("profiles:read") || can("admin")) {
     parts.push(panel("profilesPanel", "📡 C2 profiles", `
@@ -911,9 +936,56 @@
     };
   }
 
+  if ($("anomalyBtn")) {
+    $("anomalyBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/observability/anomalies");
+        setOut("obsExtraOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("reportBtn")) {
+    $("reportBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/observability/report");
+        setOut("obsExtraOut", r.markdown || JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("timelineBtn")) {
+    $("timelineBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/observability/timeline?limit=30");
+        setOut("obsExtraOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  async function loadChat() {
+    if (!$("chatOut")) return;
+    const r = await api("GET", "/api/v1/collab/chat?limit=30");
+    const lines = (r.messages || []).map((m) => `${m.actor}: ${m.message}`);
+    setOut("chatOut", lines.join("\n") || "(empty)", !lines.length);
+  }
+  if ($("chatSendBtn")) {
+    $("chatSendBtn").onclick = async () => {
+      const message = ($("chatMsg").value || "").trim();
+      if (!message) return showError("Message required");
+      try {
+        await api("POST", "/api/v1/collab/chat", { message });
+        $("chatMsg").value = "";
+        await loadChat();
+        showOk("Sent");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("chatReloadBtn")) {
+    $("chatReloadBtn").onclick = () => loadChat().catch((e) => showError(String(e.message || e)));
+  }
+
   // Bootstrap data for panels present
   if ($("featureToggles")) loadFeatures().catch((e) => showError(String(e.message || e)));
   if ($("tokList")) loadTokens().catch((e) => showError(String(e.message || e)));
   if ($("profList")) loadProfiles().catch((e) => showError(String(e.message || e)));
+  if ($("chatOut")) loadChat().catch(() => {});
   window.__SC5_ADMIN_LOADED__ = true;
 })();

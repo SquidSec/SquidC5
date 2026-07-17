@@ -61,8 +61,12 @@ async def build_state(settings: Settings) -> AppState:
     await profiles.load()
     implants = ImplantRegistry()
     teams = TeamService(db)
-    plugins = PluginRegistry()
+    plugins = PluginRegistry(db=db)
+    await plugins.load_from_db()
     timeline = TimelineService(db)
+    from squidc5.ai.chain import AIChainRunner
+
+    ai_chain = AIChainRunner(admin_ai, max_steps=3)
 
     listeners = ListenerManager(
         db,
@@ -111,6 +115,7 @@ async def build_state(settings: Settings) -> AppState:
         teams=teams,
         plugins=plugins,
         timeline=timeline,
+        ai_chain=ai_chain,
         admin_token_once=admin_once,
     )
 
