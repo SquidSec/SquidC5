@@ -91,6 +91,34 @@ class FeaturesUpdate(BaseModel):
     features: dict[str, bool]
 
 
+class ProfileShapeRequest(BaseModel):
+    profile_id: str | None = None
+    beacon: dict[str, Any] = Field(default_factory=dict)
+
+
+class ImplantPlanRequest(BaseModel):
+    family: str = "http_beacon"
+    platform: str = "linux"
+    arch: str = "x64"
+    host: str | None = None
+    port: int | None = None
+
+
+class TeamCreate(BaseModel):
+    name: str
+
+
+class HandoffRequest(BaseModel):
+    to: str
+    note: str = ""
+
+
+class PluginRegister(BaseModel):
+    manifest: dict[str, Any]
+    signature: str
+    enable: bool = False
+
+
 def build_api_router() -> APIRouter:
     api = APIRouter(prefix="/api/v1")
 
@@ -689,6 +717,221 @@ def build_api_router() -> APIRouter:
             raise HTTPException(400, str(e)) from e
         except Exception as e:
             raise HTTPException(502, f"Admin AI error: {e}") from e
+
+    # ----- Malleable C2 profiles -----
+
+    @api.get("/profiles")
+    async def list_profiles(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("profiles:read", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not await state.features.enabled("malleable_profiles"):
+            raise HTTPException(403, "Malleable profiles disabled by feature flag")
+        active = state.profiles.active()
+        return {
+            "profiles": state.profiles.list_profiles(),
+            "active_id": active.id if active else None,
+        }
+
+    @api.get("/profiles/active")
+    async def get_active_profile(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("profiles:read", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        p = state.profiles.active()
+        if not p:
+            raise HTTPException(404, "no active profile")
+        return p.to_dict()
+
+    @api.post("/profiles/{profile_id}/activate")
+    async def activate_profile(
+        profile_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("profiles:write", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not await state.features.enabled("malleable_profiles"):
+            raise HTTPException(403, "Malleable profiles disabled by feature flag")
+        try:
+            p = await state.profiles.set_active(profile_id)
+        except KeyError:
+            raise HTTPException(404, "profile not found") from None
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="profile.activate",
+            resource=profile_id,
+            details={"name": p.name},
+            risk_score=4,
+        )
+        await state.metrics.incr("profiles.activated")
+        return p.to_dict()
+
+    @api.post("/profiles/shape")
+    async def shape_beacon_request(
+        body: ProfileShapeRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("profiles:read", "payloads:generate", "admin")),
+    ) -> dict[str, Any]:
+        """Preview HTTP shaping + jitter for a beacon object under active (or named) profile."""
+        state = get_state(request)
+        prof = state.profiles.get(body.profile_id) if body.profile_id else state.profiles.active()
+        beacon = body.beacon or {"session_id": "ses_preview", "hostname": "lab"}
+        return state.profiles.shape_http_request(prof, beacon)
+
+    # ----- Implants catalog -----
+
+    @api.get("/implants/families")
+    async def implant_families(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("payloads:generate", "admin")),
+    ) -> dict[str, Any]:
+        return {"families": get_state(request).implants.list_families()}
+
+    @api.post("/implants/plan")
+    async def implant_plan(
+        body: ImplantPlanRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("payloads:generate", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        host = body.host or state.settings.public_host or "127.0.0.1"
+        port = int(body.port or state.settings.port)
+        try:
+            profile_plan = state.profiles.implant_snippet(state.profiles.active(), host, port)
+            return state.implants.stager_plan(
+                body.family, body.platform, body.arch, host, port, profile_plan
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    # ----- Evasion assist -----
+
+    @api.get("/evasion/checklist")
+    async def evasion_checklist(
+        platform: str = "linux",
+        auth: AuthContext = Depends(require_scope("ai:use", "payloads:generate", "admin")),
+    ) -> dict[str, Any]:
+        from squidc5.evasion.checks import anti_analysis_checklist, sleep_obfuscation_plan
+
+        return {
+            "platform": platform,
+            "checklist": anti_analysis_checklist(platform),
+            "sleep": sleep_obfuscation_plan(5.0, 25.0),
+        }
+
+    # ----- Multi-operator collab -----
+
+    @api.get("/teams")
+    async def list_teams(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "admin")),
+    ) -> list[dict[str, Any]]:
+        state = get_state(request)
+        if not await state.features.enabled("collab_teams"):
+            raise HTTPException(403, "Collab disabled by feature flag")
+        return await state.teams.list_teams()
+
+    @api.post("/teams")
+    async def create_team(
+        body: TeamCreate,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not await state.features.enabled("collab_teams"):
+            raise HTTPException(403, "Collab disabled by feature flag")
+        if not body.name.strip():
+            raise HTTPException(400, "name required")
+        return await state.teams.create_team(body.name.strip(), auth.name)
+
+    @api.post("/sessions/{session_id}/handoff")
+    async def session_handoff(
+        session_id: str,
+        body: HandoffRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "sessions:write", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not body.to:
+            raise HTTPException(400, "to required")
+        try:
+            return await state.teams.handoff(
+                session_id, auth.name, body.to, note=body.note or ""
+            )
+        except Exception as e:
+            raise HTTPException(400, str(e)) from e
+
+    @api.get("/sessions/{session_id}/spectator")
+    async def session_spectator(
+        session_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("sessions:read", "collab:use", "admin")),
+    ) -> dict[str, Any]:
+        try:
+            return await get_state(request).teams.spectator_view(session_id)
+        except KeyError:
+            raise HTTPException(404, "session not found") from None
+
+    # ----- Plugins -----
+
+    @api.get("/plugins")
+    async def list_plugins(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("plugins:manage", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not await state.features.enabled("plugins_enabled"):
+            return {"plugins": [], "enabled_feature": False}
+        return {"plugins": state.plugins.list_plugins(), "enabled_feature": True}
+
+    @api.post("/plugins/register")
+    async def register_plugin(
+        body: PluginRegister,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("plugins:manage", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not await state.features.enabled("plugins_enabled"):
+            raise HTTPException(403, "Plugins disabled by feature flag")
+        try:
+            entry = state.plugins.register(
+                body.manifest, body.signature, enable=body.enable
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="plugin.register",
+            resource=entry["name"],
+            details={"version": entry["version"]},
+            risk_score=6,
+        )
+        return entry
+
+    # ----- Observability -----
+
+    @api.get("/observability/timeline")
+    async def obs_timeline(
+        request: Request,
+        limit: int = 100,
+        offset: int = 0,
+        auth: AuthContext = Depends(require_scope("audit:read", "metrics:read", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not await state.features.enabled("observability_timeline"):
+            raise HTTPException(403, "Observability timeline disabled")
+        return {"events": await state.timeline.timeline(limit=min(limit, 500), offset=offset)}
+
+    @api.get("/observability/heatmap")
+    async def obs_heatmap(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("metrics:read", "sessions:read", "admin")),
+    ) -> dict[str, Any]:
+        return await get_state(request).timeline.heatmap()
 
     # ----- Implant (no auth — session-bound beacon) -----
 

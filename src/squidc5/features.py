@@ -21,6 +21,10 @@ DEFAULT_FEATURES: dict[str, bool] = {
     "payloads_generate": True,
     "public_docs": False,  # never expose Swagger/OpenAPI
     "ops_dashboard": True,
+    "malleable_profiles": True,
+    "plugins_enabled": False,  # deny by default until allow-listed
+    "collab_teams": True,
+    "observability_timeline": True,
 }
 
 FEATURE_LABELS: dict[str, str] = {
@@ -36,6 +40,10 @@ FEATURE_LABELS: dict[str, str] = {
     "payloads_generate": "Payload generation",
     "public_docs": "Public /docs and OpenAPI (keep OFF)",
     "ops_dashboard": "Ops dashboard (/ops)",
+    "malleable_profiles": "Malleable / adaptive C2 profiles",
+    "plugins_enabled": "Plugin registry (allow-list)",
+    "collab_teams": "Multi-operator teams / handoff",
+    "observability_timeline": "Timeline + ATT&CK mapping",
 }
 
 
