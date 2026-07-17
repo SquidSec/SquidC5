@@ -45,6 +45,9 @@ class PayloadRequest(BaseModel):
     port: int
     interval: int = 5
     profile_id: str | None = None
+    # https / wss helpers (payload scheme only; TLS terminates at redirector or reverse proxy)
+    scheme: str | None = None  # http|https|ws|wss
+    zone: str | None = None  # DNS zone override
 
 
 class LLMConfig(BaseModel):
@@ -175,6 +178,16 @@ class RedirectorRequest(BaseModel):
 class CertPlanRequest(BaseModel):
     domains: list[str]
     days: int = 60
+
+
+class TeamMemberAdd(BaseModel):
+    actor: str
+    role: str = "operator"
+
+
+class PluginInstall(BaseModel):
+    name: str
+    enable: bool = True
 
 
 def build_api_router() -> APIRouter:
@@ -483,14 +496,32 @@ def build_api_router() -> APIRouter:
             plan: dict[str, Any] = {}
             session_path = "/api/v1/implant/beacon"
             interval = body.interval
-            if prof and body.template.startswith("http_beacon"):
+            if prof:
                 plan = state.profiles.implant_snippet(prof, body.host, body.port)
-                if plan.get("channel") == "http" and plan.get("uri"):
+                ch = plan.get("channel") or prof.channel
+                if ch == "http" and plan.get("uri"):
                     session_path = plan["uri"]
+                elif ch == "ws":
+                    from urllib.parse import urlparse
+
+                    session_path = urlparse(plan.get("url") or "").path or "/ws/v1/beacon"
+                    plan["ws_path"] = session_path
+                elif ch == "dns":
+                    plan["zone"] = plan.get("zone") or (prof.dns.zone if prof else "c2.lab.invalid")
                 if plan.get("sleep_sec"):
                     interval = int(max(1, round(float(plan["sleep_sec"]))))
+            if body.zone:
+                plan["zone"] = body.zone
+            if body.scheme:
+                plan["scheme"] = body.scheme
+            # auto-select template family from profile channel when using generic names
+            template = body.template
+            if prof and template == "http_beacon_python" and prof.channel == "dns":
+                template = "dns_beacon_python"
+            if prof and template == "http_beacon_python" and prof.channel == "ws":
+                template = "ws_beacon_python"
             result = state.payloads.generate(
-                template=body.template,
+                template=template,
                 host=body.host,
                 port=body.port,
                 session_path=session_path,
@@ -965,6 +996,7 @@ def build_api_router() -> APIRouter:
                 evasion=body.evasion,
                 zone=zone,
                 ws_path=ws_path,
+                scheme=plan.get("scheme") if isinstance(plan, dict) else None,
             )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
@@ -1009,7 +1041,40 @@ def build_api_router() -> APIRouter:
             raise HTTPException(403, "Collab disabled by feature flag")
         if not body.name.strip():
             raise HTTPException(400, "name required")
-        return await state.teams.create_team(body.name.strip(), auth.name)
+        team = await state.teams.create_team(body.name.strip(), auth.name)
+        await state.db.add_team_member(team["id"], auth.name, "lead")
+        return team
+
+    @api.get("/teams/{team_id}/members")
+    async def list_team_members(
+        team_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "admin")),
+    ) -> dict[str, Any]:
+        rows = await get_state(request).db.list_team_members(team_id)
+        return {"team_id": team_id, "members": rows}
+
+    @api.post("/teams/{team_id}/members")
+    async def add_team_member(
+        team_id: str,
+        body: TeamMemberAdd,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "admin")),
+    ) -> dict[str, Any]:
+        if not body.actor.strip():
+            raise HTTPException(400, "actor required")
+        await get_state(request).db.add_team_member(team_id, body.actor.strip(), body.role or "operator")
+        return {"team_id": team_id, "actor": body.actor.strip(), "role": body.role or "operator"}
+
+    @api.delete("/teams/{team_id}/members/{actor}")
+    async def remove_team_member(
+        team_id: str,
+        actor: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "admin")),
+    ) -> dict[str, bool]:
+        ok = await get_state(request).db.remove_team_member(team_id, actor)
+        return {"removed": ok}
 
     @api.post("/sessions/{session_id}/handoff")
     async def session_handoff(
@@ -1048,8 +1113,49 @@ def build_api_router() -> APIRouter:
     ) -> dict[str, Any]:
         state = get_state(request)
         if not await state.features.enabled("plugins_enabled"):
-            return {"plugins": [], "enabled_feature": False}
-        return {"plugins": state.plugins.list_plugins(), "enabled_feature": True}
+            return {"plugins": [], "enabled_feature": False, "catalog": []}
+        return {
+            "plugins": state.plugins.list_plugins(),
+            "enabled_feature": True,
+            "catalog": state.plugins.catalog(),
+        }
+
+    @api.get("/plugins/catalog")
+    async def plugins_catalog(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("plugins:manage", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        return {"catalog": state.plugins.catalog(), "enabled_feature": await state.features.enabled("plugins_enabled")}
+
+    @api.post("/plugins/install")
+    async def plugins_install(
+        body: PluginInstall,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("plugins:manage", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not await state.features.enabled("plugins_enabled"):
+            raise HTTPException(403, "Plugins disabled by feature flag")
+        try:
+            entry = state.plugins.install_catalog_item(body.name, enable=body.enable)
+            # persist
+            from squidc5.plugins.registry import BUILTIN_PLUGIN_CATALOG
+
+            item = next(x for x in BUILTIN_PLUGIN_CATALOG if x["name"] == body.name)
+            man = {
+                "name": item["name"],
+                "version": item["version"],
+                "capabilities": list(item["capabilities"]),
+                "description": item.get("description") or "",
+            }
+            sig = state.plugins.sign_manifest(man)
+            await state.plugins.persist(man, sig, enable=body.enable)
+        except KeyError:
+            raise HTTPException(404, "unknown catalog plugin") from None
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return entry
 
     @api.post("/plugins/register")
     async def register_plugin(
@@ -1216,6 +1322,33 @@ def build_api_router() -> APIRouter:
         state = get_state(request)
         rows = await state.db.list_chat(limit=min(limit, 200), team_id=team_id)
         return {"messages": list(reversed(rows))}
+
+    @api.get("/collab/chat/stream")
+    async def collab_chat_stream(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "admin")),
+    ) -> StreamingResponse:
+        """SSE poll of operator chat (near real-time)."""
+        state = get_state(request)
+        if not await state.features.enabled("collab_teams"):
+            raise HTTPException(403, "Collab disabled")
+
+        async def gen():
+            last_ts = 0.0
+            while True:
+                if await request.is_disconnected():
+                    break
+                rows = await state.db.list_chat(limit=20)
+                rows = list(reversed(rows))
+                for m in rows:
+                    ts = float(m.get("ts") or 0)
+                    if ts > last_ts:
+                        yield f"data: {json.dumps(m, default=str)}\n\n"
+                        last_ts = ts
+                yield f"data: {json.dumps({'type': 'ping'})}\n\n"
+                await asyncio.sleep(2.0)
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
 
     @api.post("/sessions/{session_id}/owner")
     async def set_session_owner(

@@ -253,6 +253,10 @@ def cmd_payloads_generate(args: argparse.Namespace, client: Client) -> None:
     }
     if getattr(args, "profile", None):
         body["profile_id"] = args.profile
+    if getattr(args, "scheme", None):
+        body["scheme"] = args.scheme
+    if getattr(args, "zone", None):
+        body["zone"] = args.zone
     data = client.post("/api/v1/payloads/generate", json=body)
     if args.raw:
         print(data.get("content", ""))
@@ -270,6 +274,88 @@ def cmd_profiles_active(args: argparse.Namespace, client: Client) -> None:
 
 def cmd_profiles_activate(args: argparse.Namespace, client: Client) -> None:
     pp(client.post(f"/api/v1/profiles/{args.id}/activate"))
+
+
+def cmd_implants_families(args: argparse.Namespace, client: Client) -> None:
+    pp(client.get("/api/v1/implants/families"))
+
+
+def cmd_implants_generate(args: argparse.Namespace, client: Client) -> None:
+    body: dict[str, Any] = {
+        "family": args.family,
+        "platform": args.platform,
+        "arch": args.arch,
+        "host": args.host,
+        "port": args.port,
+        "evasion": not args.no_evasion,
+    }
+    if args.profile:
+        body["profile_id"] = args.profile
+    if args.path:
+        body["path"] = args.path
+    data = client.post("/api/v1/implants/generate", json=body)
+    if args.raw:
+        print(data.get("content", ""))
+    else:
+        pp(data)
+
+
+def cmd_ai_playbooks(args: argparse.Namespace, client: Client) -> None:
+    pp(client.get("/api/v1/ai/playbooks"))
+
+
+def cmd_ai_chain(args: argparse.Namespace, client: Client) -> None:
+    pp(
+        client.post(
+            "/api/v1/ai/chain",
+            json={"playbook": args.playbook, "user_data": args.data or ""},
+        )
+    )
+
+
+def cmd_report(args: argparse.Namespace, client: Client) -> None:
+    data = client.get("/api/v1/observability/report")
+    if args.raw:
+        print(data.get("markdown", ""))
+    else:
+        pp(data)
+
+
+def cmd_redirector(args: argparse.Namespace, client: Client) -> None:
+    body: dict[str, Any] = {
+        "server_name": args.server_name,
+        "upstream_host": args.upstream_host,
+        "upstream_port": args.upstream_port,
+        "listen_port": args.listen_port,
+    }
+    if args.uris:
+        body["beacon_uris"] = [u.strip() for u in args.uris.split(",") if u.strip()]
+    data = client.post("/api/v1/deploy/redirector", json=body)
+    if args.raw:
+        print(data.get("config", ""))
+    else:
+        pp(data)
+
+
+def cmd_teams_list(args: argparse.Namespace, client: Client) -> None:
+    pp(client.get("/api/v1/teams"))
+
+
+def cmd_teams_create(args: argparse.Namespace, client: Client) -> None:
+    pp(client.post("/api/v1/teams", json={"name": args.name}))
+
+
+def cmd_teams_members(args: argparse.Namespace, client: Client) -> None:
+    pp(client.get(f"/api/v1/teams/{args.id}/members"))
+
+
+def cmd_teams_add_member(args: argparse.Namespace, client: Client) -> None:
+    pp(
+        client.post(
+            f"/api/v1/teams/{args.id}/members",
+            json={"actor": args.actor, "role": args.role},
+        )
+    )
 
 
 def _print_shell_result(data: dict[str, Any], *, json_mode: bool, verbose: bool, prefix: str = "") -> None:
@@ -705,8 +791,57 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("port", type=int)
     p_gen.add_argument("--interval", type=int, default=5)
     p_gen.add_argument("--profile", default=None, help="C2 profile id (default: active)")
+    p_gen.add_argument("--scheme", default=None, help="http|https for HTTP beacons; ws|wss for WS")
+    p_gen.add_argument("--zone", default=None, help="DNS zone override")
     p_gen.add_argument("--raw", action="store_true", help="Print payload content only")
     p_gen.set_defaults(func=cmd_payloads_generate, needs_client=True)
+
+    # implants
+    imp = sub.add_parser("implants", help="Advanced implant generation")
+    imp_sub = imp.add_subparsers(dest="implants_cmd", required=True)
+    im_f = imp_sub.add_parser("families")
+    im_f.set_defaults(func=cmd_implants_families, needs_client=True)
+    im_g = imp_sub.add_parser("generate")
+    im_g.add_argument("family")
+    im_g.add_argument("host")
+    im_g.add_argument("port", type=int)
+    im_g.add_argument("--platform", default="linux")
+    im_g.add_argument("--arch", default="x64")
+    im_g.add_argument("--profile", default=None)
+    im_g.add_argument("--path", default=None)
+    im_g.add_argument("--no-evasion", action="store_true")
+    im_g.add_argument("--raw", action="store_true")
+    im_g.set_defaults(func=cmd_implants_generate, needs_client=True)
+
+    # teams
+    teams = sub.add_parser("teams", help="Multi-operator teams")
+    teams_sub = teams.add_subparsers(dest="teams_cmd", required=True)
+    tm_l = teams_sub.add_parser("list")
+    tm_l.set_defaults(func=cmd_teams_list, needs_client=True)
+    tm_c = teams_sub.add_parser("create")
+    tm_c.add_argument("name")
+    tm_c.set_defaults(func=cmd_teams_create, needs_client=True)
+    tm_m = teams_sub.add_parser("members")
+    tm_m.add_argument("id")
+    tm_m.set_defaults(func=cmd_teams_members, needs_client=True)
+    tm_a = teams_sub.add_parser("add-member")
+    tm_a.add_argument("id")
+    tm_a.add_argument("actor")
+    tm_a.add_argument("--role", default="operator")
+    tm_a.set_defaults(func=cmd_teams_add_member, needs_client=True)
+
+    # report / redirector
+    rep = sub.add_parser("report", help="Export operator markdown report")
+    rep.add_argument("--raw", action="store_true")
+    rep.set_defaults(func=cmd_report, needs_client=True)
+    red = sub.add_parser("redirector", help="Generate nginx redirector snippet")
+    red.add_argument("--server-name", default="cdn.example.invalid")
+    red.add_argument("--upstream-host", default="127.0.0.1")
+    red.add_argument("--upstream-port", type=int, default=8443)
+    red.add_argument("--listen-port", type=int, default=443)
+    red.add_argument("--uris", default=None, help="Comma-separated beacon URIs")
+    red.add_argument("--raw", action="store_true")
+    red.set_defaults(func=cmd_redirector, needs_client=True)
 
     # profiles
     prof = sub.add_parser("profiles", help="Malleable C2 profiles")
@@ -788,6 +923,13 @@ def build_parser() -> argparse.ArgumentParser:
     ai.add_argument("--data", default="")
     ai.add_argument("--llm", default=None)
     ai.set_defaults(func=cmd_ai_run, needs_client=True)
+
+    pb = sub.add_parser("playbooks", help="List AI chain playbooks")
+    pb.set_defaults(func=cmd_ai_playbooks, needs_client=True)
+    ch = sub.add_parser("chain", help="Run railed AI playbook chain")
+    ch.add_argument("playbook")
+    ch.add_argument("--data", default="")
+    ch.set_defaults(func=cmd_ai_chain, needs_client=True)
 
     llm = sub.add_parser("llm", help="LLM connection management")
     llm_sub = llm.add_subparsers(dest="llm_cmd", required=True)

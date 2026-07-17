@@ -22,7 +22,73 @@ def _handle_recon_summary(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _handle_session_triage(args: dict[str, Any]) -> dict[str, Any]:
+    kind = str(args.get("kind") or "unknown")
+    verified = bool(args.get("verified"))
+    return {
+        "kind": kind,
+        "verified": verified,
+        "priority": "high" if kind in ("reverse_shell", "tcp") and not verified else "normal",
+        "actions": ["reap" if not verified else "interact", "document owner"],
+    }
+
+
+def _handle_opsec_checklist(args: dict[str, Any]) -> dict[str, Any]:
+    channel = str(args.get("channel") or "http")
+    return {
+        "channel": channel,
+        "checklist": [
+            "Confirm authorization and scope",
+            f"Match implant channel to profile ({channel})",
+            "Enable jitter and decoys where supported",
+            "Use redirector for TLS termination",
+            "Rotate domains/certs on schedule",
+            "Reap unverified shells",
+        ],
+    }
+
+
+def _handle_listener_suggest(args: dict[str, Any]) -> dict[str, Any]:
+    purpose = str(args.get("purpose") or "beacon")
+    if purpose == "dns":
+        return {"kind": "dns", "port": 53, "config": {"zone": "c2.lab.invalid"}}
+    if purpose == "shell":
+        return {"kind": "reverse_shell", "port": 4444, "config": {}}
+    return {"kind": "http", "port": 8080, "config": {}}
+
+
 _BUILTIN_HANDLERS["recon.summary"] = _handle_recon_summary
+_BUILTIN_HANDLERS["session.triage"] = _handle_session_triage
+_BUILTIN_HANDLERS["opsec.checklist"] = _handle_opsec_checklist
+_BUILTIN_HANDLERS["listener.suggest"] = _handle_listener_suggest
+
+# Catalog for marketplace-style discovery (still deny-by-default until registered+enabled)
+BUILTIN_PLUGIN_CATALOG: list[dict[str, Any]] = [
+    {
+        "name": "lab_recon",
+        "version": "1.0.0",
+        "capabilities": ["recon.summary"],
+        "description": "Lab recon summary helper",
+    },
+    {
+        "name": "session_triage",
+        "version": "1.0.0",
+        "capabilities": ["session.triage"],
+        "description": "Prioritize sessions for operators",
+    },
+    {
+        "name": "opsec_helper",
+        "version": "1.0.0",
+        "capabilities": ["opsec.checklist"],
+        "description": "Channel OPSEC checklist",
+    },
+    {
+        "name": "listener_helper",
+        "version": "1.0.0",
+        "capabilities": ["listener.suggest"],
+        "description": "Suggest listener kind/port for lab",
+    },
+]
 
 
 class PluginRegistry:
@@ -126,3 +192,31 @@ class PluginRegistry:
         if handler is None:
             raise ValueError(f"no built-in handler for capability: {capability}")
         return {"ok": True, "plugin": name, "capability": capability, "result": handler(args or {})}
+
+    def catalog(self) -> list[dict[str, Any]]:
+        """Marketplace-style discovery list (not enabled until registered)."""
+        enabled = {p["name"]: p for p in self.list_plugins()}
+        out = []
+        for item in BUILTIN_PLUGIN_CATALOG:
+            e = enabled.get(item["name"])
+            out.append(
+                {
+                    **item,
+                    "installed": e is not None,
+                    "enabled": bool(e and e.get("enabled")),
+                }
+            )
+        return out
+
+    def install_catalog_item(self, name: str, *, enable: bool = True) -> dict[str, Any]:
+        item = next((x for x in BUILTIN_PLUGIN_CATALOG if x["name"] == name), None)
+        if not item:
+            raise KeyError(name)
+        man = {
+            "name": item["name"],
+            "version": item["version"],
+            "capabilities": list(item["capabilities"]),
+            "description": item.get("description") or "",
+        }
+        sig = self.sign_manifest(man)
+        return self.register(man, sig, enable=enable)

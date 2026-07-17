@@ -105,7 +105,11 @@
             <option value="reverse_shell">reverse_shell</option>
             <option value="http">http</option>
             <option value="tcp">tcp</option>
+            <option value="dns">dns</option>
           </select>
+          <input id="newLisZone" placeholder="dns zone (dns only)" style="flex:1" />
+        </div>
+        <div class="row">
           <button type="button" class="primary" id="createLisBtn">Create + start</button>
         </div>
       ` : ""}
@@ -114,23 +118,81 @@
 
   // ----- Payloads -----
   if (can("payloads:generate")) {
-    parts.push(panel("payloadsPanel", "💣 Payloads", `
+    parts.push(panel("payloadsPanel", "💣 Payloads / implants", `
       <label for="payTpl">Template</label>
       <select id="payTpl">
-        <option value="reverse_shell_bash">reverse_shell_bash</option>
-        <option value="reverse_shell_python">reverse_shell_python</option>
         <option value="http_beacon_python">http_beacon_python</option>
         <option value="http_beacon_bash">http_beacon_bash</option>
+        <option value="dns_beacon_python">dns_beacon_python</option>
+        <option value="ws_beacon_python">ws_beacon_python</option>
+        <option value="memory_beacon_python">memory_beacon_python</option>
+        <option value="linux_memfd">linux_memfd</option>
+        <option value="windows_ps_beacon">windows_ps_beacon</option>
+        <option value="bof_c">bof_c</option>
+        <option value="reverse_shell_bash">reverse_shell_bash</option>
+        <option value="reverse_shell_python">reverse_shell_python</option>
       </select>
       <div class="row">
         <input id="payHost" placeholder="callback host" style="flex:1.4" />
         <input id="payPort" type="number" placeholder="port" style="flex:0.7" />
       </div>
       <div class="row">
+        <select id="payScheme">
+          <option value="">scheme default</option>
+          <option value="http">http</option>
+          <option value="https">https</option>
+          <option value="ws">ws</option>
+          <option value="wss">wss</option>
+        </select>
+        <input id="payZone" placeholder="dns zone (optional)" />
+      </div>
+      <div class="row">
         <button type="button" class="primary" id="genPayBtn">Generate</button>
         <button type="button" id="listTplBtn">Templates</button>
       </div>
+      <label for="impFamily">Implant family</label>
+      <select id="impFamily">
+        <option value="http_beacon">http_beacon</option>
+        <option value="dns_beacon">dns_beacon</option>
+        <option value="ws_beacon">ws_beacon</option>
+        <option value="memory_beacon_python">memory_beacon_python</option>
+        <option value="linux_memfd">linux_memfd</option>
+        <option value="linux_stager">linux_stager</option>
+        <option value="bof">bof</option>
+      </select>
+      <div class="row">
+        <button type="button" id="genImpBtn">Generate implant</button>
+      </div>
       <div class="outbox empty-out" id="payOut" style="margin-top:8px">—</div>
+    `, false));
+  }
+
+  // ----- Plugins -----
+  if (can("plugins:manage") || can("admin")) {
+    parts.push(panel("pluginsPanel", "🧩 Plugins", `
+      <div class="row">
+        <button type="button" id="plugCatBtn">Catalog</button>
+        <button type="button" id="plugListBtn">Installed</button>
+      </div>
+      <label for="plugName">Install catalog name</label>
+      <input id="plugName" placeholder="lab_recon" />
+      <div class="row">
+        <button type="button" class="primary" id="plugInstallBtn">Install + enable</button>
+      </div>
+      <div class="outbox empty-out" id="plugOut" style="margin-top:8px">—</div>
+    `, false));
+  }
+
+  // ----- Deploy helpers -----
+  if (can("admin") || can("listeners:write")) {
+    parts.push(panel("deployPanel", "🛡 Redirector / certs", `
+      <input id="redirName" placeholder="server_name e.g. cdn.lab" />
+      <input id="redirUris" placeholder="beacon uris comma-sep" />
+      <div class="row">
+        <button type="button" class="primary" id="redirBtn">Nginx snippet</button>
+        <button type="button" id="certPlanBtn">Cert plan</button>
+      </div>
+      <div class="outbox empty-out" id="deployOut" style="margin-top:8px">—</div>
     `, false));
   }
 
@@ -569,26 +631,33 @@
     };
   }
   if ($("createLisBtn")) {
-    $("createLisBtn").onclick = async () => {
-      const name = $("newLisName").value.trim();
-      const port = Number($("newLisPort").value);
-      const kind = $("newLisKind").value;
-      if (!name || !port) return showError("Name and port required");
-      try {
-        const created = await api("POST", "/api/v1/listeners", { name, port, kind, host: "0.0.0.0" });
-        await api("POST", `/api/v1/listeners/${created.id}/start`);
-        showOk(`Created & started ${name} :${port}`);
-        refresh();
-      } catch (e) { showError(String(e.message || e)); }
-    };
+  if ($("createLisBtn")) $("createLisBtn").onclick = async () => {
+    const name = $("newLisName").value.trim();
+    const port = Number($("newLisPort").value);
+    const kind = $("newLisKind").value;
+    if (!name || !port) return showError("Name and port required");
+    const body = { name, port, kind, host: "0.0.0.0", config: {} };
+    if (kind === "dns") {
+      body.config = { zone: ($("newLisZone") && $("newLisZone").value.trim()) || "c2.lab.invalid" };
+    }
+    try {
+      const created = await api("POST", "/api/v1/listeners", body);
+      await api("POST", `/api/v1/listeners/${created.id}/start`);
+      showOk(`Created & started ${name} :${port}`);
+      refresh();
+    } catch (e) { showError(String(e.message || e)); }
+  };
+
   }
 
   // Payloads
   if ($("genPayBtn")) {
-    // default host from current page
     try {
       if ($("payHost") && !$("payHost").value) {
         $("payHost").value = location.hostname || "";
+      }
+      if ($("payPort") && !$("payPort").value) {
+        $("payPort").value = location.port || "8443";
       }
     } catch (_) {}
     $("genPayBtn").onclick = async () => {
@@ -596,11 +665,78 @@
       const host = $("payHost").value.trim();
       const port = Number($("payPort").value);
       if (!host || !port) return showError("Host and port required");
+      const body = { template, host, port, interval: 5 };
+      const scheme = $("payScheme") && $("payScheme").value;
+      if (scheme) body.scheme = scheme;
+      const zone = $("payZone") && $("payZone").value.trim();
+      if (zone) body.zone = zone;
       try {
-        const res = await api("POST", "/api/v1/payloads/generate", { template, host, port, interval: 5 });
-        const body = res.payload || res.content || res;
-        setOut("payOut", typeof body === "string" ? body : JSON.stringify(res, null, 2), false);
+        const res = await api("POST", "/api/v1/payloads/generate", body);
+        setOut("payOut", res.content || JSON.stringify(res, null, 2), false);
         showOk("Payload generated");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("genImpBtn")) {
+    $("genImpBtn").onclick = async () => {
+      const host = ($("payHost") && $("payHost").value.trim()) || location.hostname;
+      const port = Number(($("payPort") && $("payPort").value) || location.port || 8443);
+      const family = $("impFamily").value;
+      try {
+        const res = await api("POST", "/api/v1/implants/generate", {
+          family, platform: family === "bof" ? "windows" : "linux", arch: "x64", host, port, evasion: true,
+        });
+        setOut("payOut", res.content || JSON.stringify(res, null, 2), false);
+        showOk("Implant generated");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("plugCatBtn")) {
+    $("plugCatBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/plugins/catalog");
+        setOut("plugOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("plugListBtn")) {
+    $("plugListBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/plugins");
+        setOut("plugOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("plugInstallBtn")) {
+    $("plugInstallBtn").onclick = async () => {
+      const name = ($("plugName").value || "").trim();
+      if (!name) return showError("Plugin name required");
+      try {
+        const r = await api("POST", "/api/v1/plugins/install", { name, enable: true });
+        setOut("plugOut", JSON.stringify(r, null, 2), false);
+        showOk("Plugin installed");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("redirBtn")) {
+    $("redirBtn").onclick = async () => {
+      try {
+        const server_name = ($("redirName").value || "cdn.lab").trim();
+        const uris = ($("redirUris").value || "").split(",").map((s) => s.trim()).filter(Boolean);
+        const r = await api("POST", "/api/v1/deploy/redirector", {
+          server_name,
+          beacon_uris: uris.length ? uris : undefined,
+        });
+        setOut("deployOut", r.config || JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("certPlanBtn")) {
+    $("certPlanBtn").onclick = async () => {
+      try {
+        const d = ($("redirName").value || "cdn.lab").trim();
+        const r = await api("POST", "/api/v1/deploy/cert-plan", { domains: [d], days: 60 });
+        setOut("deployOut", JSON.stringify(r, null, 2), false);
       } catch (e) { showError(String(e.message || e)); }
     };
   }
