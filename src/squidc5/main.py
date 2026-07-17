@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -24,6 +23,7 @@ from squidc5.features import FeatureFlags
 from squidc5.listeners.manager import ListenerManager
 from squidc5.mcp.server import build_mcp_router
 from squidc5.metrics.collector import MetricsCollector
+from squidc5.paths import web_dir
 from squidc5.payloads.generator import PayloadGenerator
 from squidc5.policy.engine import PolicyEngine
 from squidc5.sessions.manager import SessionManager
@@ -219,14 +219,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # MCP routes always mounted; runtime feature flag / settings gate access
     app.include_router(build_mcp_router())
 
-    # Operator phone/desktop console (static)
-    web_dir = Path(__file__).resolve().parent.parent.parent / "web"
-    if not web_dir.is_dir():
-        # Docker layout: /app/web
-        web_dir = Path("/app/web")
-    dash_file = web_dir / "phone-dashboard.html"
-    if web_dir.is_dir():
-        app.mount("/ops/assets", StaticFiles(directory=str(web_dir / "assets")), name="ops-assets")
+    # Operator phone/desktop console (static) — works from source, Docker, frozen binary
+    wdir = web_dir()
+    dash_file = wdir / "phone-dashboard.html"
+    assets = wdir / "assets"
+    if wdir.is_dir():
+        if assets.is_dir():
+            app.mount("/ops/assets", StaticFiles(directory=str(assets)), name="ops-assets")
 
         @app.get("/ops")
         @app.get("/ops/")
