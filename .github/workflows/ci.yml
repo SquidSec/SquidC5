@@ -142,3 +142,115 @@ jobs:
             dist/binaries/*/
           if-no-files-found: error
           retention-days: 30
+
+  # Publish GitHub Release with Linux + Windows binaries when main/master CI succeeds.
+  release:
+    name: github-release
+    needs: [binaries, test]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: squidc5-linux-x64
+          path: artifacts/linux
+
+      - name: Download Windows binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: squidc5-windows-x64
+          path: artifacts/windows
+
+      - name: Stage release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          # Linux
+          test -f artifacts/linux/sc5
+          test -f artifacts/linux/squidc5
+          cp artifacts/linux/sc5 release/sc5-linux-x64
+          cp artifacts/linux/squidc5 release/squidc5-linux-x64
+          chmod +x release/sc5-linux-x64 release/squidc5-linux-x64
+          # Windows
+          test -f artifacts/windows/sc5.exe
+          test -f artifacts/windows/squidc5.exe
+          cp artifacts/windows/sc5.exe release/sc5-windows-x64.exe
+          cp artifacts/windows/squidc5.exe release/squidc5-windows-x64.exe
+          # Checksums + short readme
+          (
+            cd release
+            sha256sum * > SHA256SUMS.txt
+          )
+          cat > release/README.txt << EOF
+          SquidC5 standalone binaries (no Python/venv required)
+
+          sc5-linux-x64 / sc5-windows-x64.exe     Operator CLI
+          squidc5-linux-x64 / squidc5-windows-x64.exe   C2 server
+
+          Server defaults: 0.0.0.0:8443  data in ./data/
+          Ops console: http://HOST:8443/ops
+          Authorized use only.
+          EOF
+          ls -lah release/
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::7}"
+          TAG="v0.1.${{ github.run_number }}-${SHORT_SHA}"
+          TITLE="SquidC5 ${TAG}"
+          NOTES="$(cat <<EOF
+          ## SquidC5 release \`${TAG}\`
+
+          Built from \`${GITHUB_REF_NAME}\` @ \`${SHORT_SHA}\` after CI tests passed.
+
+          ### Assets
+          | File | Platform | Role |
+          |------|----------|------|
+          | \`sc5-linux-x64\` | Linux x64 | Operator CLI |
+          | \`squidc5-linux-x64\` | Linux x64 | C2 server |
+          | \`sc5-windows-x64.exe\` | Windows x64 | Operator CLI |
+          | \`squidc5-windows-x64.exe\` | Windows x64 | C2 server |
+          | \`SHA256SUMS.txt\` | — | Checksums |
+
+          ### Server (Linux)
+          \`\`\`bash
+          chmod +x squidc5-linux-x64
+          ./squidc5-linux-x64
+          # token: ./data/admin_token.txt
+          # console: http://HOST:8443/ops
+          \`\`\`
+
+          ### CLI
+          \`\`\`bash
+          ./sc5-linux-x64 login --url http://HOST:8443 --token sc5_...
+          ./sc5-linux-x64 sessions list
+          \`\`\`
+
+          Authorized red-team / pen-test use only.
+          EOF
+          )"
+          # Unique release per successful main build; mark as latest
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "$TITLE" \
+            --notes "$NOTES" \
+            --latest \
+            release/sc5-linux-x64 \
+            release/squidc5-linux-x64 \
+            release/sc5-windows-x64.exe \
+            release/squidc5-windows-x64.exe \
+            release/SHA256SUMS.txt \
+            release/README.txt
+          echo "Published release: $TAG"
+          echo "url=https://github.com/${{ github.repository }}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
