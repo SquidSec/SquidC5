@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#000000" />
   <link rel="icon" href="https://i.imgur.com/m1FBjqj.png" type="image/png" />
   <link rel="stylesheet" href="https://squidoffense.com/css/typography.css" />
-  <title>SquidSec · SquidC5</title>
+  <title>SquidC5</title>
   <style>
     :root {
       --pink: #ff00aa; --purple: #c026ff; --ok: #00ff9d; --warn: #fbbf24; --bad: #fb7185;
@@ -147,10 +147,10 @@
     <div class="brand">
       <img src="/ops/assets/squidsec-logo-256.png"
            onerror="this.onerror=null;this.src='https://i.imgur.com/m1FBjqj.png'"
-           alt="SquidSec" width="48" height="48" />
+           alt="SquidC5" width="48" height="48" />
       <div>
-        <h1>SQUID<span class="p">SEC</span></h1>
-        <div class="sub">SquidC5 console</div>
+        <h1>SQUID<span class="p">C5</span></h1>
+        <div class="sub">operator console</div>
       </div>
       <span id="statusBadge" class="badge">offline</span>
       <span id="roleBadge" class="badge admin hidden">—</span>
@@ -161,7 +161,7 @@
 
     <details class="panel" id="settingsPanel">
       <summary>⚙ Connection</summary>
-      <label for="url">C2 URL</label>
+      <label for="url">Server URL</label>
       <input id="url" type="url" placeholder="http://HOST:8443" autocomplete="off" />
       <label for="token">API token</label>
       <input id="token" type="password" placeholder="sc5_…" autocomplete="off" />
@@ -215,7 +215,7 @@
     <footer>
       <div id="footer">Last update: never</div>
       <div style="margin-top:4px;letter-spacing:0.12em;text-transform:uppercase;font-size:0.62rem">
-        <strong style="color:var(--pink)">SquidSec</strong> · authorized ops only
+        <strong style="color:var(--pink)">SquidC5</strong> · authorized ops only
       </div>
     </footer>
   </div>
@@ -255,7 +255,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     let isAdmin = false;
     const state = { features: {}, adminLoaded: false };
 
-    function defaultC2Url() {
+    function defaultServerUrl() {
       try { if (location.protocol.startsWith("http")) return location.origin.replace(/\/$/, ""); } catch (_) {}
       return "";
     }
@@ -289,12 +289,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     }
     function cfg() {
       return {
-        url: (localStorage.getItem(KEYS.url) || defaultC2Url() || "").replace(/\/$/, ""),
+        url: (localStorage.getItem(KEYS.url) || defaultServerUrl() || "").replace(/\/$/, ""),
         token: localStorage.getItem(KEYS.token) || "",
         refresh: Math.max(5, Number(localStorage.getItem(KEYS.refresh) || 10)),
       };
     }
-    /** Prefer same-origin when the page is served from this C2 (/ops) — avoids CORS breakage. */
+    /** Prefer same-origin when the page is served from this host (/ops) — avoids CORS breakage. */
     function apiBase() {
       try {
         if (location.protocol.startsWith("http") && location.pathname.indexOf("/ops") === 0) {
@@ -307,7 +307,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     function saveSettings() {
       let url = $("url").value.trim().replace(/\/$/, "");
       // If user left URL blank while on /ops, default to this host
-      if (!url) url = defaultC2Url();
+      if (!url) url = defaultServerUrl();
       // If on /ops, force same-origin base so connect always works
       try {
         if (location.pathname.indexOf("/ops") === 0 && location.protocol.startsWith("http")) {
@@ -334,7 +334,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     }
     function loadSettings() {
       const imported = applyHashConfig();
-      let url = localStorage.getItem(KEYS.url) || defaultC2Url();
+      let url = localStorage.getItem(KEYS.url) || defaultServerUrl();
       // Always prefer the host serving this page when opened via /ops
       try {
         if (location.pathname.indexOf("/ops") === 0 && location.protocol.startsWith("http")) {
@@ -369,7 +369,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     async function api(method, path, body) {
       const c = cfg();
       const base = apiBase();
-      if (!base) throw new Error("Set C2 URL (or open this page from the C2 /ops URL)");
+      if (!base) throw new Error("Set Server URL (or open this page from the SquidC5 /ops URL)");
       if (!c.token) throw new Error("Set API token");
       const opts = {
         method,
@@ -387,8 +387,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         res = await fetch(base + path, opts);
       } catch (e) {
         throw new Error(
-          "Failed to reach C2 at " + base + path + " (" + (e.message || e) + "). " +
-          "Open http://YOUR_C2:8443/ops directly (same host), check token, and hard-refresh."
+          "Failed to reach SquidC5 at " + base + path + " (" + (e.message || e) + "). " +
+          "Open http://YOUR_HOST:8443/ops directly (same host), check token, and hard-refresh."
         );
       }
       if (!res.ok) {
@@ -402,16 +402,16 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       return res.text();
     }
 
-    /** Load admin UI only after server confirms admin scope — script is not in the public page. */
-    async function ensureAdminUi() {
+    /** Load ops console after auth — panels self-gate by token scopes (not in public HTML). */
+    async function ensureConsoleUi() {
       if (state.adminLoaded) return true;
-      if (!isAdmin) {
+      if (!cfg().token) {
         $("adminMount").innerHTML = "";
         return false;
       }
       try {
         const c = cfg();
-        const res = await fetch(apiBase() + "/api/v1/ops/admin.js", {
+        const res = await fetch(apiBase() + "/api/v1/ops/console.js", {
           headers: { Authorization: "Bearer " + c.token, Accept: "application/javascript" },
           mode: "cors",
           credentials: "omit",
@@ -422,7 +422,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           return false;
         }
         if (!res.ok) {
-          showError("Admin UI load failed (" + res.status + ") — status view still works");
+          showError("Ops console load failed (" + res.status + ") — status view still works");
           return false;
         }
         const code = await res.text();
@@ -440,8 +440,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         state.adminLoaded = true;
         return true;
       } catch (e) {
-        // Never block basic connect/status on admin UI failure
-        showError("Admin UI unavailable: " + (e.message || e));
+        showError("Ops console unavailable: " + (e.message || e));
         return false;
       }
     }
@@ -517,35 +516,40 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         const c = cfg();
         try { await api("POST", "/api/v1/sessions/reap", { probe: false }); } catch (_) {}
 
-        const [health, metrics, shellRows, lis, who, aiSt] = await Promise.all([
-          api("GET", "/api/v1/health"),
-          api("GET", "/api/v1/metrics"),
-          api("GET", "/api/v1/sessions?status=active&live_only=true&kind=reverse_shell,tcp"),
-          api("GET", "/api/v1/listeners"),
-          api("GET", "/api/v1/meta"),
-          api("GET", "/api/v1/ai/status").catch(() => null),
+        const who = await api("GET", "/api/v1/meta");
+        scopes = new Set(who.scopes || []);
+        isAdmin = scopes.has("admin") || who.actor_type === "admin";
+        $("roleBadge").classList.toggle("hidden", false);
+        $("roleBadge").textContent = isAdmin ? "admin" : (who.actor_type || "operator");
+
+        // Scope-gated console (must load after scopes are known so can() works)
+        try { await ensureConsoleUi(); } catch (_) {}
+
+        const soft = async (fn) => { try { return await fn(); } catch (_) { return null; } };
+        const [health, metrics, shellRows, lis, aiSt] = await Promise.all([
+          soft(() => api("GET", "/api/v1/health")),
+          soft(() => api("GET", "/api/v1/metrics")),
+          soft(() => api("GET", "/api/v1/sessions?status=active&live_only=true&kind=reverse_shell,tcp")),
+          soft(() => api("GET", "/api/v1/listeners")),
+          soft(() => api("GET", "/api/v1/ai/status")),
         ]);
 
         showError("");
         $("statusBadge").textContent = "online";
         $("statusBadge").className = "badge ok";
         $("hostLine").textContent = hostFromUrl(c.url) + (who.actor ? ` · ${who.actor}` : "");
-        $("nUptime").textContent = fmtUptime(metrics.uptime_seconds);
-        $("healthLine").textContent = `${health.app || "SquidC5"} v${health.version || "?"} · ${health.status}`;
-
-        scopes = new Set(who.scopes || []);
-        isAdmin = scopes.has("admin") || who.actor_type === "admin";
-        $("roleBadge").classList.toggle("hidden", false);
-        $("roleBadge").textContent = isAdmin ? "admin" : "operator";
-
-        // Server-gated admin UI (failure must not break status connect)
-        try { await ensureAdminUi(); } catch (_) {}
+        $("nUptime").textContent = fmtUptime((metrics && metrics.uptime_seconds) || 0);
+        $("healthLine").textContent = health
+          ? `${health.app || "SquidC5"} v${health.version || "?"} · ${health.status}`
+          : "connected";
 
         const verified = (shellRows || []).filter((s) => s.kind === "reverse_shell" || s.kind === "tcp");
         renderShells(verified);
         renderListeners(lis || []);
-        renderEvents(metrics);
-        renderChips(metrics.metrics || {});
+        if (metrics) {
+          renderEvents(metrics);
+          renderChips(metrics.metrics || {});
+        }
         if (aiSt && window.__SC5_renderAi) window.__SC5_renderAi(aiSt);
 
         $("footer").textContent =
@@ -629,7 +633,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     } else {
       loadSettings();
       if (cfg().url && cfg().token) { schedule(); refresh(); }
-      else showError("Enter C2 URL + token, then Save & Connect.");
+      else showError("Enter Server URL + token, then Save & Connect.");
     }
   </script>
 </body>

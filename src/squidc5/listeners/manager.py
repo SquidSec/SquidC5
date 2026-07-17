@@ -210,7 +210,7 @@ class ListenerManager:
             first: bytes | None = None
             try:
                 first = await asyncio.wait_for(reader.read(512), timeout=0.4)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 first = None
 
             if first:
@@ -309,7 +309,7 @@ class ListenerManager:
                 while True:
                     try:
                         data = await asyncio.wait_for(reader.read(8192), timeout=120.0)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         if sid in self._rejected:
                             break
                         # Do NOT touch last_seen_at on idle — that fakes a live shell.
@@ -718,7 +718,7 @@ class ListenerManager:
                 try:
                     await asyncio.wait_for(ev.wait(), timeout=0.2)
                     ev.clear()
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
             else:
                 await asyncio.sleep(0.15)

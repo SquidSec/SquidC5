@@ -35,12 +35,34 @@ uvicorn squidc5.main:create_app --factory --host 0.0.0.0 --port 8443
 # Admin token printed path: data/admin_token.txt
 ```
 
+## Standalone binaries (no venv)
+
+Every push to `main` builds Linux + Windows executables in CI (Artifacts):
+
+| Binary | Purpose |
+|--------|---------|
+| `sc5` / `sc5.exe` | Operator CLI |
+| `squidc5` / `squidc5.exe` | C2 server (includes `/ops` UI) |
+
+```bash
+# Server
+./squidc5
+# token: ./data/admin_token.txt   console: http://HOST:8443/ops
+
+# Operator CLI
+./sc5 login --url http://HOST:8443 --token sc5_...
+./sc5 sessions list
+```
+
+Local build: `./scripts/build_binaries.sh` (outputs `dist/binaries/`).
+
 ## Operator CLI (`sc5`)
 
 Local harness to control a remote SquidC5 instance:
 
 ```bash
 pip install -e .
+# or use the standalone sc5 binary from CI artifacts
 sc5 login --url http://YOUR_HOST:8443 --token sc5_...
 sc5 health
 sc5 sessions list
