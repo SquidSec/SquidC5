@@ -12,9 +12,9 @@
   const root = document.getElementById("adminMount");
   if (!root) return;
 
-  function panel(id, title, body, _open) {
-    // All collapsible panels start collapsed; open arg ignored by design
-    return `<details class="panel" id="${id}">
+  function panel(id, title, body, open) {
+    const isOpen = open !== false;
+    return `<details class="panel" id="${id}"${isOpen ? " open" : ""}>
       <summary>${title}</summary>
       ${body}
     </details>`;
@@ -65,7 +65,7 @@
         <button type="button" id="listAllSesBtn">List all</button>
       </div>
       <div id="sesExtra" class="outbox empty-out" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- Tasks (beacons) -----
@@ -82,7 +82,7 @@
         </div>
       ` : `<div class="row"><button type="button" id="listTasksBtn">List tasks</button></div>`}
       <div class="outbox empty-out" id="taskOut" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- Listeners -----
@@ -114,7 +114,7 @@
           <button type="button" class="primary" id="createLisBtn">Create + start</button>
         </div>
       ` : ""}
-    `, false));
+    `, true));
   }
 
   // ----- Payloads -----
@@ -165,7 +165,7 @@
         <button type="button" id="genImpBtn">Generate implant</button>
       </div>
       <div class="outbox empty-out" id="payOut" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- Plugins -----
@@ -181,7 +181,7 @@
         <button type="button" class="primary" id="plugInstallBtn">Install + enable</button>
       </div>
       <div class="outbox empty-out" id="plugOut" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- Deploy helpers -----
@@ -194,7 +194,7 @@
         <button type="button" id="certPlanBtn">Cert plan</button>
       </div>
       <div class="outbox empty-out" id="deployOut" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- Metrics / Audit -----
@@ -205,7 +205,7 @@
         ${can("audit:read") ? '<button type="button" id="auditBtn">Audit log</button>' : ""}
       </div>
       <div class="outbox" id="adminOut" style="margin-top:8px"></div>
-    `, false));
+    `, true));
   }
 
   // ----- Admin AI -----
@@ -261,7 +261,7 @@
         <button type="button" id="llmListBtn">List</button>
       </div>
       <div class="outbox empty-out" id="llmOut" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- Tokens -----
@@ -290,7 +290,7 @@
       <div class="outbox empty-out" id="tokMintOut" style="margin-top:10px;border-color:rgba(0,255,157,0.35);color:var(--ok)">Minted token appears here once</div>
       <h2 style="margin-top:12px">Active tokens</h2>
       <div id="tokList" class="empty">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- Observability extras -----
@@ -302,7 +302,7 @@
         <button type="button" id="timelineBtn">Timeline</button>
       </div>
       <div class="outbox empty-out" id="obsExtraOut" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- Collab chat -----
@@ -315,7 +315,7 @@
         <button type="button" id="chatReloadBtn">Reload</button>
       </div>
       <div class="outbox empty-out" id="chatOut" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- C2 Profiles -----
@@ -328,7 +328,7 @@
         ${can("payloads:generate") || can("admin") ? '<button type="button" class="primary" id="profGenBtn">Generate beacon (active)</button>' : ""}
       </div>
       <div class="outbox empty-out" id="profOut" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- Feature toggles (admin) -----
@@ -340,7 +340,7 @@
         <button type="button" class="primary" id="saveFeaturesBtn">Save features</button>
         <button type="button" id="reloadFeaturesBtn">Reload</button>
       </div>
-    `, false));
+    `, true));
   }
 
   // ----- Policy -----
@@ -355,7 +355,7 @@
         <button type="button" class="primary" id="policySetBtn">Save policy</button>
       </div>
       <div class="outbox empty-out" id="policyOut" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   // ----- MCP -----
@@ -372,7 +372,7 @@
         <button type="button" class="primary" id="mcpCallBtn">Call</button>
       </div>
       <div class="outbox empty-out" id="mcpOut" style="margin-top:8px">—</div>
-    `, false));
+    `, true));
   }
 
   root.innerHTML = parts.join("\n") || '<div class="card muted">No scoped actions for this token.</div>';

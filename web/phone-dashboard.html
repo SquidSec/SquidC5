@@ -189,27 +189,48 @@
 
     /* Desktop */
     @media (min-width: 1100px) {
-      .wrap { max-width: 1360px; }
+      .wrap { max-width: 1440px; }
       .overview {
-        grid-template-columns: 1.3fr 1fr 1fr;
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
         gap: 14px 18px;
+        align-items: stretch;
       }
-      .overview .shells-card { grid-column: 1; grid-row: 1 / span 2; }
+      .overview .shells-card {
+        grid-column: 1;
+        grid-row: 1 / span 2;
+        min-height: 100%;
+      }
       .overview .listeners-card { grid-column: 2; grid-row: 1; }
       .overview .signal-card { grid-column: 3; grid-row: 1; }
-      .overview .events-panel { grid-column: 2 / -1; grid-row: 2; }
+      .overview .events-panel {
+        grid-column: 2 / -1;
+        grid-row: 2;
+        min-height: 0;
+      }
       #adminMount {
+        display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 14px 18px;
+        align-items: start;
       }
+      /* Full-width work surfaces */
       #adminMount > #quickRunCard,
       #adminMount > #aiCard {
         grid-column: 1 / -1;
+      }
+      /* Identity spans full width above shell when present */
+      #adminMount > #identityCard {
+        grid-column: 1 / -1;
+      }
+      #adminMount > details.panel {
+        min-width: 0;
       }
       .brand h1 { font-size: 1.45rem; }
       .hero { padding: 16px 18px; margin-bottom: 16px; }
       .card, details.panel { padding: 14px 16px; }
       table { font-size: 0.85rem; }
+      .outbox { max-height: 420px; }
     }
   </style>
 </head>
@@ -276,7 +297,7 @@
         <p class="muted" id="healthLine" style="margin:8px 0 0">—</p>
       </div>
 
-      <details class="panel events-panel" id="eventsPanel">
+      <details class="panel events-panel" id="eventsPanel" open>
         <summary>Recent events</summary>
         <div id="eventsBox" class="empty">—</div>
       </details>
@@ -418,10 +439,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       $("url").value = url || "";
       $("token").value = localStorage.getItem(KEYS.token) || "";
       $("refresh").value = localStorage.getItem(KEYS.refresh) || "10";
-      // Collapsed by default; only open connection panel if no token yet
-      $("settingsPanel").open = false;
-      if (!$("token").value) $("settingsPanel").open = true;
-      if (imported) $("settingsPanel").open = false;
+      // Start expanded; keep connection open after QR import so user can verify
+      $("settingsPanel").open = true;
+      $("eventsPanel").open = true;
       return imported;
     }
     function fmtUptime(sec) {
@@ -675,7 +695,6 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       $("adminMount").innerHTML = "";
       schedule();
       refresh();
-      $("settingsPanel").open = false;
     };
     $("refreshBtn").onclick = () => refresh();
     $("shareBtn").onclick = () => showQr();
