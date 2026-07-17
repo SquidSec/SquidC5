@@ -1,20 +1,27 @@
 services:
-  squidsec2:
+  squidc5:
     build: .
-    image: squidsec2:latest
-    container_name: squidsec2
+    image: squidc5:latest
+    container_name: squidc5
     restart: unless-stopped
     # Host networking so reverse-shell / TCP listeners can bind any host port
     # (bridge mode only publishes ports listed under `ports:`).
     network_mode: host
     environment:
-      SQUIDSEC2_HOST: "0.0.0.0"
-      SQUIDSEC2_PORT: "8443"
-      SQUIDSEC2_DATA_DIR: "/data"
-      SQUIDSEC2_MCP_ENABLED: "true"
-      SQUIDSEC2_AI_ENABLED: "true"
+      SQUIDC5_HOST: "0.0.0.0"
+      SQUIDC5_PORT: "8443"
+      SQUIDC5_DATA_DIR: "/data"
+      # Secure-by-default: MCP off until explicitly needed
+      SQUIDC5_MCP_ENABLED: "false"
+      SQUIDC5_AI_ENABLED: "true"
+      SQUIDC5_SHELL_AUTO_STABILIZE: "true"
+      SQUIDC5_EXPOSE_HEALTH_DETAILS: "false"
+      SQUIDC5_SECURITY_HEADERS: "true"
+      # Stage-2 reconnect callback host (droplet public IP)
+      SQUIDC5_PUBLIC_HOST: "<REDACTED_PUBLIC_HOST>"
+      # CORS empty by default — /ops is same-origin
     volumes:
-      - squidsec2-data:/data
+      - squidc5-data:/data
     healthcheck:
       test:
         [
@@ -36,4 +43,4 @@ services:
           memory: 128M
 
 volumes:
-  squidsec2-data:
+  squidc5-data:

@@ -1,6 +1,6 @@
 import pytest
 
-from squidsec2.ai.admin_ai import sanitize_untrusted
+from squidc5.ai.admin_ai import sanitize_untrusted
 
 
 def test_sanitize_injection():

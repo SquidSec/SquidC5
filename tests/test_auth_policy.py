@@ -26,7 +26,7 @@ async def test_create_scoped_token(client, admin_headers):
     )
     assert r.status_code == 200
     data = r.json()
-    assert data["token"].startswith("ss2_")
+    assert data["token"].startswith("sc5_")
     # reader cannot create tokens
     r2 = await client.post(
         "/api/v1/tokens",

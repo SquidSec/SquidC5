@@ -27,7 +27,7 @@ jobs:
       - name: Lint
         run: ruff check src tests
       - name: Tests
-        run: pytest -q --cov=squidsec2 --cov-report=term-missing
+        run: pytest -q --cov=squidc5 --cov-report=term-missing
 
   docker:
     runs-on: ubuntu-latest
@@ -35,10 +35,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build -t squidsec2:ci .
+        run: docker build -t squidc5:ci .
       - name: Run container smoke test
         run: |
-          docker run -d --name squidsec2-ci -p 8443:8443 squidsec2:ci
+          docker run -d --name squidc5-ci -p 8443:8443 squidc5:ci
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:8443/api/v1/health; then
               echo "healthy"
@@ -46,11 +46,11 @@ jobs:
             fi
             sleep 2
           done
-          docker logs squidsec2-ci
+          docker logs squidc5-ci
           exit 1
       - name: Cleanup
         if: always()
-        run: docker rm -f squidsec2-ci || true
+        run: docker rm -f squidc5-ci || true
 
   security:
     runs-on: ubuntu-latest
