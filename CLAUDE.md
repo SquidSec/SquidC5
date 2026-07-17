@@ -7,6 +7,7 @@ Follow **AGENTS.md** as the primary agent memory for this repository.
 Also read:
 
 - `docs/squidc5-vision.md` — product/security architecture
+- `docs/roadmap-2026-2027.md` — 2026–2027 prioritized roadmap (start with malleable C2 profiles)
 - `docs/operator-runbook.md` — operator CLI & reverse-shell procedures
 - `docs/deployment.md` — Docker / droplet deployment
 

@@ -48,6 +48,38 @@ Ops UI: `/ops` (admin UI loaded only after server-side admin token check)
 
 When adding features: **deny by default**, enable via admin feature flags or env after review.
 
+## Development pipeline (mandatory)
+
+```text
+feature branch → PR → CI tests green → merge main/master
+  → CI builds Linux/Windows binaries (sc5, squidc5)
+  → prod deploy = Linux squidc5 binary ONLY (keep data/)
+```
+
+- **Never** rsync WIP source or `docker compose up --build` to prod
+- **Never** deploy a feature-branch-only binary
+- Docker is for **local/lab** only once binary prod path is active
+- Full policy: see **Production deploy policy** under Deployment Knowledge
+
+## Roadmap 2026–2027 (next work — prioritized)
+
+Full detail: `docs/roadmap-2026-2027.md`. Agents plan work against this list; stay OPSEC-first, agents-on-rails.
+
+| # | Focus | Notes |
+|---|--------|--------|
+| **1** | **Malleable / adaptive C2 profiles** | **TOP PRIORITY** — HTTP/S, DNS, WS; jitter; decoy; runtime switch |
+| 2 | Advanced implant / beacon framework | Stagers, injection, memory-only, BOF-like; Win/Linux/macOS |
+| 3 | Evasion & anti-analysis | Sandbox/VM/debugger resistance; fronting/CDN; QUIC/WebTransport candidates |
+| 4 | Multi-operator collaboration | Teams, chat, handoff, spectator; per-operator audit |
+| 5 | Deeper AI (railed) | Policy-limited chaining; local LLM; beacon anomaly suggestions |
+| 6 | Plugin / extension system | Signed plugins; allow-list; ops discovery |
+| 7 | Observability / forensics dashboard | Timeline, ATT&CK map, reports, heatmap |
+| 8 | Deploy & OpSec hardening | Nix/microVM/K8s; redirectors; cert/domain rotation |
+| 9 | Testing & validation suite | Lab victims; evasion benchmarks; playbook scenarios |
+| 10 | Community & docs | Runbook, threat model, disclosure, OPSEC changelogs |
+
+**When implementing any roadmap item:** small PRs, tests required, secure defaults, no weakening of MCP/Admin AI/public_docs locks, prod only via main CI binary.
+
 ## Architecture Map
 
 ```
@@ -305,8 +337,9 @@ docker exec squidc5 cat /data/admin_token.txt
 | `AGENTS.md` | **This file** — primary agent operating memory |
 | `CLAUDE.md` | Pointer to AGENTS + docs |
 | `docs/squidc5-vision.md` | Full product vision / security architecture |
+| `docs/roadmap-2026-2027.md` | Prioritized next-gen roadmap (10 focus areas) |
 | `docs/operator-runbook.md` | Operator procedures |
-| `docs/deployment.md` | Docker / droplet deployment |
+| `docs/deployment.md` | Binary prod deploy + lab Docker |
 | `README.md` | Public-facing quickstart |
 | `SECURITY.md` | Disclosure policy |
 | `.gitignore` | Blocks secrets, data, local config |
