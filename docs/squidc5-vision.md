@@ -1,12 +1,16 @@
 # SquidC5 Vision & System Specification
 
 **Version:** 0.1.0  
-**Status:** Active development — **military-grade, security-first C2**  
+**Status:** Active development — **military-grade, security-first C5**  
 **Purpose:** Authorized penetration testing, red team, and defensive security operations only  
+**C5:** Command • Control • Cognitive • Collaborative • Coordination  
 **Roadmap:** See `docs/roadmap-2026-2027.md` (malleable profiles → implants → evasion → multi-op → AI → plugins → observability → deploy → testing → community)
+
 ## Overview
 
-SquidC5 is a professional, lightweight, **military-grade**, security-first, AI-native Command & Control framework under active development. It is designed open-source-ready from the first commit, with strong emphasis on **secure defaults**, AI restriction, determinism, auditability, and low resource usage.
+**C5** expands to **Command, Control, Cognitive, Collaborative, Coordination** — the five pillars SquidC5 is built around (tasking, authority rails, AI assist, multi-operator work, and engagement orchestration).
+
+SquidC5 is a professional, lightweight, **military-grade**, security-first, AI-native C5 / command-and-control framework under active development. It is designed open-source-ready from the first commit, with strong emphasis on **secure defaults**, AI restriction, determinism, auditability, and low resource usage.
 
 Hardened posture includes: no public API documentation surface, scoped tokens, server-gated admin UI, feature flags, false-shell filtering, shell exec verification, and dual AI controls (restricted MCP + sandboxed Admin AI).
 

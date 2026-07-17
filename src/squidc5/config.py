@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     # Hardened defaults
     expose_health_details: bool = False
     security_headers: bool = True
+    # TLS: unique self-signed cert under data_dir/tls/ (ops UI, API, MCP)
+    tls_enabled: bool = True
+    tls_cert_file: Path | None = None  # override paths if set (both must be set)
+    tls_key_file: Path | None = None
+    tls_force_new: bool = False  # regenerate cert/key on next start
 
     def resolve_db_path(self) -> Path:
         if self.db_path is not None:

@@ -1,10 +1,22 @@
 # SquidC5
 
-**Lightweight, security-first, AI-native Command & Control for authorized red team operations.**
+**Command • Control • Cognitive • Collaborative • Coordination**
+
+Lightweight, security-first, AI-native C5 platform for authorized red team operations.
 
 [![CI](https://github.com/DotNetRussell/SquidC5/actions/workflows/ci.yml/badge.svg)](https://github.com/DotNetRussell/SquidC5/actions/workflows/ci.yml)
 
 > ⚠️ **Authorized use only.** SquidC5 is intended for legitimate penetration testing and red team engagements with explicit permission. Unauthorized access to systems is illegal.
+
+### What “C5” means
+
+| Pillar | Role in SquidC5 |
+|--------|-----------------|
+| **Command** | Operator tasking of shells, beacons, and implants |
+| **Control** | Scoped tokens, policy, feature flags, listeners |
+| **Cognitive** | Sandboxed Admin AI + restricted external MCP tools |
+| **Collaborative** | Multi-operator handoff, chat, shared sessions |
+| **Coordination** | Profiles, task queues, timelines, audit, reports |
 
 ## Features
 

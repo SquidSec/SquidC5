@@ -63,6 +63,35 @@ Disable unused services that might bind ports (ModemManager, etc.) on the host. 
 
 Environment variables: see `.env.example` (`SQUIDC5_*`).
 
+## TLS (HTTPS) — default on new instances
+
+On first start, SquidC5 generates a **unique self-signed certificate** under:
+
+```text
+$SQUIDC5_DATA_DIR/tls/server.crt
+$SQUIDC5_DATA_DIR/tls/server.key
+$SQUIDC5_DATA_DIR/tls/instance_id
+```
+
+All traffic on the process port (ops UI, REST API, MCP) is served over **HTTPS** via uvicorn.
+
+| Env | Default | Meaning |
+|-----|---------|---------|
+| `SQUIDC5_TLS_ENABLED` | `true` | Serve TLS |
+| `SQUIDC5_TLS_CERT_FILE` / `SQUIDC5_TLS_KEY_FILE` | unset | Use auto paths under `data/tls/` |
+| `SQUIDC5_TLS_FORCE_NEW` | `false` | Regenerate cert/key on next start |
+| `SQUIDC5_PUBLIC_HOST` | empty | Added to cert SAN when set |
+
+Browsers will warn on self-signed certs — expected. For production, put a real cert on a redirector (see Redirector / cert plan in ops) or override cert/key paths with CA-issued material.
+
+```bash
+# After start
+curl -k https://127.0.0.1:8443/api/v1/health
+# Ops: https://HOST:8443/ops  (accept warning)
+```
+
+Disable only for lab debugging: `SQUIDC5_TLS_ENABLED=false` (plaintext — not recommended).
+
 ## Production: binary-only deploy (required)
 
 Prod is **not** updated from a local working tree or Docker rebuild of WIP.

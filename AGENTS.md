@@ -2,7 +2,7 @@
 
 ## Classification & Mission
 
-**SquidC5 is a military-grade, security-first, AI-native Command & Control platform under active development** for **authorized** red team, penetration testing, and defensive security operations only.
+**SquidC5 is a military-grade, security-first, AI-native C5 platform** — **Command • Control • Cognitive • Collaborative • Coordination** — under active development for **authorized** red team, penetration testing, and defensive security operations only.
 
 Treat every change as if the system will be deployed in high-threat environments:
 
@@ -340,8 +340,12 @@ pip install -r requirements-dev.txt
 pip install -e .
 pytest -q
 ruff check src tests
-uvicorn squidc5.main:create_app --factory --host 0.0.0.0 --port 8443
-sc5 login --url http://127.0.0.1:8443 --token "$(cat data/admin_token.txt)"
+# Prefer the package entrypoint (enables unique instance TLS under data/tls/):
+squidc5
+# or: python -m squidc5
+# Plain uvicorn factory has no TLS unless you pass --ssl-*:
+# uvicorn squidc5.main:create_app --factory --host 0.0.0.0 --port 8443
+sc5 login --url https://127.0.0.1:8443 --token "$(cat data/admin_token.txt)"
 ```
 
 Docker:
