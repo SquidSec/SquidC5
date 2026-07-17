@@ -29,7 +29,8 @@ USER squidc5
 VOLUME ["/data"]
 EXPOSE 8443
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8443/api/v1/health', timeout=3)"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import ssl,urllib.request; ctx=ssl._create_unverified_context(); urllib.request.urlopen('https://127.0.0.1:8443/api/v1/health', timeout=3, context=ctx)"
 
-CMD ["python", "-m", "uvicorn", "squidc5.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8443", "--workers", "1"]
+# Package entrypoint enables unique instance TLS under SQUIDC5_DATA_DIR/tls/
+CMD ["python", "-m", "squidc5"]

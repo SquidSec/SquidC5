@@ -40,7 +40,7 @@ jobs:
         run: |
           docker run -d --name squidc5-ci -p 8443:8443 squidc5:ci
           for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:8443/api/v1/health; then
+            if curl -skf https://127.0.0.1:8443/api/v1/health; then
               echo "healthy"
               exit 0
             fi
@@ -118,9 +118,9 @@ jobs:
           pid=$!
           trap 'kill $pid 2>/dev/null || true' EXIT
           for i in $(seq 1 40); do
-            if curl -sf http://127.0.0.1:8443/api/v1/health; then
+            if curl -skf https://127.0.0.1:8443/api/v1/health; then
               echo
-              curl -sf http://127.0.0.1:8443/ops | head -c 200
+              curl -skf https://127.0.0.1:8443/ops | head -c 200
               echo
               exit 0
             fi
