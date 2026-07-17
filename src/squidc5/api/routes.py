@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from squidc5.api.deps import get_auth, get_state, require_scope
 from squidc5.auth.tokens import ALL_MCP_TOOLS, DEFAULT_MCP_TOOLS, SCOPES, AuthContext
+from squidc5.paths import web_file
 
 # --- Request models ---
 
@@ -110,11 +111,14 @@ def build_api_router() -> APIRouter:
     @api.get("/meta")
     async def meta(auth: AuthContext = Depends(get_auth)) -> dict[str, Any]:
         return {
-            "scopes": sorted(SCOPES),
+            "scopes": sorted(auth.scopes),
+            "all_scopes": sorted(SCOPES),
             "default_mcp_tools": sorted(DEFAULT_MCP_TOOLS),
             "all_mcp_tools": sorted(ALL_MCP_TOOLS),
+            "mcp_tools": sorted(auth.mcp_tools),
             "actor": auth.name,
             "actor_type": auth.actor_type,
+            "token_id": auth.token_id,
         }
 
     # ----- Tokens -----
@@ -588,29 +592,28 @@ def build_api_router() -> APIRouter:
         flags = await state.features.set_many(body.features, auth.name)
         return {"features": flags, "catalog": state.features.catalog()}
 
-    # ----- Ops admin UI (admin token only — never ship to non-admin clients) -----
+    # ----- Ops console UI (any authenticated token; panels self-gate by scope) -----
+    # Admin-only controls (feature flags, token mint) still require admin via API.
 
     @api.get("/ops/admin.js")
-    async def ops_admin_js(
+    @api.get("/ops/console.js")
+    async def ops_console_js(
         request: Request,
         auth: AuthContext = Depends(get_auth),
     ) -> Response:
-        if not auth.has_scope("admin"):
-            raise HTTPException(403, "Admin token required for admin UI")
-        # Prefer packaged web dir (Docker: /app/web)
         candidates = [
-            Path(__file__).resolve().parent.parent.parent.parent / "web" / "ops-admin.js",
+            web_file("ops-admin.js"),
             Path("/app/web/ops-admin.js"),
         ]
         path = next((p for p in candidates if p.is_file()), None)
         if path is None:
-            raise HTTPException(404, "admin UI module missing")
+            raise HTTPException(404, "ops console module missing")
         await get_state(request).db.audit(
             actor=auth.name,
             actor_type=auth.actor_type,
-            action="ops.admin_ui.load",
-            details={},
-            risk_score=2,
+            action="ops.console_ui.load",
+            details={"admin": auth.has_scope("admin")},
+            risk_score=1 if not auth.has_scope("admin") else 2,
         )
         return PlainTextResponse(
             path.read_text(encoding="utf-8"),
