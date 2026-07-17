@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -329,6 +330,49 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 def cli() -> None:
     settings = get_settings()
+    ssl_kwargs: dict = {}
+    if settings.tls_enabled:
+        from squidc5.tls.certs import ensure_instance_tls
+
+        if settings.tls_cert_file and settings.tls_key_file:
+            cert_path = Path(settings.tls_cert_file)
+            key_path = Path(settings.tls_key_file)
+            if not cert_path.is_file() or not key_path.is_file():
+                raise SystemExit(
+                    f"SQUIDC5_TLS_CERT_FILE / SQUIDC5_TLS_KEY_FILE not found: {cert_path} {key_path}"
+                )
+            created = False
+        else:
+            cert_path, key_path, created = ensure_instance_tls(
+                settings.data_dir,
+                public_host=settings.public_host or "",
+                force_new=settings.tls_force_new,
+            )
+        ssl_kwargs["ssl_certfile"] = str(cert_path)
+        ssl_kwargs["ssl_keyfile"] = str(key_path)
+        scheme = "https"
+        if created:
+            log.warning(
+                "TLS is ON with a new self-signed cert. Use https://%s:%s/ops "
+                "(accept browser warning) — tokens on the wire are encrypted.",
+                settings.host if settings.host not in ("0.0.0.0", "::") else "HOST",
+                settings.port,
+            )
+        else:
+            log.info("TLS enabled (%s)", cert_path)
+    else:
+        scheme = "http"
+        log.warning(
+            "TLS disabled (SQUIDC5_TLS_ENABLED=false) — ops/API/MCP traffic is plaintext"
+        )
+
+    log.info(
+        "Starting SquidC5 %s on %s://%s:%s",
+        __version__,
+        scheme,
+        settings.host,
+        settings.port,
+    )
     uvicorn.run(
         "squidc5.main:create_app",
         factory=True,
@@ -336,6 +380,7 @@ def cli() -> None:
         port=settings.port,
         log_level="debug" if settings.debug else "info",
         workers=1,
+        **ssl_kwargs,
     )
 
 

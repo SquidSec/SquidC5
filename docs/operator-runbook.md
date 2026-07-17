@@ -1,5 +1,7 @@
 # SquidC5 Operator Runbook
 
+**Command • Control • Cognitive • Collaborative • Coordination**
+
 Authorized red team / pen-test use only.
 
 ## Prerequisites

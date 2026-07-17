@@ -1,5 +1,7 @@
 # SquidC5 documentation (GitHub only)
 
+**Command • Control • Cognitive • Collaborative • Coordination**
+
 These files ship in the **repository**. They are **not** exposed by the running C2 server (`/docs` and OpenAPI stay disabled).
 
 ## Start here

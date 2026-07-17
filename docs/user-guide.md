@@ -1,9 +1,21 @@
 # SquidC5 User Guide
 
+**Command • Control • Cognitive • Collaborative • Coordination**
+
 **Authorized red team / penetration testing only.**  
 This guide lives in the GitHub repository. It is **not** served by the C2 process (`/docs` on the server stays disabled).
 
 **Source of truth:** [docs/user-guide.md](https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md) on branch `master`.
+
+### What C5 stands for
+
+| Pillar | In SquidC5 |
+|--------|------------|
+| **Command** | Task shells and beacons; issue operator intent |
+| **Control** | Auth scopes, policy engine, listeners, feature kill-switches |
+| **Cognitive** | Admin AI (railed) + external MCP tools (allow-listed) |
+| **Collaborative** | Teams, chat, handoff, shared ops console |
+| **Coordination** | C2 profiles, task queues, metrics, timeline, reports |
 
 | Related docs | Purpose |
 |--------------|---------|
@@ -39,7 +51,7 @@ If a Grokpedia slug 404s or is empty (SPA), search from [grok.com/pedia](https:/
 
 ### What SquidC5 is
 
-SquidC5 is a **security-first, AI-native command-and-control (C2)** platform for **authorized** engagements. In industry language, a C2 *team server* is the hub operators use to task implants, receive output, and manage listeners during a red-team or pen-test. SquidC5 implements that hub with strong defaults (scoped tokens, audit, AI rails).
+SquidC5 is a **security-first, AI-native C5** platform — **Command, Control, Cognitive, Collaborative, Coordination** — for **authorized** engagements. In industry language it fills the role of a command-and-control (C2) *team server*: the hub operators use to task implants, receive output, and manage listeners during a red-team or pen-test, with AI assist and multi-operator coordination built in under secure defaults (scoped tokens, audit, AI rails).
 
 Operators use:
 
@@ -101,9 +113,14 @@ A compromised browser or leaked non-admin token must not receive admin control s
 cat data/admin_token.txt   # local
 # docker exec squidc5 cat /data/admin_token.txt
 
-sc5 login --url http://HOST:8443 --token sc5_...
+# Default: HTTPS with unique self-signed cert (data/tls/)
+sc5 login --url https://HOST:8443 --token sc5_...
 sc5 whoami
 ```
+
+### Transport encryption (TLS)
+
+New instances **generate a unique self-signed certificate** on first start (`data/tls/server.crt` + `server.key`) and serve **ops UI, API, and MCP** over HTTPS. Tokens are encrypted on the wire to the browser/CLI (after you accept the self-signed warning or pin the cert). Override with CA certs via `SQUIDC5_TLS_CERT_FILE` / `SQUIDC5_TLS_KEY_FILE`, or terminate TLS on a redirector. See [deployment.md](deployment.md#tls-https--default-on-new-instances).
 
 ---
 
@@ -111,7 +128,7 @@ sc5 whoami
 
 ### What
 
-Browser UI at `http://HOST:8443/ops`. Connection settings stay in **browser localStorage** only. Layout order, wide tiles, and panel open state are also local — **never** persisted to the C2 server.
+Browser UI at `https://HOST:8443/ops` (HTTPS by default). Connection settings stay in **browser localStorage** only. Layout order, wide tiles, and panel open state are also local — **never** persisted to the C2 server.
 
 ### Why
 

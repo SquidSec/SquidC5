@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#09090b" />
   <link rel="icon" href="https://i.imgur.com/m1FBjqj.png" type="image/png" />
   <link rel="stylesheet" href="https://squidoffense.com/css/typography.css" />
-  <title>SquidC5</title>
+  <title>SquidC5 — Command • Control • Cognitive • Collaborative • Coordination</title>
   <style>
     :root {
       --pink: #e91e8c;
@@ -33,7 +33,8 @@
       padding: max(12px, env(safe-area-inset-top)) 12px calc(20px + env(safe-area-inset-bottom));
     }
     .wrap { max-width: 520px; margin: 0 auto; width: 100%; }
-    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    .brand .brand-text { min-width: 0; }
     .toolbar { margin-bottom: 10px; }
     .overview { display: flex; flex-direction: column; }
     .overview > * { min-width: 0; }
@@ -47,6 +48,12 @@
     .brand h1 { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
     .brand h1 .p { color: var(--pink); text-shadow: none; }
     .brand .sub { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
+    .brand .c5-expand {
+      font-size: 0.62rem; color: var(--pink-hot); letter-spacing: 0.04em;
+      margin-top: 4px; line-height: 1.35; font-weight: 600;
+      text-transform: none;
+    }
+    .brand .c5-expand .dot { color: var(--muted); margin: 0 0.15em; font-weight: 400; }
     .badge {
       margin-left: auto; font: 700 0.65rem/1 var(--mono); letter-spacing: 0.06em;
       text-transform: uppercase; padding: 6px 10px; border-radius: 8px;
@@ -455,9 +462,12 @@
       <img src="/ops/assets/squidsec-logo-256.png"
            onerror="this.onerror=null;this.src='https://i.imgur.com/m1FBjqj.png'"
            alt="SquidC5" width="48" height="48" />
-      <div>
+      <div class="brand-text">
         <h1>SQUID<span class="p">C5</span></h1>
         <div class="sub">operator console</div>
+        <div class="c5-expand" title="What C5 stands for">
+          Command<span class="dot">•</span>Control<span class="dot">•</span>Cognitive<span class="dot">•</span>Collaborative<span class="dot">•</span>Coordination
+        </div>
       </div>
       <span id="statusBadge" class="badge">offline</span>
       <span id="roleBadge" class="badge admin hidden">—</span>
@@ -470,7 +480,7 @@
       <summary>Connection <a class="doc-link summary-doc" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#connection" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Docs</a></summary>
       <p class="hint">Browser credentials for this console. Server URL is the SquidC5 base (usually this host when opened via <code>/ops</code>). API token is a scoped <code>sc5_…</code> secret stored only in localStorage. Admin panels load only after the server accepts the token. Refresh interval polls sessions/listeners/metrics. <a class="doc-link" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#connection" target="_blank" rel="noopener noreferrer">Full docs →</a></p>
       <label for="url">Server URL</label>
-      <input id="url" type="url" placeholder="http://HOST:8443" autocomplete="off" />
+      <input id="url" type="url" placeholder="https://HOST:8443" autocomplete="off" />
       <label for="token">API token</label>
       <input id="token" type="password" placeholder="sc5_…" autocomplete="off" />
       <label for="refresh">Refresh (sec)</label>
@@ -479,12 +489,11 @@
         <button type="button" class="primary" id="saveBtn">Save &amp; Connect</button>
         <button type="button" id="toggleToken">Show token</button>
       </div>
+      <div class="row toolbar" style="margin-top:10px;margin-bottom:0">
+        <button type="button" id="refreshBtn">Refresh</button>
+        <button type="button" class="primary" id="shareBtn">Phone QR</button>
+      </div>
     </details>
-
-    <div class="row toolbar">
-      <button type="button" id="refreshBtn">Refresh</button>
-      <button type="button" class="primary" id="shareBtn">Phone QR</button>
-    </div>
 
     <details class="panel event-stream" id="eventStream" aria-label="Live event stream">
       <summary>
@@ -544,8 +553,12 @@
 
     <footer>
       <div id="footer">Last update: never</div>
+      <div style="margin-top:6px;font-size:0.65rem;color:var(--muted);line-height:1.4">
+        <strong style="color:var(--pink)">SquidC5</strong>
+        — Command • Control • Cognitive • Collaborative • Coordination
+      </div>
       <div style="margin-top:4px;letter-spacing:0.12em;text-transform:uppercase;font-size:0.62rem">
-        <strong style="color:var(--pink)">SquidC5</strong> · authorized ops only
+        authorized ops only
       </div>
       <div style="margin-top:8px;font-size:0.72rem">
         <a class="doc-link" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md" target="_blank" rel="noopener noreferrer">User guide (GitHub)</a>
