@@ -39,8 +39,14 @@ class Settings(BaseSettings):
     shell_auto_stabilize: bool = True
     # Host/IP implants should call back to (defaults to request/local bind if empty)
     public_host: str = ""
+    public_ip: str = ""  # A-record for OAST DNS answers (SQUIDC5_PUBLIC_IP)
     shell_stabilize_delay_sec: float = 0.8
     shell_probe_wait_sec: float = 1.5
+    # OAST Collaborator (SQUIDC5_OAST_*)
+    oast_enabled: bool = True
+    oast_zone: str = "oast.lab.invalid"
+    oast_http_port: int = 80
+    oast_rate_limit_per_minute: int = 120
     # Hardened defaults
     expose_health_details: bool = False
     security_headers: bool = True

@@ -158,8 +158,14 @@ sc5 tasks get <id>
 sc5 tasks create <session_id> "<command>" [--args-json '{}'] [--hitl]
 
 sc5 listeners list
-sc5 listeners create <name> <port> [--kind http|tcp|reverse_shell] [--host 0.0.0.0]
+sc5 listeners create <name> <port> [--kind http|tcp|reverse_shell|dns|smtp] [--host 0.0.0.0] [--zone ZONE]
 sc5 listeners start|stop|delete <id>
+
+sc5 --insecure ...                  # skip TLS verify (self-signed teamserver)
+sc5 oast token create [--note "..."]
+sc5 oast tokens list
+sc5 oast hits --token T [--protocol dns|http|smtp]
+# aliases: oast mint | oast poll
 
 sc5 payloads templates
 sc5 payloads generate <template> <host> <port> [--interval 5] [--raw]

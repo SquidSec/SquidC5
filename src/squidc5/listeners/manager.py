@@ -58,6 +58,9 @@ class ListenerManager:
         self._verified: set[str] = set()
         # Optional: async (key) -> bool feature flag checker
         self.feature_check = None
+        # OAST Collaborator store (set from main)
+        self.oast = None
+        self.profile_engine = None
 
     async def create(
         self,
@@ -67,7 +70,7 @@ class ListenerManager:
         host: str = "0.0.0.0",
         config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if kind not in ("http", "tcp", "reverse_shell", "dns"):
+        if kind not in ("http", "tcp", "reverse_shell", "dns", "smtp"):
             raise ValueError(f"Unsupported listener kind: {kind}")
         if port < 1 or port > 65535:
             raise ValueError("Port must be 1-65535")
@@ -112,11 +115,49 @@ class ListenerManager:
                 cfg = row.get("config") or {}
                 if isinstance(cfg, str):
                     cfg = json.loads(cfg)
-                zone = str((cfg or {}).get("zone") or "c2.lab.invalid")
-                transport, _proto = await start_dns_server(self, listener_id, host, port, zone)
+                cfg = cfg or {}
+                zone = str(cfg.get("zone") or getattr(self, "oast_zone", None) or "c2.lab.invalid")
+                mode = str(cfg.get("mode") or "both")  # beacon | oast | both
+                public_ip = str(
+                    cfg.get("public_ip")
+                    or getattr(self, "public_ip", None)
+                    or self.public_host
+                    or "127.0.0.1"
+                )
+                ns_name = str(cfg.get("ns_name") or f"ns1.{zone}")
+                transport, _proto = await start_dns_server(
+                    self,
+                    listener_id,
+                    host,
+                    port,
+                    zone,
+                    mode=mode,
+                    public_ip=public_ip,
+                    ns_name=ns_name,
+                )
                 self._udp[listener_id] = transport
                 await self.db.set_listener_status(listener_id, "running")
-                log.info("Started dns listener %s on %s:%s zone=%s", listener_id, host, port, zone)
+                log.info(
+                    "Started dns listener %s on %s:%s zone=%s mode=%s",
+                    listener_id,
+                    host,
+                    port,
+                    zone,
+                    mode,
+                )
+            elif kind == "smtp":
+                from squidc5.listeners.smtp_listener import handle_smtp_client
+
+                server = await asyncio.start_server(
+                    lambda r, w: handle_smtp_client(self, listener_id, r, w),
+                    host=host,
+                    port=port,
+                )
+                self._servers[listener_id] = server
+                task = asyncio.create_task(server.serve_forever(), name=f"listener-smtp-{listener_id}")
+                self._tasks[listener_id] = task
+                await self.db.set_listener_status(listener_id, "running")
+                log.info("Started smtp listener %s on %s:%s", listener_id, host, port)
             elif kind in ("tcp", "reverse_shell"):
                 server = await asyncio.start_server(
                     lambda r, w: self._handle_tcp(listener_id, kind, r, w),
@@ -892,6 +933,31 @@ class ListenerManager:
 
     async def record_http_hit(self, listener_id: str, hit: dict[str, Any]) -> None:
         """OAST-style catch-all for non-beacon HTTP requests."""
+        from squidc5.oast.store import (
+            extract_token_from_host,
+            extract_token_from_path,
+            extract_token_from_query,
+        )
+
+        path = str(hit.get("path") or "")
+        query = hit.get("query") if isinstance(hit.get("query"), dict) else {}
+        headers = hit.get("headers") if isinstance(hit.get("headers"), dict) else {}
+        zone = getattr(self, "oast_zone", "") or ""
+        token = (
+            extract_token_from_path(path)
+            or extract_token_from_query(query)
+            or extract_token_from_host(str(headers.get("host") or ""), zone=zone)
+        )
+        hit = {**hit, "token": token}
+        if self.oast is not None:
+            await self.oast.record(
+                protocol="http",
+                listener_id=listener_id,
+                remote=str(hit.get("remote") or ""),
+                token=token,
+                raw=hit,
+                correlation_key=token,
+            )
         await self.metrics.incr("http.hits")
         await self.metrics.emit("http.hit", hit)
         await self.db.audit(
@@ -902,7 +968,8 @@ class ListenerManager:
             details={
                 "remote": hit.get("remote"),
                 "method": hit.get("method"),
-                "path": str(hit.get("path", ""))[:200],
+                "path": path[:200],
+                "token": token,
             },
             risk_score=1,
         )

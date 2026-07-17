@@ -61,15 +61,40 @@ def pp(data: Any) -> None:
         print(data)
 
 
+def resolve_verify(args: argparse.Namespace) -> bool:
+    """TLS verify; False for self-signed teamservers (--insecure / verify_ssl:false)."""
+    if getattr(args, "insecure", False):
+        return False
+    env = os.environ.get("SQUIDC5_VERIFY_SSL") or os.environ.get("SC5_VERIFY_SSL")
+    if env is not None:
+        return env.strip().lower() not in ("0", "false", "no", "off")
+    cfg = load_config()
+    if "verify_ssl" in cfg:
+        return bool(cfg["verify_ssl"])
+    return True
+
+
 class Client:
-    def __init__(self, base: str, token: str | None, timeout: float = 30.0) -> None:
+    def __init__(
+        self,
+        base: str,
+        token: str | None,
+        timeout: float = 30.0,
+        *,
+        verify: bool = True,
+    ) -> None:
         self.base = base.rstrip("/")
         self.token = token
         headers: dict[str, str] = {"Accept": "application/json"}
         if token:
             headers["Authorization"] = f"Bearer {token}"
         # Default 30s; long reaps/broadcasts can override per-call
-        self._client = httpx.Client(base_url=self.base, headers=headers, timeout=timeout)
+        self._client = httpx.Client(
+            base_url=self.base,
+            headers=headers,
+            timeout=timeout,
+            verify=verify,
+        )
 
     def close(self) -> None:
         self._client.close()
@@ -108,16 +133,27 @@ def cmd_login(args: argparse.Namespace) -> None:
         cfg["url"] = args.url.rstrip("/")
     if args.token:
         cfg["token"] = args.token
+    if getattr(args, "insecure", False):
+        cfg["verify_ssl"] = False
     if not cfg.get("url"):
         cfg["url"] = DEFAULT_BASE
     if not cfg.get("token"):
-        raise SystemExit("Token required: sc5 login --token <token> [--url http://host:8443]")
+        raise SystemExit("Token required: sc5 login --token <token> [--url https://host:8443] [--insecure]")
     save_config(cfg)
-    client = Client(cfg["url"], cfg["token"])
+    verify = resolve_verify(args)
+    client = Client(cfg["url"], cfg["token"], verify=verify)
     try:
         health = client.get("/api/v1/health")
         meta = client.get("/api/v1/meta")
-        pp({"saved": str(CONFIG_FILE), "url": cfg["url"], "health": health, "actor": meta.get("actor")})
+        pp(
+            {
+                "saved": str(CONFIG_FILE),
+                "url": cfg["url"],
+                "verify_ssl": verify,
+                "health": health,
+                "actor": meta.get("actor"),
+            }
+        )
     finally:
         client.close()
 
@@ -224,7 +260,10 @@ def cmd_listeners_create(args: argparse.Namespace, client: Client) -> None:
         "port": args.port,
     }
     if args.kind == "dns":
-        body["config"] = {"zone": getattr(args, "zone", None) or "c2.lab.invalid"}
+        body["config"] = {
+            "zone": getattr(args, "zone", None) or "c2.lab.invalid",
+            "mode": getattr(args, "dns_mode", None) or "both",
+        }
     pp(client.post("/api/v1/listeners", json=body))
 
 
@@ -484,6 +523,34 @@ def cmd_events(args: argparse.Namespace, client: Client) -> None:
                 print(line)
 
 
+def cmd_oast_token_create(args: argparse.Namespace, client: Client) -> None:
+    note = getattr(args, "note", None) or getattr(args, "label", None) or ""
+    pp(client.post("/api/v1/oast/tokens", json={"note": note}))
+
+
+def cmd_oast_tokens_list(args: argparse.Namespace, client: Client) -> None:
+    pp(client.get("/api/v1/oast/tokens"))
+
+
+def cmd_oast_hits(args: argparse.Namespace, client: Client) -> None:
+    q: dict[str, Any] = {"limit": getattr(args, "limit", 100)}
+    if getattr(args, "token", None):
+        q["token"] = args.token
+    if getattr(args, "protocol", None):
+        q["protocol"] = args.protocol
+    if getattr(args, "client_id", None):
+        q["client_id"] = args.client_id
+    if getattr(args, "since", None) is not None:
+        q["since"] = args.since
+    pp(client.get("/api/v1/oast/hits", params=q))
+
+
+# aliases
+cmd_oast_mint = cmd_oast_token_create
+cmd_oast_list = cmd_oast_tokens_list
+cmd_oast_poll = cmd_oast_hits
+
+
 def cmd_tokens_list(args: argparse.Namespace, client: Client) -> None:
     pp(client.get("/api/v1/tokens"))
 
@@ -663,6 +730,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--url", help="C2 base URL (or SQUIDC5_URL / config)")
     p.add_argument("--token", help="API token (or SQUIDC5_TOKEN / config)")
     p.add_argument("--timeout", type=float, default=30.0)
+    p.add_argument(
+        "--insecure",
+        "-k",
+        action="store_true",
+        help="Skip TLS certificate verify (self-signed teamservers)",
+    )
 
     sub = p.add_subparsers(dest="command", required=True)
 
@@ -765,9 +838,16 @@ def build_parser() -> argparse.ArgumentParser:
     l_create.add_argument(
         "--kind",
         default="http",
-        choices=["http", "tcp", "reverse_shell", "dns"],
+        choices=["http", "tcp", "reverse_shell", "dns", "smtp"],
     )
     l_create.add_argument("--zone", default=None, help="DNS zone when kind=dns")
+    l_create.add_argument(
+        "--dns-mode",
+        dest="dns_mode",
+        default="both",
+        choices=["beacon", "oast", "both"],
+        help="DNS listener mode (default both)",
+    )
     l_create.add_argument("--host", default="0.0.0.0")
     l_create.set_defaults(func=cmd_listeners_create, needs_client=True)
     l_start = lis_sub.add_parser("start")
@@ -964,6 +1044,39 @@ def build_parser() -> argparse.ArgumentParser:
     pol_set.add_argument("--file")
     pol_set.set_defaults(func=cmd_policy_set, needs_client=True)
 
+    # oast collaborator
+    oast = sub.add_parser("oast", help="OAST Collaborator (tokens + hits)")
+    oast_sub = oast.add_subparsers(dest="oast_cmd", required=True)
+    o_tok = oast_sub.add_parser("token", help="Token operations")
+    o_tok_sub = o_tok.add_subparsers(dest="oast_token_cmd", required=True)
+    o_tok_c = o_tok_sub.add_parser("create", help="Mint unique OAST payloads")
+    o_tok_c.add_argument("--note", default="", help="Operator note")
+    o_tok_c.set_defaults(func=cmd_oast_token_create, needs_client=True)
+    o_tokens = oast_sub.add_parser("tokens", help="List OAST tokens")
+    o_tokens_sub = o_tokens.add_subparsers(dest="oast_tokens_cmd", required=False)
+    o_tokens_list = o_tokens_sub.add_parser("list", help="List tokens")
+    o_tokens_list.set_defaults(func=cmd_oast_tokens_list, needs_client=True)
+    o_tokens.set_defaults(func=cmd_oast_tokens_list, needs_client=True)
+    o_hits = oast_sub.add_parser("hits", help="Poll OAST hits (Collaborator-style)")
+    o_hits.add_argument("--token")
+    o_hits.add_argument("--protocol", choices=["http", "dns", "smtp"])
+    o_hits.add_argument("--client-id", dest="client_id")
+    o_hits.add_argument("--since", type=float, default=None)
+    o_hits.add_argument("--limit", type=int, default=100)
+    o_hits.set_defaults(func=cmd_oast_hits, needs_client=True)
+    # aliases
+    o_mint = oast_sub.add_parser("mint", help="Alias: token create")
+    o_mint.add_argument("--note", default="")
+    o_mint.add_argument("--label", default="")
+    o_mint.set_defaults(func=cmd_oast_token_create, needs_client=True)
+    o_poll = oast_sub.add_parser("poll", help="Alias: hits")
+    o_poll.add_argument("--token")
+    o_poll.add_argument("--protocol", choices=["http", "dns", "smtp"])
+    o_poll.add_argument("--client-id", dest="client_id")
+    o_poll.add_argument("--since", type=float, default=None)
+    o_poll.add_argument("--limit", type=int, default=100)
+    o_poll.set_defaults(func=cmd_oast_hits, needs_client=True)
+
     return p
 
 
@@ -990,7 +1103,8 @@ def main(argv: list[str] | None = None) -> None:
             if args.command != "health":
                 raise SystemExit(1)
 
-    client = Client(base, token, timeout=args.timeout)
+    verify = resolve_verify(args)
+    client = Client(base, token, timeout=args.timeout, verify=verify)
     try:
         args.func(args, client)
     finally:

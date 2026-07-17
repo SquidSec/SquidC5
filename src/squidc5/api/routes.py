@@ -26,10 +26,20 @@ class TokenCreate(BaseModel):
 
 class ListenerCreate(BaseModel):
     name: str
-    kind: str = "http"  # http | tcp | reverse_shell | dns
+    kind: str = "http"  # http | tcp | reverse_shell | dns | smtp
     host: str = "0.0.0.0"
     port: int
     config: dict[str, Any] = Field(default_factory=dict)
+
+
+class OastTokenCreate(BaseModel):
+    note: str = ""
+    label: str = ""  # alias for note
+    meta: dict[str, Any] = Field(default_factory=dict)
+
+
+# backward-compatible alias
+OastClientCreate = OastTokenCreate
 
 
 class TaskCreate(BaseModel):
@@ -407,6 +417,10 @@ def build_api_router() -> APIRouter:
         state = get_state(request)
         if body.kind == "http" and not await state.features.enabled("http_listeners"):
             raise HTTPException(403, "HTTP listeners disabled by feature flag")
+        if body.kind == "dns" and not await state.features.enabled("dns_listeners"):
+            raise HTTPException(403, "DNS listeners disabled by feature flag")
+        if body.kind == "smtp" and not await state.features.enabled("smtp_oast"):
+            raise HTTPException(403, "SMTP OAST disabled by feature flag")
         if body.kind in ("tcp", "reverse_shell") and not await state.features.enabled(
             "reverse_shell_listeners"
         ):
@@ -1388,6 +1402,120 @@ def build_api_router() -> APIRouter:
         from squidc5.deploy.helpers import cert_rotation_plan
 
         return cert_rotation_plan(body.domains, body.days)
+
+    @api.post("/deploy/wildcard-cert-plan")
+    async def deploy_wildcard_cert_plan(
+        body: CertPlanRequest,
+        auth: AuthContext = Depends(require_scope("admin", "listeners:write")),
+    ) -> dict[str, Any]:
+        from squidc5.deploy.helpers import wildcard_cert_plan
+
+        return wildcard_cert_plan(body.domains, body.days)
+
+    # ----- OAST Collaborator -----
+
+    async def _oast_or_403(request: Request):
+        state = get_state(request)
+        if not state.settings.oast_enabled or not await state.features.enabled("oast_enabled"):
+            raise HTTPException(403, "OAST disabled")
+        if state.oast is None:
+            raise HTTPException(500, "OAST not initialized")
+        return state
+
+    @api.post("/oast/tokens")
+    async def oast_create_token(
+        body: OastTokenCreate,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("oast:write", "admin")),
+    ) -> dict[str, Any]:
+        state = await _oast_or_403(request)
+        note = body.note or body.label or ""
+        return await state.oast.create_token(note=note, created_by=auth.name, meta=body.meta)
+
+    @api.get("/oast/tokens")
+    async def oast_list_tokens(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("oast:read", "admin")),
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        state = await _oast_or_403(request)
+        return await state.oast.list_tokens(limit=limit)
+
+    @api.get("/oast/tokens/{token_id}")
+    async def oast_get_token(
+        token_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("oast:read", "admin")),
+    ) -> dict[str, Any]:
+        state = await _oast_or_403(request)
+        c = await state.oast.get_token(token_id)
+        if not c:
+            raise HTTPException(404, "token not found")
+        return c
+
+    @api.get("/oast/hits")
+    async def oast_list_hits(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("oast:read", "admin")),
+        token: str | None = None,
+        protocol: str | None = None,
+        client_id: str | None = None,
+        since: float | None = None,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        state = await _oast_or_403(request)
+        items = await state.oast.list_hits(
+            client_id=client_id,
+            token=token,
+            protocol=protocol,
+            since=since,
+            limit=limit,
+        )
+        return {"hits": items, "count": len(items)}
+
+    # aliases
+    @api.post("/oast/clients")
+    async def oast_create_client_alias(
+        body: OastTokenCreate,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("oast:write", "admin")),
+    ) -> dict[str, Any]:
+        return await oast_create_token(body, request, auth)
+
+    @api.get("/oast/clients")
+    async def oast_list_clients_alias(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("oast:read", "admin")),
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        return await oast_list_tokens(request, auth, limit)
+
+    @api.get("/oast/interactions")
+    async def oast_interactions_alias(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("oast:read", "admin")),
+        client_id: str | None = None,
+        token: str | None = None,
+        protocol: str | None = None,
+        since: float | None = None,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        r = await oast_list_hits(
+            request, auth, token=token, protocol=protocol, client_id=client_id, since=since, limit=limit
+        )
+        return {"interactions": r["hits"], "count": r["count"]}
+
+    @api.delete("/oast/tokens/{token_id}")
+    async def oast_delete_token(
+        token_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("oast:write", "admin")),
+    ) -> dict[str, str]:
+        state = await _oast_or_403(request)
+        ok = await state.oast.delete_client(token_id)
+        if not ok:
+            raise HTTPException(404, "token not found")
+        return {"status": "deleted", "id": token_id}
 
     # ----- Implant (no auth — session-bound beacon) -----
 

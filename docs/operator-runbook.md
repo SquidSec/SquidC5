@@ -127,6 +127,23 @@ sc5 listeners start <id>
 sc5 payloads generate dns_beacon_python <DNS_HOST> 5353 --zone c2.lab.invalid --raw
 ```
 
+## OAST Collaborator (HTTP / DNS / SMTP)
+
+```bash
+# self-signed teamserver
+sc5 --insecure login --url https://TEAM:8443 --token sc5_...
+
+sc5 --insecure oast token create --note "sqli-oob"
+# → dns_name, http_url, smtp_to
+
+sc5 --insecure oast tokens list
+sc5 --insecure oast hits --token <TOKEN>
+sc5 --insecure oast hits --token <TOKEN> --protocol dns
+```
+
+DNS listener config: `--zone oast.example.com --dns-mode both` (or `oast` / `beacon`).  
+SMTP is log-only (feature `smtp_oast`, default off). See `docs/deployment.md` § OAST.
+
 Point lab zone NS/records at the C2 host (authorized lab only).
 
 ## WebSocket C2

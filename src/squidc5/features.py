@@ -25,6 +25,9 @@ DEFAULT_FEATURES: dict[str, bool] = {
     "plugins_enabled": False,  # deny by default until allow-listed
     "collab_teams": True,
     "observability_timeline": True,
+    "oast_enabled": True,
+    "dns_listeners": True,
+    "smtp_oast": False,  # deny by default (port 25 often restricted)
 }
 
 FEATURE_LABELS: dict[str, str] = {
@@ -44,6 +47,9 @@ FEATURE_LABELS: dict[str, str] = {
     "plugins_enabled": "Plugin registry (allow-list)",
     "collab_teams": "Multi-operator teams / handoff",
     "observability_timeline": "Timeline + ATT&CK mapping",
+    "oast_enabled": "OAST Collaborator (unique IDs + poll)",
+    "dns_listeners": "DNS C2 + DNS OAST proof logging",
+    "smtp_oast": "SMTP OAST listener",
 }
 
 

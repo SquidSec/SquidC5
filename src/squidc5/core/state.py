@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from squidc5.implants.registry import ImplantRegistry
     from squidc5.listeners.manager import ListenerManager
     from squidc5.metrics.collector import MetricsCollector
+    from squidc5.oast.store import OastService
     from squidc5.observability.timeline import TimelineService
     from squidc5.payloads.generator import PayloadGenerator
     from squidc5.plugins.registry import PluginRegistry
@@ -44,6 +45,7 @@ class AppState:
     teams: TeamService
     plugins: PluginRegistry
     timeline: TimelineService
+    oast: OastService | None = None
     ai_chain: Any = None
     admin_token_once: str = ""
     shell_buffers: dict[str, list[str]] = field(default_factory=dict)

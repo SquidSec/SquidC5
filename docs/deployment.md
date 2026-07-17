@@ -63,6 +63,69 @@ Disable unused services that might bind ports (ModemManager, etc.) on the host. 
 
 Environment variables: see `.env.example` (`SQUIDC5_*`).
 
+## OAST Collaborator (DNS + HTTP + SMTP)
+
+Authorized out-of-band interaction capture (Burp Collaborator / Interactsh style).
+
+### Env
+
+| Var | Example | Purpose |
+|-----|---------|---------|
+| `SQUIDC5_OAST_ZONE` | `oast.squidoffense.com` | Authoritative OAST zone |
+| `SQUIDC5_PUBLIC_HOST` | `oast.squidoffense.com` | Hostnames in payload URLs |
+| `SQUIDC5_PUBLIC_IP` | `159.203.99.184` | A-record answers for DNS OAST |
+| `SQUIDC5_OAST_ENABLED` | `true` | Gate feature |
+| `SQUIDC5_OAST_HTTP_PORT` | `80` | Port shown in HTTP payload URLs |
+
+### DNS delegation (subdomain only — do not change apex NS)
+
+Example for `oast.squidoffense.com` → teamserver `159.203.99.184`:
+
+| Type | Name | Data |
+|------|------|------|
+| A | ns1.oast | 159.203.99.184 (glue) |
+| A | oast | 159.203.99.184 |
+| NS | oast | ns1.oast.squidoffense.com |
+| MX | oast | oast.squidoffense.com (priority 0) |
+
+Leave apex `@` A (website) and apex NS (registrar) alone.
+
+### Firewall ports (teamserver)
+
+Open at minimum: **53/udp, 53/tcp, 25/tcp, 80/tcp, 443/tcp, 8443/tcp**.
+
+Port 53 needs root or `ip_unprivileged_port_start=0`. Port 25 is often blocked by cloud providers — use 2525 for lab SMTP OAST if needed.
+
+### Listeners
+
+```bash
+# DNS OAST + beacon (mode both|oast|beacon)
+sc5 --insecure listeners create oast-dns 53 --kind dns --zone oast.squidoffense.com --dns-mode both
+sc5 --insecure listeners start <id>
+
+# HTTP OAST catch-all
+sc5 --insecure listeners create oast-http 80 --kind http
+sc5 --insecure listeners start <id>
+
+# SMTP OAST (enable feature first; never relays)
+# PUT /api/v1/features {"features":{"smtp_oast":true}}
+sc5 --insecure listeners create oast-smtp 25 --kind smtp
+```
+
+### Operator verify
+
+```bash
+sc5 --insecure login --url https://159.203.99.184:8443 --token sc5_...
+sc5 --insecure oast token create --note "xss"
+# TOKEN=... from response
+dig @8.8.8.8 $TOKEN.oast.squidoffense.com A
+curl -sS "http://oast.squidoffense.com/$TOKEN/"
+# swaks --to $TOKEN@oast.squidoffense.com --server 159.203.99.184
+sc5 --insecure oast hits --token $TOKEN
+```
+
+CLI: global `--insecure` / config `verify_ssl: false` for self-signed API TLS.
+
 ## TLS (HTTPS) — default on new instances
 
 On first start, SquidC5 generates a **unique self-signed certificate** under:

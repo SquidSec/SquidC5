@@ -61,3 +61,42 @@ def cert_rotation_plan(domains: list[str], days: int = 60) -> dict[str, Any]:
         ],
         "notes": "Never commit private keys. Store certs outside the git tree.",
     }
+
+
+def wildcard_cert_plan(domains: list[str], days: int = 60) -> dict[str, Any]:
+    """ACME DNS-01 wildcard plan for multi-protocol OAST (*.zone) + apex."""
+    names: list[str] = []
+    for d in domains:
+        d = d.strip().lstrip("*.")
+        if not d:
+            continue
+        names.append(d)
+        names.append(f"*.{d}")
+    # de-dupe preserve order
+    seen: set[str] = set()
+    ordered = []
+    for n in names:
+        if n not in seen:
+            seen.add(n)
+            ordered.append(n)
+    certbot_flags = " ".join(f"-d {n}" for n in ordered)
+    return {
+        "interval_days": days,
+        "domains": ordered,
+        "challenge": "dns-01",
+        "steps": [
+            "Delegate NS for OAST/C2 zone to this host (or provider API for DNS-01)",
+            f"Issue wildcard via ACME DNS-01: certbot certonly --manual --preferred-challenges dns {certbot_flags}",
+            "Or use DNS provider plugin (cloudflare, route53, etc.) for automation",
+            "Install fullchain.pem + privkey.pem on redirector / SQUIDC5_TLS_* paths",
+            "Point HTTP OAST + beacon Hostnames at apex; DNS OAST uses *.zone tokens",
+            "Correlate hits by oast token across http/dns/smtp in GET /api/v1/oast/interactions",
+            "Rotate before expiry; never commit private keys",
+        ],
+        "correlation": {
+            "http": "Host or path /o/{token}",
+            "dns": "{token}.zone query (any RR type logged)",
+            "smtp": "{token}@zone RCPT",
+        },
+        "notes": "Wildcard requires DNS-01. Lab script: scripts/acme_lab_renew.sh with -d '*.zone' -d zone.",
+    }
