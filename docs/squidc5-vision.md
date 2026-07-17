@@ -2,8 +2,8 @@
 
 **Version:** 0.1.0  
 **Status:** Active development — **military-grade, security-first C2**  
-**Purpose:** Authorized penetration testing, red team, and defensive security operations only
-
+**Purpose:** Authorized penetration testing, red team, and defensive security operations only  
+**Roadmap:** See `docs/roadmap-2026-2027.md` (malleable profiles → implants → evasion → multi-op → AI → plugins → observability → deploy → testing → community)
 ## Overview
 
 SquidC5 is a professional, lightweight, **military-grade**, security-first, AI-native Command & Control framework under active development. It is designed open-source-ready from the first commit, with strong emphasis on **secure defaults**, AI restriction, determinism, auditability, and low resource usage.
