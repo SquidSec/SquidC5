@@ -31,6 +31,8 @@
     #adminMount { display: flex; flex-direction: column; }
     #adminMount > * { margin-bottom: 10px; }
     #adminMount > *:last-child { margin-bottom: 0; }
+    /* Full-width work surfaces (used by multi-column layouts) */
+    .col-span-all { width: 100%; }
 
     .brand img { width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 0 14px #ff00aa); }
     .brand h1 { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
@@ -148,38 +150,49 @@
     footer { text-align: center; color: var(--muted); font-size: 0.72rem; margin-top: 14px; }
     .hidden { display: none !important; }
 
-    /* Tablet */
+    /* Tablet+ : multi-column (not row grid) so uneven cards top-align */
     @media (min-width: 768px) {
       body {
         padding: max(16px, env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
       }
       .wrap { max-width: 1000px; }
       .overview {
-        display: grid;
-        grid-template-columns: 1.2fr 1fr;
-        gap: 12px 16px;
-        align-items: start;
+        display: block;
+        column-count: 2;
+        column-gap: 16px;
         margin-bottom: 4px;
       }
-      .overview > .card,
-      .overview > details.panel {
-        margin-bottom: 0;
+      .overview > * {
+        break-inside: avoid;
+        -webkit-column-break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 12px;
+        width: 100%;
+        display: inline-block; /* stabilizes break-inside in WebKit */
       }
-      .overview .shells-card { grid-column: 1; grid-row: 1 / span 2; }
-      .overview .listeners-card { grid-column: 2; grid-row: 1; }
-      .overview .signal-card { grid-column: 2; grid-row: 2; }
-      .overview .events-panel { grid-column: 1 / -1; grid-row: 3; }
       #adminMount {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px 16px;
-        align-items: start;
+        display: block;
+        column-count: 2;
+        column-gap: 16px;
         margin-top: 12px;
       }
-      #adminMount > * { margin-bottom: 0 !important; }
-      /* shell runner is primary work surface */
-      #adminMount > #quickRunCard { grid-column: 1 / -1; }
-      #adminMount > #aiCard { grid-column: 1 / -1; }
+      #adminMount > * {
+        break-inside: avoid;
+        -webkit-column-break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 12px !important;
+        width: 100%;
+        display: inline-block;
+        min-width: 0;
+      }
+      /* Primary work surfaces span all columns */
+      #adminMount > #identityCard,
+      #adminMount > #quickRunCard,
+      #adminMount > #aiCard {
+        column-span: all;
+        display: block;
+        width: 100%;
+      }
       .outbox { max-height: 380px; }
       button { min-width: 120px; flex: 0 1 auto; }
       .stats { gap: 12px; }
@@ -187,45 +200,19 @@
       .modal { width: min(100%, 420px); }
     }
 
-    /* Desktop */
+    /* Desktop: three independent columns */
     @media (min-width: 1100px) {
       .wrap { max-width: 1440px; }
       .overview {
-        display: grid;
-        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
-        gap: 14px 18px;
-        align-items: stretch;
+        column-count: 3;
+        column-gap: 18px;
       }
-      .overview .shells-card {
-        grid-column: 1;
-        grid-row: 1 / span 2;
-        min-height: 100%;
-      }
-      .overview .listeners-card { grid-column: 2; grid-row: 1; }
-      .overview .signal-card { grid-column: 3; grid-row: 1; }
-      .overview .events-panel {
-        grid-column: 2 / -1;
-        grid-row: 2;
-        min-height: 0;
-      }
+      .overview > * { margin-bottom: 14px; }
       #adminMount {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 14px 18px;
-        align-items: start;
+        column-count: 3;
+        column-gap: 18px;
       }
-      /* Full-width work surfaces */
-      #adminMount > #quickRunCard,
-      #adminMount > #aiCard {
-        grid-column: 1 / -1;
-      }
-      /* Identity spans full width above shell when present */
-      #adminMount > #identityCard {
-        grid-column: 1 / -1;
-      }
-      #adminMount > details.panel {
-        min-width: 0;
-      }
+      #adminMount > * { margin-bottom: 14px !important; }
       .brand h1 { font-size: 1.45rem; }
       .hero { padding: 16px 18px; margin-bottom: 16px; }
       .card, details.panel { padding: 14px 16px; }
@@ -297,7 +284,7 @@
         <p class="muted" id="healthLine" style="margin:8px 0 0">—</p>
       </div>
 
-      <details class="panel events-panel" id="eventsPanel" open>
+      <details class="panel events-panel" id="eventsPanel">
         <summary>Recent events</summary>
         <div id="eventsBox" class="empty">—</div>
       </details>
@@ -439,10 +426,27 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       $("url").value = url || "";
       $("token").value = localStorage.getItem(KEYS.token) || "";
       $("refresh").value = localStorage.getItem(KEYS.refresh) || "10";
-      // Start expanded; keep connection open after QR import so user can verify
-      $("settingsPanel").open = true;
-      $("eventsPanel").open = true;
+      // Mobile: collapse panels; open Connection only if no token yet.
+      // Desktop: expand all details.panel by default.
+      applyPanelDefaults();
       return imported;
+    }
+    function isDesktopLayout() {
+      try {
+        return window.matchMedia && window.matchMedia("(min-width: 768px)").matches;
+      } catch (_) {
+        return false;
+      }
+    }
+    function applyPanelDefaults() {
+      const desktop = isDesktopLayout();
+      document.querySelectorAll("details.panel").forEach((el) => {
+        el.open = desktop;
+      });
+      if (!desktop) {
+        $("settingsPanel").open = !$("token").value;
+        $("eventsPanel").open = false;
+      }
     }
     function fmtUptime(sec) {
       sec = Math.floor(Number(sec) || 0);
@@ -533,6 +537,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         s.textContent = code;
         document.body.appendChild(s);
         state.adminLoaded = true;
+        applyPanelDefaults();
         return true;
       } catch (e) {
         showError("Ops console unavailable: " + (e.message || e));

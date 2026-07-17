@@ -12,8 +12,17 @@
   const root = document.getElementById("adminMount");
   if (!root) return;
 
+  function isDesktopLayout() {
+    try {
+      return window.matchMedia && window.matchMedia("(min-width: 768px)").matches;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function panel(id, title, body, open) {
-    const isOpen = open !== false;
+    // Desktop: expanded by default; mobile: always start collapsed
+    const isOpen = isDesktopLayout() && open !== false;
     return `<details class="panel" id="${id}"${isOpen ? " open" : ""}>
       <summary>${title}</summary>
       ${body}
