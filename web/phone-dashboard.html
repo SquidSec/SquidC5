@@ -176,19 +176,35 @@
       height: var(--panel-tile-h-wide);
       max-height: var(--panel-tile-h-wide);
     }
-    /* Status overview: always height-fit content, never a scroll tile */
+    /* Status overview + Connection: height-fit content, never a scroll tile */
     details.panel.hero[open],
-    details.panel#heroPanel[open] {
+    details.panel#heroPanel[open],
+    details.panel#settingsPanel[open] {
       height: auto !important;
       max-height: none !important;
       display: block !important;
       overflow: visible !important;
     }
     details.panel.hero[open] > .panel-body,
-    details.panel#heroPanel[open] > .panel-body {
+    details.panel#heroPanel[open] > .panel-body,
+    details.panel#settingsPanel[open] > .panel-body {
       height: auto !important;
       max-height: none !important;
       overflow: visible !important;
+      padding-bottom: 12px;
+    }
+    /* Connection actions: one full-width horizontal row */
+    #settingsPanel .conn-actions {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 8px;
+      margin-top: 12px;
+      width: 100%;
+    }
+    #settingsPanel .conn-actions button {
+      flex: 1 1 0;
+      min-width: 0;
+      width: auto;
     }
     details.panel:not([open]) {
       height: auto;
@@ -485,11 +501,9 @@
       <input id="token" type="password" placeholder="sc5_…" autocomplete="off" />
       <label for="refresh">Refresh (sec)</label>
       <input id="refresh" type="number" min="5" max="120" value="10" />
-      <div class="row">
+      <div class="conn-actions">
         <button type="button" class="primary" id="saveBtn">Save &amp; Connect</button>
         <button type="button" id="toggleToken">Show token</button>
-      </div>
-      <div class="row toolbar" style="margin-top:10px;margin-bottom:0">
         <button type="button" id="refreshBtn">Refresh</button>
         <button type="button" class="primary" id="shareBtn">Phone QR</button>
       </div>
@@ -771,7 +785,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       return Number.isFinite(n) ? n : (isFullWidthPanel(el) ? 400 : 340);
     }
     function isAutoHeightPanel(el) {
-      return !!(el && (el.id === "heroPanel" || el.classList.contains("hero")));
+      return !!(el && (
+        el.id === "heroPanel" ||
+        el.id === "settingsPanel" ||
+        el.classList.contains("hero")
+      ));
     }
     function applyTileScroll(el) {
       const body = el && el.querySelector(":scope > .panel-body");
