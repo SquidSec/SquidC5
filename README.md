@@ -37,24 +37,30 @@ uvicorn squidc5.main:create_app --factory --host 0.0.0.0 --port 8443
 
 ## Standalone binaries (no venv)
 
-Every push to `main` builds Linux + Windows executables in CI (Artifacts):
+Every successful push to `main`/`master`:
 
-| Binary | Purpose |
-|--------|---------|
-| `sc5` / `sc5.exe` | Operator CLI |
-| `squidc5` / `squidc5.exe` | C2 server (includes `/ops` UI) |
+1. CI builds Linux + Windows executables  
+2. CI publishes a **GitHub Release** (tag `v0.1.<run>-<sha>`) with assets  
+
+**Download:** https://github.com/DotNetRussell/SquidC5/releases/latest  
+
+| Asset | Purpose |
+|-------|---------|
+| `sc5-linux-x64` / `sc5-windows-x64.exe` | Operator CLI |
+| `squidc5-linux-x64` / `squidc5-windows-x64.exe` | C2 server (includes `/ops` UI) |
+| `SHA256SUMS.txt` | Checksums |
 
 ```bash
-# Server
-./squidc5
+# Server (Linux release asset)
+chmod +x squidc5-linux-x64 && ./squidc5-linux-x64
 # token: ./data/admin_token.txt   console: http://HOST:8443/ops
 
 # Operator CLI
-./sc5 login --url http://HOST:8443 --token sc5_...
-./sc5 sessions list
+./sc5-linux-x64 login --url http://HOST:8443 --token sc5_...
+./sc5-linux-x64 sessions list
 ```
 
-Local build: `./scripts/build_binaries.sh` (outputs `dist/binaries/`).
+CI also uploads workflow Artifacts (30 days). Local build: `./scripts/build_binaries.sh`.
 
 ## Operator CLI (`sc5`)
 

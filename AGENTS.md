@@ -70,8 +70,11 @@ Source of truth also: Windows SquidSec workspace
 ### Prod after merge
 
 ```text
-merge main → CI builds Linux/Windows binaries → deploy Linux squidc5 binary ONLY
+merge main → CI builds Linux/Windows binaries → GitHub Release published
+  → deploy Linux squidc5 binary ONLY (from Release assets or workflow Artifacts)
 ```
+
+Releases: `https://github.com/DotNetRussell/SquidC5/releases` (created by CI job `github-release` on main/master only).
 
 - **Never** commit/push straight to `main`/`master`
 - **Never** rsync WIP source or `docker compose up --build` to prod
