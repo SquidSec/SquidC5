@@ -46,6 +46,7 @@ class ListenerManager:
         self.task_poll: Callable[[str], Awaitable[dict[str, Any] | None]] | None = None
         self.task_complete: Callable[[str, str, str], Awaitable[Any]] | None = None
         self._servers: dict[str, asyncio.AbstractServer] = {}
+        self._udp: dict[str, asyncio.DatagramTransport] = {}
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._lock = asyncio.Lock()
         self._shell_queues: dict[str, asyncio.Queue[str | None]] = {}
@@ -66,7 +67,7 @@ class ListenerManager:
         host: str = "0.0.0.0",
         config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if kind not in ("http", "tcp", "reverse_shell"):
+        if kind not in ("http", "tcp", "reverse_shell", "dns"):
             raise ValueError(f"Unsupported listener kind: {kind}")
         if port < 1 or port > 65535:
             raise ValueError("Port must be 1-65535")
@@ -87,7 +88,7 @@ class ListenerManager:
         if not row:
             raise KeyError("listener not found")
         async with self._lock:
-            if listener_id in self._servers:
+            if listener_id in self._servers or listener_id in self._udp:
                 return self._norm(row)
             kind = row["kind"]
             host = row["host"]
@@ -105,6 +106,17 @@ class ListenerManager:
                 self._tasks[listener_id] = task
                 await self.db.set_listener_status(listener_id, "running")
                 log.info("Started http listener %s on %s:%s", listener_id, host, port)
+            elif kind == "dns":
+                from squidc5.listeners.dns_listener import start_dns_server
+
+                cfg = row.get("config") or {}
+                if isinstance(cfg, str):
+                    cfg = json.loads(cfg)
+                zone = str((cfg or {}).get("zone") or "c2.lab.invalid")
+                transport, _proto = await start_dns_server(self, listener_id, host, port, zone)
+                self._udp[listener_id] = transport
+                await self.db.set_listener_status(listener_id, "running")
+                log.info("Started dns listener %s on %s:%s zone=%s", listener_id, host, port, zone)
             elif kind in ("tcp", "reverse_shell"):
                 server = await asyncio.start_server(
                     lambda r, w: self._handle_tcp(listener_id, kind, r, w),
@@ -127,6 +139,7 @@ class ListenerManager:
         async with self._lock:
             task = self._tasks.pop(listener_id, None)
             server = self._servers.pop(listener_id, None)
+            udp = self._udp.pop(listener_id, None)
             if task:
                 task.cancel()
                 try:
@@ -136,18 +149,20 @@ class ListenerManager:
             if server:
                 server.close()
                 await server.wait_closed()
+            if udp:
+                udp.close()
             await self.db.set_listener_status(listener_id, "stopped")
         await self.metrics.emit("listener.stopped", {"id": listener_id})
         row = await self.db.get_listener(listener_id)
         return self._norm(row)  # type: ignore[arg-type]
 
     async def delete(self, listener_id: str) -> bool:
-        if listener_id in self._servers:
+        if listener_id in self._servers or listener_id in self._udp:
             await self.stop(listener_id)
         return await self.db.delete_listener(listener_id)
 
     async def stop_all(self) -> None:
-        ids = list(self._servers.keys())
+        ids = list(set(self._servers.keys()) | set(self._udp.keys()))
         for lid in ids:
             try:
                 await self.stop(lid)
