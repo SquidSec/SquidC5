@@ -56,13 +56,35 @@ Disable unused services that might bind ports (ModemManager, etc.) on the host. 
 
 ## DigitalOcean lab pattern
 
-- Size: `s-1vcpu-1gb` (practical minimum for Docker)
-- Image: Ubuntu LTS + Docker
+- Size: `s-1vcpu-1gb` (practical minimum)
+- Image: Ubuntu LTS
 - Install path: `/opt/squidc5`
-- Update: rsync tree + `docker compose up -d --build --force-recreate`
 - SSH deploy key: use operator machine key already registered with DO (do not commit private keys)
 
 Environment variables: see `.env.example` (`SQUIDC5_*`).
+
+## Production: binary-only deploy (required)
+
+Prod is **not** updated from a local working tree or Docker rebuild of WIP.
+
+Pipeline:
+
+1. Open PR → CI tests must pass  
+2. Merge to `main` / `master`  
+3. Main CI builds standalone binaries (`sc5`, `squidc5`)  
+4. Download **Linux `squidc5`** from that Actions run’s artifacts  
+5. Deploy **only that executable** to the droplet; keep `data/` intact  
+
+```bash
+scp -i <key> squidc5 root@<droplet>:/opt/squidc5/bin/squidc5.new
+ssh -i <key> root@<droplet> '
+  systemctl stop squidc5 || true
+  install -m 755 /opt/squidc5/bin/squidc5.new /opt/squidc5/bin/squidc5
+  systemctl start squidc5
+'
+```
+
+Do **not** rsync source or `docker compose up --build` for production once this path is active. Docker remains for local/lab only.
 
 ## Secrets hygiene
 
