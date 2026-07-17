@@ -157,6 +157,14 @@ CREATE TABLE IF NOT EXISTS operator_notes (
     note TEXT NOT NULL,
     ts REAL NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS team_members (
+    team_id TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'operator',
+    added_at REAL NOT NULL,
+    PRIMARY KEY (team_id, actor)
+);
 """
 
 def _now() -> float:
@@ -679,5 +687,26 @@ class Database:
         cur = await self.execute(
             "UPDATE plugins SET enabled = ? WHERE name = ?",
             (1 if enabled else 0, name),
+        )
+        return cur.rowcount > 0
+
+    # --- Team membership ---
+
+    async def add_team_member(self, team_id: str, actor: str, role: str = "operator") -> None:
+        await self.execute(
+            "INSERT OR REPLACE INTO team_members (team_id, actor, role, added_at) VALUES (?, ?, ?, ?)",
+            (team_id, actor, role, _now()),
+        )
+
+    async def list_team_members(self, team_id: str) -> list[dict[str, Any]]:
+        return await self.fetchall(
+            "SELECT team_id, actor, role, added_at FROM team_members WHERE team_id = ? ORDER BY actor",
+            (team_id,),
+        )
+
+    async def remove_team_member(self, team_id: str, actor: str) -> bool:
+        cur = await self.execute(
+            "DELETE FROM team_members WHERE team_id = ? AND actor = ?",
+            (team_id, actor),
         )
         return cur.rowcount > 0

