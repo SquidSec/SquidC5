@@ -120,6 +120,63 @@ class PluginRegister(BaseModel):
     enable: bool = False
 
 
+class PluginExecute(BaseModel):
+    name: str
+    capability: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class AIChainRequest(BaseModel):
+    playbook: str
+    user_data: str = ""
+    llm_id: str | None = None
+    max_steps: int | None = None
+
+
+class ProfileUpsert(BaseModel):
+    id: str | None = None
+    name: str
+    channel: str = "http"
+    description: str = ""
+    http: dict[str, Any] | None = None
+    dns: dict[str, Any] | None = None
+    ws: dict[str, Any] | None = None
+    active: bool = False
+
+
+class ChatMessage(BaseModel):
+    message: str
+    team_id: str | None = None
+
+
+class OwnerSet(BaseModel):
+    owner: str
+
+
+class ImplantGenerateRequest(BaseModel):
+    family: str = "memory_beacon_python"
+    platform: str = "linux"
+    arch: str = "x64"
+    host: str
+    port: int
+    path: str | None = None
+    evasion: bool = True
+    profile_id: str | None = None
+
+
+class RedirectorRequest(BaseModel):
+    listen_port: int = 443
+    upstream_host: str = "127.0.0.1"
+    upstream_port: int = 8443
+    server_name: str = "cdn.example.invalid"
+    beacon_uris: list[str] | None = None
+
+
+class CertPlanRequest(BaseModel):
+    domains: list[str]
+    days: int = 60
+
+
 def build_api_router() -> APIRouter:
     api = APIRouter(prefix="/api/v1")
 
@@ -793,6 +850,42 @@ def build_api_router() -> APIRouter:
         await state.metrics.incr("profiles.activated")
         return p.to_dict()
 
+    @api.post("/profiles")
+    async def create_profile(
+        body: ProfileUpsert,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("profiles:write", "admin")),
+    ) -> dict[str, Any]:
+        from squidc5.profiles.models import C2Profile, DnsProfile, HttpProfile, WsProfile
+
+        state = get_state(request)
+        if not await state.features.enabled("malleable_profiles"):
+            raise HTTPException(403, "Malleable profiles disabled by feature flag")
+        pid = body.id or f"prof_{body.name.lower().replace(' ', '_')[:24]}"
+        http = HttpProfile(**(body.http or {})) if body.http is not None else HttpProfile()
+        dns = DnsProfile(**(body.dns or {})) if body.dns is not None else DnsProfile()
+        ws = WsProfile(**(body.ws or {})) if body.ws is not None else WsProfile()
+        prof = C2Profile(
+            id=pid,
+            name=body.name,
+            description=body.description,
+            channel=body.channel,
+            http=http,
+            dns=dns,
+            ws=ws,
+            active=body.active,
+        )
+        await state.profiles.upsert(prof)
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="profile.upsert",
+            resource=pid,
+            details={"name": body.name, "channel": body.channel},
+            risk_score=4,
+        )
+        return prof.to_dict()
+
     @api.post("/profiles/shape")
     async def shape_beacon_request(
         body: ProfileShapeRequest,
@@ -830,6 +923,37 @@ def build_api_router() -> APIRouter:
             )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
+
+    @api.post("/implants/generate")
+    async def implant_generate(
+        body: ImplantGenerateRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("payloads:generate", "admin")),
+    ) -> dict[str, Any]:
+        from squidc5.implants.generators import generate_implant
+
+        state = get_state(request)
+        if not await state.features.enabled("payloads_generate"):
+            raise HTTPException(403, "Payload generation disabled")
+        path = body.path
+        if not path:
+            prof = state.profiles.get(body.profile_id) if body.profile_id else state.profiles.active()
+            plan = state.profiles.implant_snippet(prof, body.host, body.port)
+            path = plan.get("uri") if plan.get("channel") == "http" else "/api/v1/implant/beacon"
+        try:
+            out = generate_implant(
+                body.family,
+                body.platform,
+                body.arch,
+                body.host,
+                body.port,
+                path or "/api/v1/implant/beacon",
+                evasion=body.evasion,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        await state.metrics.incr("implants.generated")
+        return out
 
     # ----- Evasion assist -----
 
@@ -921,7 +1045,7 @@ def build_api_router() -> APIRouter:
         if not await state.features.enabled("plugins_enabled"):
             raise HTTPException(403, "Plugins disabled by feature flag")
         try:
-            entry = state.plugins.register(
+            entry = await state.plugins.persist(
                 body.manifest, body.signature, enable=body.enable
             )
         except ValueError as e:
@@ -935,6 +1059,31 @@ def build_api_router() -> APIRouter:
             risk_score=6,
         )
         return entry
+
+    @api.post("/plugins/execute")
+    async def execute_plugin(
+        body: PluginExecute,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("plugins:manage", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not await state.features.enabled("plugins_enabled"):
+            raise HTTPException(403, "Plugins disabled by feature flag")
+        try:
+            out = state.plugins.execute(body.name, body.capability, body.args)
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="plugin.execute",
+            resource=body.name,
+            details={"capability": body.capability},
+            risk_score=5,
+        )
+        return out
 
     # ----- Observability -----
 
@@ -956,6 +1105,140 @@ def build_api_router() -> APIRouter:
         auth: AuthContext = Depends(require_scope("metrics:read", "sessions:read", "admin")),
     ) -> dict[str, Any]:
         return await get_state(request).timeline.heatmap()
+
+    @api.get("/observability/anomalies")
+    async def obs_anomalies(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("metrics:read", "sessions:read", "admin")),
+    ) -> dict[str, Any]:
+        from squidc5.ai.anomaly import analyze_beacon_behavior
+
+        state = get_state(request)
+        sessions = await state.sessions.list(status="active")
+        metrics = await state.metrics.snapshot()
+        m = metrics.get("metrics") if isinstance(metrics, dict) else {}
+        return analyze_beacon_behavior(sessions, m or {})
+
+    @api.get("/observability/report")
+    async def obs_report(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("audit:read", "metrics:read", "admin")),
+    ) -> dict[str, Any]:
+        from squidc5.ai.anomaly import analyze_beacon_behavior
+        from squidc5.observability.reports import build_operator_report
+
+        state = get_state(request)
+        sessions = await state.sessions.list()
+        timeline = await state.timeline.timeline(limit=100)
+        heatmap = await state.timeline.heatmap()
+        metrics = await state.metrics.snapshot()
+        m = metrics.get("metrics") if isinstance(metrics, dict) else {}
+        anomalies = analyze_beacon_behavior(
+            [s for s in sessions if s.get("status") == "active"], m or {}
+        )
+        return build_operator_report(
+            sessions=sessions, timeline=timeline, heatmap=heatmap, anomalies=anomalies
+        )
+
+    # ----- AI chain + collab extras + deploy helpers -----
+
+    @api.get("/ai/playbooks")
+    async def ai_playbooks(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("ai:use", "admin")),
+    ) -> dict[str, Any]:
+        chain = get_state(request).ai_chain
+        return {"playbooks": chain.list_playbooks() if chain else []}
+
+    @api.post("/ai/chain")
+    async def ai_chain(
+        body: AIChainRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("ai:use", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not await state.features.enabled("ai_enabled"):
+            raise HTTPException(403, "Admin AI disabled")
+        if not state.ai_chain:
+            raise HTTPException(500, "AI chain not configured")
+        decision = await state.policy.check_and_audit(
+            auth, "ai.admin", extra={"capability": f"chain:{body.playbook}"}
+        )
+        if not decision.allowed:
+            raise HTTPException(403, decision.reason)
+        try:
+            return await state.ai_chain.run(
+                body.playbook,
+                body.user_data,
+                actor=auth.name,
+                llm_id=body.llm_id,
+                max_steps=body.max_steps,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @api.post("/collab/chat")
+    async def collab_chat_post(
+        body: ChatMessage,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not await state.features.enabled("collab_teams"):
+            raise HTTPException(403, "Collab disabled")
+        if not body.message.strip():
+            raise HTTPException(400, "message required")
+        return await state.db.add_chat(auth.name, body.message.strip(), body.team_id)
+
+    @api.get("/collab/chat")
+    async def collab_chat_list(
+        request: Request,
+        limit: int = 50,
+        team_id: str | None = None,
+        auth: AuthContext = Depends(require_scope("collab:use", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        rows = await state.db.list_chat(limit=min(limit, 200), team_id=team_id)
+        return {"messages": list(reversed(rows))}
+
+    @api.post("/sessions/{session_id}/owner")
+    async def set_session_owner(
+        session_id: str,
+        body: OwnerSet,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "sessions:write", "admin")),
+    ) -> dict[str, str]:
+        state = get_state(request)
+        try:
+            await state.teams.set_owner(session_id, body.owner)
+        except KeyError:
+            raise HTTPException(404, "session not found") from None
+        return {"session_id": session_id, "owner": body.owner}
+
+    @api.post("/deploy/redirector")
+    async def deploy_redirector(
+        body: RedirectorRequest,
+        auth: AuthContext = Depends(require_scope("admin", "listeners:write")),
+    ) -> dict[str, str]:
+        from squidc5.deploy.helpers import nginx_redirector_config
+
+        cfg = nginx_redirector_config(
+            listen_port=body.listen_port,
+            upstream_host=body.upstream_host,
+            upstream_port=body.upstream_port,
+            server_name=body.server_name,
+            beacon_uris=body.beacon_uris,
+        )
+        return {"config": cfg, "format": "nginx"}
+
+    @api.post("/deploy/cert-plan")
+    async def deploy_cert_plan(
+        body: CertPlanRequest,
+        auth: AuthContext = Depends(require_scope("admin", "listeners:write")),
+    ) -> dict[str, Any]:
+        from squidc5.deploy.helpers import cert_rotation_plan
+
+        return cert_rotation_plan(body.domains, body.days)
 
     # ----- Implant (no auth — session-bound beacon) -----
 

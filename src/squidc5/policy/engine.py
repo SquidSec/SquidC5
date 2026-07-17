@@ -38,6 +38,8 @@ DEFAULT_POLICY: dict[str, Any] = {
             "doc_generate",
             "shell_classify",
             "recon_assist",
+            "evasion_suggest",
+            "beacon_anomaly",
         ],
         "max_untrusted_chars": 512,
     },

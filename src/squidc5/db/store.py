@@ -130,8 +130,34 @@ CREATE TABLE IF NOT EXISTS session_handoffs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_handoffs_session ON session_handoffs(session_id);
-"""
 
+CREATE TABLE IF NOT EXISTS operator_chat (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id TEXT,
+    actor TEXT NOT NULL,
+    message TEXT NOT NULL,
+    ts REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_ts ON operator_chat(ts);
+
+CREATE TABLE IF NOT EXISTS plugins (
+    name TEXT PRIMARY KEY,
+    version TEXT NOT NULL,
+    manifest TEXT NOT NULL,
+    signature TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS operator_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    note TEXT NOT NULL,
+    ts REAL NOT NULL
+);
+"""
 
 def _now() -> float:
     return time.time()
@@ -601,3 +627,57 @@ class Database:
             meta = json.loads(meta)
         meta["owner"] = owner
         await self.update_session(session_id, metadata=json.dumps(meta))
+
+    # --- Operator chat ---
+
+    async def add_chat(self, actor: str, message: str, team_id: str | None = None) -> dict[str, Any]:
+        ts = _now()
+        await self.execute(
+            "INSERT INTO operator_chat (team_id, actor, message, ts) VALUES (?, ?, ?, ?)",
+            (team_id, actor, message[:4000], ts),
+        )
+        return {"actor": actor, "message": message[:4000], "team_id": team_id, "ts": ts}
+
+    async def list_chat(self, limit: int = 50, team_id: str | None = None) -> list[dict[str, Any]]:
+        if team_id:
+            return await self.fetchall(
+                "SELECT id, team_id, actor, message, ts FROM operator_chat "
+                "WHERE team_id = ? ORDER BY ts DESC LIMIT ?",
+                (team_id, limit),
+            )
+        return await self.fetchall(
+            "SELECT id, team_id, actor, message, ts FROM operator_chat ORDER BY ts DESC LIMIT ?",
+            (limit,),
+        )
+
+    # --- Plugins persistence ---
+
+    async def upsert_plugin(
+        self, name: str, version: str, manifest: dict[str, Any], signature: str, enabled: bool
+    ) -> None:
+        existing = await self.fetchone("SELECT name FROM plugins WHERE name = ?", (name,))
+        if existing:
+            await self.execute(
+                "UPDATE plugins SET version=?, manifest=?, signature=?, enabled=? WHERE name=?",
+                (version, json.dumps(manifest), signature, 1 if enabled else 0, name),
+            )
+        else:
+            await self.execute(
+                "INSERT INTO plugins (name, version, manifest, signature, enabled, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (name, version, json.dumps(manifest), signature, 1 if enabled else 0, _now()),
+            )
+
+    async def list_plugins_db(self) -> list[dict[str, Any]]:
+        rows = await self.fetchall("SELECT * FROM plugins ORDER BY name")
+        for r in rows:
+            if isinstance(r.get("manifest"), str):
+                r["manifest"] = json.loads(r["manifest"])
+        return rows
+
+    async def set_plugin_enabled(self, name: str, enabled: bool) -> bool:
+        cur = await self.execute(
+            "UPDATE plugins SET enabled = ? WHERE name = ?",
+            (1 if enabled else 0, name),
+        )
+        return cur.rowcount > 0

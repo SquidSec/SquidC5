@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from squidc5.ai.admin_ai import AdminAI
@@ -44,5 +44,6 @@ class AppState:
     teams: TeamService
     plugins: PluginRegistry
     timeline: TimelineService
+    ai_chain: Any = None
     admin_token_once: str = ""
     shell_buffers: dict[str, list[str]] = field(default_factory=dict)
