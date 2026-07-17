@@ -26,7 +26,7 @@ class TokenCreate(BaseModel):
 
 class ListenerCreate(BaseModel):
     name: str
-    kind: str = "http"
+    kind: str = "http"  # http | tcp | reverse_shell | dns
     host: str = "0.0.0.0"
     port: int
     config: dict[str, Any] = Field(default_factory=dict)
@@ -936,10 +936,24 @@ def build_api_router() -> APIRouter:
         if not await state.features.enabled("payloads_generate"):
             raise HTTPException(403, "Payload generation disabled")
         path = body.path
+        zone = None
+        ws_path = None
+        prof = state.profiles.get(body.profile_id) if body.profile_id else state.profiles.active()
+        plan = state.profiles.implant_snippet(prof, body.host, body.port) if prof else {}
         if not path:
-            prof = state.profiles.get(body.profile_id) if body.profile_id else state.profiles.active()
-            plan = state.profiles.implant_snippet(prof, body.host, body.port)
-            path = plan.get("uri") if plan.get("channel") == "http" else "/api/v1/implant/beacon"
+            if plan.get("channel") == "http" and plan.get("uri"):
+                path = plan["uri"]
+            elif plan.get("channel") == "ws" and plan.get("url"):
+                # extract path from ws url
+                from urllib.parse import urlparse
+
+                path = urlparse(plan["url"]).path or "/ws/v1/beacon"
+            else:
+                path = "/api/v1/implant/beacon"
+        if plan.get("channel") == "dns":
+            zone = plan.get("zone")
+        if plan.get("channel") == "ws":
+            ws_path = path
         try:
             out = generate_implant(
                 body.family,
@@ -949,6 +963,8 @@ def build_api_router() -> APIRouter:
                 body.port,
                 path or "/api/v1/implant/beacon",
                 evasion=body.evasion,
+                zone=zone,
+                ws_path=ws_path,
             )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e

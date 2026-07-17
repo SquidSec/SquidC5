@@ -217,17 +217,15 @@ def cmd_listeners_list(args: argparse.Namespace, client: Client) -> None:
 
 
 def cmd_listeners_create(args: argparse.Namespace, client: Client) -> None:
-    pp(
-        client.post(
-            "/api/v1/listeners",
-            json={
-                "name": args.name,
-                "kind": args.kind,
-                "host": args.host,
-                "port": args.port,
-            },
-        )
-    )
+    body: dict[str, Any] = {
+        "name": args.name,
+        "kind": args.kind,
+        "host": args.host,
+        "port": args.port,
+    }
+    if args.kind == "dns":
+        body["config"] = {"zone": getattr(args, "zone", None) or "c2.lab.invalid"}
+    pp(client.post("/api/v1/listeners", json=body))
 
 
 def cmd_listeners_start(args: argparse.Namespace, client: Client) -> None:
@@ -678,7 +676,12 @@ def build_parser() -> argparse.ArgumentParser:
     l_create = lis_sub.add_parser("create")
     l_create.add_argument("name")
     l_create.add_argument("port", type=int)
-    l_create.add_argument("--kind", default="http", choices=["http", "tcp", "reverse_shell"])
+    l_create.add_argument(
+        "--kind",
+        default="http",
+        choices=["http", "tcp", "reverse_shell", "dns"],
+    )
+    l_create.add_argument("--zone", default=None, help="DNS zone when kind=dns")
     l_create.add_argument("--host", default="0.0.0.0")
     l_create.set_defaults(func=cmd_listeners_create, needs_client=True)
     l_start = lis_sub.add_parser("start")

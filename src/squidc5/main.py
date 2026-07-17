@@ -240,6 +240,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(build_api_router())
     # MCP routes always mounted; runtime feature flag / settings gate access
     app.include_router(build_mcp_router())
+    from squidc5.listeners.ws_beacon import build_ws_router
+
+    app.include_router(build_ws_router())
 
     # Operator phone/desktop console (static) — works from source, Docker, frozen binary
     wdir = web_dir()
