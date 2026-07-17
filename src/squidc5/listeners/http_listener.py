@@ -111,7 +111,7 @@ async def handle_http_client(
 async def _read_request(reader: asyncio.StreamReader) -> dict[str, Any] | None:
     try:
         line = await asyncio.wait_for(reader.readline(), timeout=15.0)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return None
     if not line:
         return None
