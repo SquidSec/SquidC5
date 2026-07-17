@@ -26,6 +26,7 @@ from squidc5.implants.registry import ImplantRegistry
 from squidc5.listeners.manager import ListenerManager
 from squidc5.mcp.server import build_mcp_router
 from squidc5.metrics.collector import MetricsCollector
+from squidc5.oast.store import OastService
 from squidc5.observability.timeline import TimelineService
 from squidc5.paths import web_dir
 from squidc5.payloads.generator import PayloadGenerator
@@ -65,6 +66,15 @@ async def build_state(settings: Settings) -> AppState:
     plugins = PluginRegistry(db=db)
     await plugins.load_from_db()
     timeline = TimelineService(db)
+    oast = OastService(
+        db,
+        metrics,
+        zone=settings.oast_zone,
+        public_host=settings.public_host or settings.oast_zone,
+        public_ip=settings.public_ip or settings.public_host or "127.0.0.1",
+        http_port=settings.oast_http_port,
+        rate_limit=settings.oast_rate_limit_per_minute,
+    )
     from squidc5.ai.chain import AIChainRunner
 
     ai_chain = AIChainRunner(admin_ai, max_steps=3)
@@ -81,6 +91,9 @@ async def build_state(settings: Settings) -> AppState:
     )
     listeners.task_poll = tasks.poll
     listeners.task_complete = tasks.complete
+    listeners.oast = oast if settings.oast_enabled else None
+    listeners.oast_zone = settings.oast_zone
+    listeners.public_ip = settings.public_ip or settings.public_host
     sessions.interactive_check = listeners.is_live
     sessions.verified_check = listeners.is_verified
     sessions.exec_probe = listeners.probe_exec
@@ -116,6 +129,7 @@ async def build_state(settings: Settings) -> AppState:
         teams=teams,
         plugins=plugins,
         timeline=timeline,
+        oast=oast,
         ai_chain=ai_chain,
         admin_token_once=admin_once,
     )

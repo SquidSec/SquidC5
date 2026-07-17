@@ -165,6 +165,32 @@ CREATE TABLE IF NOT EXISTS team_members (
     added_at REAL NOT NULL,
     PRIMARY KEY (team_id, actor)
 );
+
+CREATE TABLE IF NOT EXISTS oast_clients (
+    id TEXT PRIMARY KEY,
+    token TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL DEFAULT '',
+    created_by TEXT,
+    meta TEXT NOT NULL DEFAULT '{}',
+    created_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS oast_interactions (
+    id TEXT PRIMARY KEY,
+    client_id TEXT,
+    token TEXT,
+    protocol TEXT NOT NULL,
+    listener_id TEXT,
+    remote TEXT,
+    raw TEXT NOT NULL DEFAULT '{}',
+    correlation_key TEXT,
+    ts REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_oast_clients_token ON oast_clients(token);
+CREATE INDEX IF NOT EXISTS idx_oast_interactions_ts ON oast_interactions(ts);
+CREATE INDEX IF NOT EXISTS idx_oast_interactions_client ON oast_interactions(client_id);
+CREATE INDEX IF NOT EXISTS idx_oast_interactions_token ON oast_interactions(token);
 """
 
 def _now() -> float:
@@ -710,3 +736,103 @@ class Database:
             (team_id, actor),
         )
         return cur.rowcount > 0
+
+    # --- OAST (Collaborator-style) ---
+
+    async def create_oast_client(
+        self,
+        token: str,
+        label: str = "",
+        created_by: str | None = None,
+        meta: dict[str, Any] | None = None,
+    ) -> str:
+        cid = _uid("oast_")
+        await self.execute(
+            "INSERT INTO oast_clients (id, token, label, created_by, meta, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (cid, token, label or token, created_by, json.dumps(meta or {}), _now()),
+        )
+        return cid
+
+    async def get_oast_client(self, client_id: str) -> dict[str, Any] | None:
+        return await self.fetchone("SELECT * FROM oast_clients WHERE id = ?", (client_id,))
+
+    async def get_oast_client_by_token(self, token: str) -> dict[str, Any] | None:
+        return await self.fetchone("SELECT * FROM oast_clients WHERE token = ?", (token,))
+
+    async def list_oast_clients(self, limit: int = 100) -> list[dict[str, Any]]:
+        return await self.fetchall(
+            "SELECT * FROM oast_clients ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        )
+
+    async def delete_oast_client(self, client_id: str) -> bool:
+        await self.execute("DELETE FROM oast_interactions WHERE client_id = ?", (client_id,))
+        cur = await self.execute("DELETE FROM oast_clients WHERE id = ?", (client_id,))
+        return cur.rowcount > 0
+
+    async def create_oast_interaction(
+        self,
+        *,
+        client_id: str | None,
+        protocol: str,
+        listener_id: str | None,
+        remote: str | None,
+        raw: dict[str, Any],
+        correlation_key: str | None = None,
+        token: str | None = None,
+    ) -> str:
+        iid = _uid("hit_")
+        await self.execute(
+            "INSERT INTO oast_interactions "
+            "(id, client_id, token, protocol, listener_id, remote, raw, correlation_key, ts) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                iid,
+                client_id,
+                token,
+                protocol,
+                listener_id,
+                remote,
+                json.dumps(raw)[:200_000],
+                correlation_key,
+                _now(),
+            ),
+        )
+        return iid
+
+    async def get_oast_interaction(self, interaction_id: str) -> dict[str, Any] | None:
+        return await self.fetchone(
+            "SELECT * FROM oast_interactions WHERE id = ?",
+            (interaction_id,),
+        )
+
+    async def list_oast_interactions(
+        self,
+        *,
+        client_id: str | None = None,
+        protocol: str | None = None,
+        since: float | None = None,
+        limit: int = 100,
+        token: str | None = None,
+    ) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        args: list[Any] = []
+        if client_id:
+            clauses.append("client_id = ?")
+            args.append(client_id)
+        if token:
+            clauses.append("token = ?")
+            args.append(token.lower())
+        if protocol:
+            clauses.append("protocol = ?")
+            args.append(protocol)
+        if since is not None:
+            clauses.append("ts > ?")
+            args.append(since)
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        args.append(min(max(limit, 1), 1000))
+        return await self.fetchall(
+            f"SELECT * FROM oast_interactions{where} ORDER BY ts DESC LIMIT ?",
+            tuple(args),
+        )

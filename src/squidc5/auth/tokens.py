@@ -36,6 +36,8 @@ SCOPES = frozenset(
         "profiles:write",
         "plugins:manage",
         "collab:use",
+        "oast:read",
+        "oast:write",
     }
 )
 
