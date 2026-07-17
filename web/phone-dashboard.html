@@ -71,6 +71,16 @@
       text-transform: uppercase; color: #e4e4e7;
     }
     .muted { color: var(--muted); font-size: 0.8rem; }
+    .hint {
+      color: var(--muted); font-size: 0.78rem; line-height: 1.45;
+      margin: 0 0 10px; padding: 8px 10px;
+      background: rgba(0,0,0,0.28); border-left: 3px solid rgba(255,0,170,0.45);
+      border-radius: 0 8px 8px 0;
+    }
+    .hint code {
+      font-family: var(--mono); font-size: 0.72rem; color: #f0abfc;
+    }
+    .hint strong { color: #e4e4e7; font-weight: 700; }
     .mono { font-family: var(--mono); font-size: 0.75rem; word-break: break-all; }
     table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     th, td { text-align: left; padding: 8px 4px; border-bottom: 1px solid rgba(255,0,170,0.1); vertical-align: top; }
@@ -150,6 +160,73 @@
     footer { text-align: center; color: var(--muted); font-size: 0.72rem; margin-top: 14px; }
     .hidden { display: none !important; }
 
+    /* Live event stream (top of ops surface) */
+    .event-stream {
+      background: linear-gradient(180deg, rgba(20,8,16,0.95) 0%, rgba(10,10,12,0.92) 100%);
+      border: 1px solid rgba(255,0,170,0.28);
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 0 24px rgba(255,0,170,0.08);
+    }
+    .event-stream-head {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+    }
+    .event-stream-head h2 {
+      margin: 0; font-size: 0.72rem; letter-spacing: 0.12em;
+      text-transform: uppercase; color: #e4e4e7; flex: 1;
+    }
+    .event-stream-head .live-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--ok); box-shadow: 0 0 10px var(--ok);
+      animation: pulse-live 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse-live {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.85); }
+    }
+    .event-stream-head .count {
+      font: 700 0.65rem var(--mono); color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .event-feed {
+      max-height: 220px; overflow: auto;
+      display: flex; flex-direction: column; gap: 6px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,0,170,0.35) transparent;
+    }
+    .event-item {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 8px 10px;
+      align-items: start;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-left: 3px solid rgba(255,0,170,0.45);
+    }
+    .event-item.ok { border-left-color: var(--ok); }
+    .event-item.warn { border-left-color: var(--warn); }
+    .event-item.bad { border-left-color: var(--bad); }
+    .event-item .etype {
+      font: 700 0.62rem var(--mono); letter-spacing: 0.04em;
+      text-transform: uppercase; color: #ffb3ff;
+      white-space: nowrap;
+    }
+    .event-item.ok .etype { color: var(--ok); }
+    .event-item.warn .etype { color: var(--warn); }
+    .event-item.bad .etype { color: var(--bad); }
+    .event-item .edetail {
+      font: 0.78rem/1.35 var(--mono); color: #e4e4e7;
+      word-break: break-word; min-width: 0;
+    }
+    .event-item .etime {
+      font: 0.62rem var(--mono); color: var(--muted);
+      white-space: nowrap;
+    }
+    .event-feed .empty { padding: 16px 8px; text-align: center; }
+
     /* Tablet+ : multi-column (not row grid) so uneven cards top-align */
     @media (min-width: 768px) {
       body {
@@ -193,6 +270,8 @@
         display: block;
         width: 100%;
       }
+      .event-stream { margin-bottom: 14px; }
+      .event-feed { max-height: 280px; }
       .outbox { max-height: 380px; }
       button { min-width: 120px; flex: 0 1 auto; }
       .stats { gap: 12px; }
@@ -218,6 +297,10 @@
       .card, details.panel { padding: 14px 16px; }
       table { font-size: 0.85rem; }
       .outbox { max-height: 420px; }
+      .event-feed { max-height: 320px; }
+      .event-item {
+        grid-template-columns: minmax(120px, auto) minmax(0, 1fr) auto;
+      }
     }
   </style>
 </head>
@@ -240,6 +323,7 @@
 
     <details class="panel" id="settingsPanel">
       <summary>Connection</summary>
+      <p class="hint">Browser credentials for this console. Server URL is the SquidC5 base (usually this host when opened via <code>/ops</code>). API token is a scoped <code>sc5_…</code> secret stored only in localStorage. Admin panels load only after the server accepts the token. Refresh interval polls sessions/listeners/metrics.</p>
       <label for="url">Server URL</label>
       <input id="url" type="url" placeholder="http://HOST:8443" autocomplete="off" />
       <label for="token">API token</label>
@@ -250,7 +334,6 @@
         <button type="button" class="primary" id="saveBtn">Save &amp; Connect</button>
         <button type="button" id="toggleToken">Show token</button>
       </div>
-      <p class="muted" style="margin:8px 0 0">Token stays in this browser. Admin UI is only loaded after the server verifies an admin token.</p>
     </details>
 
     <div class="row toolbar">
@@ -260,6 +343,7 @@
 
     <div class="hero">
       <div class="hero-host" id="hostLine">not connected</div>
+      <p class="hint" style="margin-top:0">At-a-glance C2 health for the connected server: verified reverse shells ready for commands, listeners currently running, and process uptime.</p>
       <div class="stats">
         <div class="stat"><div class="n" id="nVerified">—</div><div class="l">Verified shells</div></div>
         <div class="stat"><div class="n" id="nListeners">—</div><div class="l">Listeners up</div></div>
@@ -267,27 +351,37 @@
       </div>
     </div>
 
+    <section class="event-stream" id="eventStream" aria-label="Live event stream">
+      <div class="event-stream-head">
+        <span class="live-dot" title="Live"></span>
+        <h2>Event stream</h2>
+        <span class="count" id="eventCount">0 events</span>
+      </div>
+      <p class="hint" style="margin-top:0">Live activity from this C2: shell connect / verify / reject, listener changes, tasks, and other server events. Newest first; refreshes with the poll interval.</p>
+      <div class="event-feed" id="eventsBox">
+        <div class="empty">Connect to load events</div>
+      </div>
+    </section>
+
     <div class="overview">
       <div class="card shells-card">
         <h2>Verified reverse shells</h2>
+        <p class="hint">Live TCP reverse shells that passed false-shell filtering and the exec probe (real command execution). Prefer these for interactive Shell commands. Dead/echo-only connections are reaped automatically.</p>
         <div id="shellsBox" class="empty">No verified shells</div>
       </div>
 
       <div class="card listeners-card">
         <h2>Listeners</h2>
+        <p class="hint">Bound acceptors on this host (name, port, kind, status). Running listeners are what implants and reverse shells connect to. Create/start more under the Listeners panel below.</p>
         <div id="listenersBox" class="empty">—</div>
       </div>
 
       <div class="card signal-card">
         <h2>Signal</h2>
+        <p class="hint">Quick status chips from the last poll (health, feature hints, session counts). Use this to confirm the API is reachable and the server is not in a degraded state.</p>
         <div class="chips" id="chips"><span class="chip">—</span></div>
         <p class="muted" id="healthLine" style="margin:8px 0 0">—</p>
       </div>
-
-      <details class="panel events-panel" id="eventsPanel">
-        <summary>Recent events</summary>
-        <div id="eventsBox" class="empty">—</div>
-      </details>
     </div>
 
     <!-- Admin UI injected after server-side scope check -->
@@ -440,13 +534,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     }
     function applyPanelDefaults() {
       const desktop = isDesktopLayout();
+      const hasToken = !!(($("token") && $("token").value) || "").trim();
       document.querySelectorAll("details.panel").forEach((el) => {
+        if (el.id === "settingsPanel") return;
         el.open = desktop;
       });
-      if (!desktop) {
-        $("settingsPanel").open = !$("token").value;
-        $("eventsPanel").open = false;
-      }
+      // Connection stays collapsed when already configured
+      $("settingsPanel").open = !hasToken;
     }
     function fmtUptime(sec) {
       sec = Math.floor(Number(sec) || 0);
@@ -586,18 +680,68 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       if (window.__SC5_renderAdminListeners) window.__SC5_renderAdminListeners(rows);
     }
 
+    function eventTone(type) {
+      const t = String(type || "").toLowerCase();
+      if (/reject|false_positive|error|fail|drop|denied|close/.test(t)) return "bad";
+      if (/verify|connected|start|ok|create|stabiliz|running/.test(t)) return "ok";
+      if (/warn|reap|orphan|timeout/.test(t)) return "warn";
+      return "";
+    }
+    function eventDetail(e) {
+      const p = e.payload || e.data || {};
+      if (typeof p === "string") return p;
+      const parts = [];
+      for (const k of ["session_id", "id", "remote", "remote_addr", "name", "kind", "reason", "status", "port", "command", "actor"]) {
+        if (p[k] != null && p[k] !== "") parts.push(`${k}=${p[k]}`);
+      }
+      if (!parts.length) {
+        try {
+          const s = JSON.stringify(p);
+          if (s && s !== "{}") return s.length > 120 ? s.slice(0, 117) + "…" : s;
+        } catch (_) {}
+        return "—";
+      }
+      const s = parts.join(" · ");
+      return s.length > 140 ? s.slice(0, 137) + "…" : s;
+    }
+    function eventTime(e) {
+      const ts = e.ts || e.timestamp || e.time || e.created_at;
+      if (ts == null) return "";
+      try {
+        const n = Number(ts);
+        const d = n > 1e12 ? new Date(n) : n > 1e9 ? new Date(n * 1000) : new Date(ts);
+        if (Number.isNaN(d.getTime())) return String(ts).slice(0, 12);
+        return d.toLocaleTimeString();
+      } catch (_) {
+        return "";
+      }
+    }
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
     function renderEvents(snap) {
       const events = (snap && snap.recent_events) || [];
       const box = $("eventsBox");
-      if (!events.length) { box.innerHTML = '<div class="empty">No recent events</div>'; return; }
-      let html = "<table><tr><th>Type</th><th>Detail</th></tr>";
-      for (const e of events.slice().reverse().slice(0, 12)) {
-        const p = e.payload || {};
-        const d = p.id || p.session_id || p.remote || p.reason || "";
-        html += `<tr><td class="mono">${e.type || "—"}</td><td class="mono">${String(d).slice(0, 48)}</td></tr>`;
+      const countEl = $("eventCount");
+      const list = events.slice().reverse().slice(0, 40);
+      if (countEl) countEl.textContent = list.length + (list.length === 1 ? " event" : " events");
+      if (!list.length) {
+        box.innerHTML = '<div class="empty">No recent events yet</div>';
+        return;
       }
-      html += "</table>";
-      box.innerHTML = html;
+      box.innerHTML = list.map((e) => {
+        const type = e.type || e.event || "event";
+        const tone = eventTone(type);
+        return `<div class="event-item ${tone}">
+          <span class="etype">${escapeHtml(type)}</span>
+          <span class="edetail">${escapeHtml(eventDetail(e))}</span>
+          <span class="etime">${escapeHtml(eventTime(e))}</span>
+        </div>`;
+      }).join("");
     }
 
     function renderChips(metrics) {
@@ -698,6 +842,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       saveSettings();
       state.adminLoaded = false;
       $("adminMount").innerHTML = "";
+      $("settingsPanel").open = !(($("token").value || "").trim());
       schedule();
       refresh();
     };
