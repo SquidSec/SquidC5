@@ -359,6 +359,8 @@ docker exec squidc5 cat /data/admin_token.txt
 | `CLAUDE.md` | Pointer to AGENTS + docs |
 | `docs/squidc5-vision.md` | Full product vision / security architecture |
 | `docs/roadmap-2026-2027.md` | Prioritized next-gen roadmap (10 focus areas) |
+| `docs/user-guide.md` | Comprehensive features (what/why/how/examples) — GitHub only |
+| `docs/README.md` | Docs index |
 | `docs/operator-runbook.md` | Operator procedures |
 | `docs/deployment.md` | Binary prod deploy + lab Docker |
 | `README.md` | Public-facing quickstart |
