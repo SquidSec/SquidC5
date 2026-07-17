@@ -68,7 +68,7 @@
   // ----- Shell interact -----
   if (can("shell:interact")) {
     parts.push(panel("quickRunCard", "⌨ Shell", `
-      ${hint("Interactive command runner for <strong>verified reverse shells</strong> only (exec-probe passed). Pick a live session, run a command, or broadcast to all verified shells. Buffer shows recent session output already captured by the server — not a live PTY stream.", "shell")}
+      ${hint("Interactive command runner for <strong>verified reverse shells</strong> only (exec-probe passed). Pick a live session, run a command, or broadcast to all verified shells. Buffer shows recent session output already captured by the server — not a live PTY stream. Background: <a class=\"doc-link\" href=\"https://grok.com/pedia/reverse-shell\" target=\"_blank\" rel=\"noopener noreferrer\">reverse shell</a>.", "shell")}
       <label for="shellSelect">Target shell</label>
       <select id="shellSelect"><option value="">(none)</option></select>
       <label for="shellCmd">Command</label>
@@ -99,7 +99,7 @@
   // ----- Tasks (beacons) -----
   if (can("tasks:read") || can("tasks:write")) {
     parts.push(panel("tasksPanel", "📋 Tasks", `
-      ${hint("Async work queue for <strong>beacon</strong> implants (not interactive reverse shells). Create a task against a beacon session id; the implant picks it up on next check-in and returns output when complete. Use List tasks to poll status.", "tasks")}
+      ${hint("Async work queue for <strong>beacon</strong> implants (not interactive reverse shells). Create a task against a beacon session id; the implant picks it up on next check-in and returns output when complete. Use List tasks to poll status. Background: <a class=\"doc-link\" href=\"https://grok.com/pedia/beacon\" target=\"_blank\" rel=\"noopener noreferrer\">beacon</a> · <a class=\"doc-link\" href=\"https://grok.com/pedia/implant\" target=\"_blank\" rel=\"noopener noreferrer\">implant</a>.", "tasks")}
       ${can("tasks:write") ? `
         <label for="taskSession">Session id</label>
         <input id="taskSession" placeholder="beacon session id" autocomplete="off" />
@@ -117,7 +117,7 @@
   // ----- Listeners -----
   if (can("listeners:read") || can("listeners:write")) {
     parts.push(panel("listenersPanel", "🎧 Listeners", `
-      ${hint("Server-side sockets that accept implant traffic. <strong>How to set up:</strong> (1) Create with a name + port + kind, (2) ensure Start shows running, (3) open the host firewall for that port, (4) point payloads/shells at this host:port. <strong>Kinds:</strong> <code>reverse_shell</code> = raw TCP shells (bash /dev/tcp, etc.); <code>http</code> = HTTP beacon check-ins; <code>tcp</code> = generic TCP channel; <code>dns</code> = DNS TXT C2 (set zone). Privileged ports (&lt;1024) need host sysctl if the process is non-root.", "listeners")}
+      ${hint("Server-side sockets that accept implant traffic. <strong>How to set up:</strong> (1) Create with a name + port + kind, (2) ensure Start shows running, (3) open the host firewall for that port, (4) point payloads/shells at this host:port. <strong>Kinds:</strong> <code>reverse_shell</code> = raw TCP shells; <code>http</code> = HTTP beacons; <code>tcp</code> = generic TCP; <code>dns</code> = DNS TXT C2 (set zone). Privileged ports (&lt;1024) need host sysctl if non-root. Background: <a class=\"doc-link\" href=\"https://grok.com/pedia/reverse-shell\" target=\"_blank\" rel=\"noopener noreferrer\">reverse shell</a> · <a class=\"doc-link\" href=\"https://grok.com/pedia/dns-tunneling\" target=\"_blank\" rel=\"noopener noreferrer\">DNS tunneling</a>.", "listeners")}
       <label for="listenerSelect">Listener</label>
       <select id="listenerSelect"><option value="">(none)</option></select>
       ${can("listeners:write") ? `
@@ -150,7 +150,7 @@
   // ----- Payloads -----
   if (can("payloads:generate")) {
     parts.push(panel("payloadsPanel", "💣 Payloads / implants", `
-      ${hint("Deterministic stagers/agents that call back to your listeners. Pick a template (or implant family), set callback host/port (and scheme/zone if needed), Generate, then run only on authorized targets. Reverse-shell templates need a <code>reverse_shell</code> listener; HTTP/DNS/WS beacons need matching listener kinds and usually an active C2 profile for HTTP surface shape.", "payloads-and-implants")}
+      ${hint("Deterministic stagers/agents that call back to your listeners. Pick a template (or implant family), set callback host/port (and scheme/zone if needed), Generate, then run only on authorized targets. Reverse-shell templates need a <code>reverse_shell</code> listener; HTTP/DNS/WS beacons need matching listener kinds and usually an active C2 profile for HTTP surface shape. Background: <a class=\"doc-link\" href=\"https://grok.com/pedia/payload\" target=\"_blank\" rel=\"noopener noreferrer\">payload</a> · <a class=\"doc-link\" href=\"https://grok.com/pedia/implant\" target=\"_blank\" rel=\"noopener noreferrer\">implant</a> · <a class=\"doc-link\" href=\"https://grok.com/pedia/beacon\" target=\"_blank\" rel=\"noopener noreferrer\">beacon</a>.", "payloads-and-implants")}
       <label for="payTpl">Template</label>
       <select id="payTpl">
         <option value="http_beacon_python">http_beacon_python</option>
@@ -245,7 +245,7 @@
   // ----- Admin AI -----
   if (can("ai:use")) {
     parts.push(panel("aiCard", "✨ Admin AI", `
-      ${hint("Sandboxed, allow-listed AI capabilities on the server (not free-form agents). Uses your configured LLM if present, otherwise offline/deterministic fallbacks. Untrusted session text is sanitized before prompts. Pick a capability, pass structured input, Run AI — results are auditable.", "admin-ai")}
+      ${hint("Sandboxed, allow-listed AI capabilities on the server (not free-form agents). Uses your configured LLM if present, otherwise offline/deterministic fallbacks. Untrusted session text is sanitized before prompts. Pick a capability, pass structured input, Run AI — results are auditable. Phishing-related caps are for <strong>authorized</strong> sims only — <a class=\"doc-link\" href=\"https://grok.com/pedia/phishing\" target=\"_blank\" rel=\"noopener noreferrer\">phishing</a>.", "admin-ai")}
       <div class="stats" style="margin-bottom:8px">
         <div class="stat"><div class="n" id="aiStatusN" style="font-size:0.95rem">—</div><div class="l">Status</div></div>
         <div class="stat"><div class="n" id="aiModeN" style="font-size:0.95rem">—</div><div class="l">Mode</div></div>
@@ -356,7 +356,7 @@
   // ----- C2 Profiles -----
   if (can("profiles:read") || can("admin")) {
     parts.push(panel("profilesPanel", "📡 C2 profiles", `
-      ${hint("<strong>What they are:</strong> malleable traffic profiles that define how HTTP (and related) beacons look on the wire — paths, headers, jitter, decoy behavior — so C2 blends with legitimate traffic. <strong>What they do:</strong> the active profile is the surface generators and the server expect for implant check-ins. Activate a profile, then Generate beacon (active) so payloads match that profile. Switching profiles mid-op changes the expected beacon shape; regenerate implants after a switch.", "c2-profiles")}
+      ${hint("<strong>What they are:</strong> malleable traffic profiles that define how HTTP (and related) beacons look on the wire — paths, headers, jitter, decoy behavior — so C2 blends with legitimate traffic. <strong>What they do:</strong> the active profile is the surface generators and the server expect for implant check-ins. Activate a profile, then Generate beacon (active) so payloads match that profile. Switching profiles mid-op changes the expected beacon shape; regenerate implants after a switch. Background: <a class=\"doc-link\" href=\"https://grok.com/pedia/command-and-control\" target=\"_blank\" rel=\"noopener noreferrer\">C2</a> · <a class=\"doc-link\" href=\"https://grok.com/pedia/beacon\" target=\"_blank\" rel=\"noopener noreferrer\">beacon</a>.", "c2-profiles")}
       <div id="profList" class="empty">—</div>
       <div class="row" style="margin-top:8px">
         <button type="button" id="profReloadBtn">Reload</button>
@@ -397,7 +397,7 @@
   // ----- MCP -----
   if (can("mcp:connect")) {
     parts.push(panel("mcpPanel", "🔌 MCP tools", `
-      ${hint("External AI / MCP bridge: tools exposed to models under a per-token allow-list (not open-ended autonomy). List tools shows what this token may call; Call runs one tool with JSON args. MCP is off by default until features/settings enable it.", "mcp-tools")}
+      ${hint("External AI / MCP bridge: tools exposed to models under a per-token allow-list (not open-ended autonomy). List tools shows what this token may call; Call runs one tool with JSON args. MCP is off by default until features/settings enable it. Background: <a class=\"doc-link\" href=\"https://grok.com/pedia/model-context-protocol\" target=\"_blank\" rel=\"noopener noreferrer\">Model Context Protocol</a>.", "mcp-tools")}
       <div class="row">
         <button type="button" id="mcpToolsBtn">List tools</button>
       </div>

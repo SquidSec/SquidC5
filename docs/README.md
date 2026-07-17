@@ -20,5 +20,10 @@ The `/ops` console links into the user guide anchors, for example:
 - https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#listeners  
 - https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#c2-profiles  
 - https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#admin-ai  
+- https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#payloads-and-implants  
 
 Full index of sections is the heading list in [user-guide.md](user-guide.md).
+
+## External concept primers (Grokpedia)
+
+The user guide links to [Grokpedia](https://grok.com/pedia) for industry definitions (C2, payload, implant, reverse shell, beacon, etc.). Those pages are **not** hosted by SquidC5 and are not required to operate the product.
