@@ -101,7 +101,10 @@ Overrides: `--url` / `--token`, or env `SQUIDC5_URL` / `SQUIDC5_TOKEN`.
 
 Auth header: `Authorization: Bearer <token>` or `X-API-Token: <token>`
 
-Interactive docs: `/docs`
+**Documentation lives on GitHub only** (not on the running server — `/docs` stays disabled):
+
+- **[User guide](docs/user-guide.md)** — features, why/how, examples  
+- **[Docs index](docs/README.md)**
 
 ### Example: create operator token & task a session
 

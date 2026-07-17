@@ -20,74 +20,86 @@
     }
   }
 
-  function panel(id, title, body, open) {
+  const DOCS_BASE = "https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md";
+
+  function docLink(anchor, label) {
+    const href = DOCS_BASE + "#" + anchor;
+    return `<a class="doc-link" href="${href}" target="_blank" rel="noopener noreferrer" title="Open GitHub documentation">${label || "Docs"}</a>`;
+  }
+
+  function panel(id, title, body, open, docAnchor) {
     // Desktop: expanded by default; mobile: always start collapsed
     const isOpen = isDesktopLayout() && open !== false;
+    const docs = docAnchor
+      ? `<a class="doc-link summary-doc" href="${DOCS_BASE}#${docAnchor}" target="_blank" rel="noopener noreferrer" title="Documentation on GitHub" onclick="event.stopPropagation()">Docs</a>`
+      : "";
     return `<details class="panel" id="${id}"${isOpen ? " open" : ""}>
-      <summary>${title}</summary>
-      ${body}
+      <summary>
+        <span class="drag-handle" draggable="true" title="Drag to reorder">⋮⋮</span>
+        <span class="panel-title">${title}</span>
+        ${docs}
+        <button type="button" class="wide-btn" title="Toggle full-width row">⟷</button>
+      </summary>
+      <div class="panel-body">${body}</div>
     </details>`;
   }
 
-  function hint(text) {
-    return `<p class="hint">${text}</p>`;
+  function hint(text, docAnchor) {
+    const more = docAnchor
+      ? ` ${docLink(docAnchor, "Full docs →")}`
+      : "";
+    return `<p class="hint">${text}${more}</p>`;
   }
 
   const parts = [];
 
   // ----- Identity -----
-  parts.push(`
-    <div class="card" id="identityCard">
-      <h2>Identity</h2>
-      ${hint("Who you are on this C2: the API token currently saved in Connection. Pulled from <code>GET /api/v1/meta</code> — actor name, token id, and scopes the server granted. Scopes control which panels and API routes work; <code>admin</code> unlocks full console. Whoami dumps the raw meta JSON; Health is a lightweight liveness check (no secrets).")}
-      <p class="muted mono" id="whoLine">—</p>
-      <div class="chips" id="scopeChips" style="margin-top:8px"></div>
-      <div class="row" style="margin-top:8px">
-        <button type="button" id="whoamiBtn">Whoami</button>
-        <button type="button" id="healthBtn">Health</button>
-      </div>
-      <div class="outbox empty-out" id="identOut" style="margin-top:8px">—</div>
+  parts.push(panel("identityCard", "🪪 Identity", `
+    ${hint("Who you are on this C2: the API token currently saved in Connection. Pulled from <code>GET /api/v1/meta</code> — actor name, token id, and scopes the server granted. Scopes control which panels and API routes work; <code>admin</code> unlocks full console. Whoami dumps the raw meta JSON; Health is a lightweight liveness check (no secrets).", "identity")}
+    <p class="muted mono" id="whoLine">—</p>
+    <div class="chips" id="scopeChips" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:8px">
+      <button type="button" id="whoamiBtn">Whoami</button>
+      <button type="button" id="healthBtn">Health</button>
     </div>
-  `);
+    <div class="outbox empty-out" id="identOut" style="margin-top:8px">—</div>
+  `, true, "identity"));
 
   // ----- Shell interact -----
   if (can("shell:interact")) {
-    parts.push(`
-      <div class="card" id="quickRunCard">
-        <h2>Shell</h2>
-        ${hint("Interactive command runner for <strong>verified reverse shells</strong> only (exec-probe passed). Pick a live session, run a command, or broadcast to all verified shells. Buffer shows recent session output already captured by the server — not a live PTY stream.")}
-        <label for="shellSelect">Target shell</label>
-        <select id="shellSelect"><option value="">(none)</option></select>
-        <label for="shellCmd">Command</label>
-        <textarea id="shellCmd" placeholder="whoami"></textarea>
-        <div class="row">
-          <button type="button" class="primary" id="runShellBtn">Run</button>
-          ${can("shell:interact") ? '<button type="button" id="runAllBtn">All verified</button>' : ""}
-          <button type="button" id="dumpOutBtn">Buffer</button>
-        </div>
-        <h2 style="margin-top:12px">Output</h2>
-        <div class="outbox empty-out" id="shellOut">Run a command to see output here.</div>
+    parts.push(panel("quickRunCard", "⌨ Shell", `
+      ${hint("Interactive command runner for <strong>verified reverse shells</strong> only (exec-probe passed). Pick a live session, run a command, or broadcast to all verified shells. Buffer shows recent session output already captured by the server — not a live PTY stream.", "shell")}
+      <label for="shellSelect">Target shell</label>
+      <select id="shellSelect"><option value="">(none)</option></select>
+      <label for="shellCmd">Command</label>
+      <textarea id="shellCmd" placeholder="whoami"></textarea>
+      <div class="row">
+        <button type="button" class="primary" id="runShellBtn">Run</button>
+        ${can("shell:interact") ? '<button type="button" id="runAllBtn">All verified</button>' : ""}
+        <button type="button" id="dumpOutBtn">Buffer</button>
       </div>
-    `);
+      <h2 style="margin-top:12px">Output</h2>
+      <div class="outbox empty-out" id="shellOut">Run a command to see output here.</div>
+    `, true, "shell"));
   }
 
   // ----- Sessions -----
   if (can("sessions:read") || can("sessions:write")) {
     parts.push(panel("sessionsPanel", "📡 Sessions", `
-      ${hint("Every implant or reverse-shell connection the server tracks (beacons, shells, closed). <strong>Reap dead</strong> probes and drops mute/zombie shells. <strong>Close selected</strong> uses the Shell dropdown target. List all dumps the full session table for forensics.")}
+      ${hint("Every implant or reverse-shell connection the server tracks (beacons, shells, closed). <strong>Reap dead</strong> probes and drops mute/zombie shells. <strong>Close selected</strong> uses the Shell dropdown target. List all dumps the full session table for forensics.", "sessions")}
       <div class="row">
         ${can("sessions:write") ? '<button type="button" id="reapBtn">Reap dead</button>' : ""}
         ${can("sessions:write") ? '<button type="button" class="danger" id="closeShellBtn">Close selected</button>' : ""}
         <button type="button" id="listAllSesBtn">List all</button>
       </div>
       <div id="sesExtra" class="outbox empty-out" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "sessions"));
   }
 
   // ----- Tasks (beacons) -----
   if (can("tasks:read") || can("tasks:write")) {
     parts.push(panel("tasksPanel", "📋 Tasks", `
-      ${hint("Async work queue for <strong>beacon</strong> implants (not interactive reverse shells). Create a task against a beacon session id; the implant picks it up on next check-in and returns output when complete. Use List tasks to poll status.")}
+      ${hint("Async work queue for <strong>beacon</strong> implants (not interactive reverse shells). Create a task against a beacon session id; the implant picks it up on next check-in and returns output when complete. Use List tasks to poll status.", "tasks")}
       ${can("tasks:write") ? `
         <label for="taskSession">Session id</label>
         <input id="taskSession" placeholder="beacon session id" autocomplete="off" />
@@ -99,13 +111,13 @@
         </div>
       ` : `<div class="row"><button type="button" id="listTasksBtn">List tasks</button></div>`}
       <div class="outbox empty-out" id="taskOut" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "tasks"));
   }
 
   // ----- Listeners -----
   if (can("listeners:read") || can("listeners:write")) {
     parts.push(panel("listenersPanel", "🎧 Listeners", `
-      ${hint("Server-side sockets that accept implant traffic. <strong>How to set up:</strong> (1) Create with a name + port + kind, (2) ensure Start shows running, (3) open the host firewall for that port, (4) point payloads/shells at this host:port. <strong>Kinds:</strong> <code>reverse_shell</code> = raw TCP shells (bash /dev/tcp, etc.); <code>http</code> = HTTP beacon check-ins; <code>tcp</code> = generic TCP channel; <code>dns</code> = DNS TXT C2 (set zone). Privileged ports (&lt;1024) need host sysctl if the process is non-root.")}
+      ${hint("Server-side sockets that accept implant traffic. <strong>How to set up:</strong> (1) Create with a name + port + kind, (2) ensure Start shows running, (3) open the host firewall for that port, (4) point payloads/shells at this host:port. <strong>Kinds:</strong> <code>reverse_shell</code> = raw TCP shells (bash /dev/tcp, etc.); <code>http</code> = HTTP beacon check-ins; <code>tcp</code> = generic TCP channel; <code>dns</code> = DNS TXT C2 (set zone). Privileged ports (&lt;1024) need host sysctl if the process is non-root.", "listeners")}
       <label for="listenerSelect">Listener</label>
       <select id="listenerSelect"><option value="">(none)</option></select>
       ${can("listeners:write") ? `
@@ -132,13 +144,13 @@
           <button type="button" class="primary" id="createLisBtn">Create + start</button>
         </div>
       ` : ""}
-    `, true));
+    `, true, "listeners"));
   }
 
   // ----- Payloads -----
   if (can("payloads:generate")) {
     parts.push(panel("payloadsPanel", "💣 Payloads / implants", `
-      ${hint("Deterministic stagers/agents that call back to your listeners. Pick a template (or implant family), set callback host/port (and scheme/zone if needed), Generate, then run only on authorized targets. Reverse-shell templates need a <code>reverse_shell</code> listener; HTTP/DNS/WS beacons need matching listener kinds and usually an active C2 profile for HTTP surface shape.")}
+      ${hint("Deterministic stagers/agents that call back to your listeners. Pick a template (or implant family), set callback host/port (and scheme/zone if needed), Generate, then run only on authorized targets. Reverse-shell templates need a <code>reverse_shell</code> listener; HTTP/DNS/WS beacons need matching listener kinds and usually an active C2 profile for HTTP surface shape.", "payloads-and-implants")}
       <label for="payTpl">Template</label>
       <select id="payTpl">
         <option value="http_beacon_python">http_beacon_python</option>
@@ -184,13 +196,13 @@
         <button type="button" id="genImpBtn">Generate implant</button>
       </div>
       <div class="outbox empty-out" id="payOut" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "payloads-and-implants"));
   }
 
   // ----- Plugins -----
   if (can("plugins:manage") || can("admin")) {
     parts.push(panel("pluginsPanel", "🧩 Plugins", `
-      ${hint("Optional server extensions (signed catalog modules) that add curated capabilities — e.g. lab recon helpers — without shipping them in the core binary. Catalog lists available modules; Install + enable loads one by name and turns it on under policy. Plugins stay allow-listed; they are not arbitrary remote code from the internet.")}
+      ${hint("Optional server extensions (signed catalog modules) that add curated capabilities — e.g. lab recon helpers — without shipping them in the core binary. Catalog lists available modules; Install + enable loads one by name and turns it on under policy. Plugins stay allow-listed; they are not arbitrary remote code from the internet.", "plugins")}
       <div class="row">
         <button type="button" id="plugCatBtn">Catalog</button>
         <button type="button" id="plugListBtn">Installed</button>
@@ -201,13 +213,13 @@
         <button type="button" class="primary" id="plugInstallBtn">Install + enable</button>
       </div>
       <div class="outbox empty-out" id="plugOut" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "plugins"));
   }
 
   // ----- Deploy helpers -----
   if (can("admin") || can("listeners:write")) {
     parts.push(panel("deployPanel", "🛡 Redirector / certs", `
-      ${hint("OpSec helpers for fronting the C2. Nginx snippet builds a sample reverse-proxy config (server_name + beacon URI paths) for a redirector/CDN hop. Cert plan outlines TLS issuance steps for that hostname — it does not auto-issue certificates on the droplet.")}
+      ${hint("OpSec helpers for fronting the C2. Nginx snippet builds a sample reverse-proxy config (server_name + beacon URI paths) for a redirector/CDN hop. Cert plan outlines TLS issuance steps for that hostname — it does not auto-issue certificates on the droplet.", "redirector-and-certificates")}
       <input id="redirName" placeholder="server_name e.g. cdn.lab" />
       <input id="redirUris" placeholder="beacon uris comma-sep" />
       <div class="row">
@@ -215,25 +227,25 @@
         <button type="button" id="certPlanBtn">Cert plan</button>
       </div>
       <div class="outbox empty-out" id="deployOut" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "redirector-and-certificates"));
   }
 
   // ----- Metrics / Audit -----
   if (can("metrics:read") || can("audit:read")) {
     parts.push(panel("obsPanel", "📈 Observability", `
-      ${hint("Live counters (sessions, tasks, AI calls, etc.) and the append-only audit trail of operator/API actions. Use this to verify what happened and when — not a full SIEM, but the authoritative in-product log.")}
+      ${hint("Live counters (sessions, tasks, AI calls, etc.) and the append-only audit trail of operator/API actions. Use this to verify what happened and when — not a full SIEM, but the authoritative in-product log.", "observability")}
       <div class="row">
         ${can("metrics:read") ? '<button type="button" id="metricsBtn">Metrics</button>' : ""}
         ${can("audit:read") ? '<button type="button" id="auditBtn">Audit log</button>' : ""}
       </div>
       <div class="outbox" id="adminOut" style="margin-top:8px"></div>
-    `, true));
+    `, true, "observability"));
   }
 
   // ----- Admin AI -----
   if (can("ai:use")) {
     parts.push(panel("aiCard", "✨ Admin AI", `
-      ${hint("Sandboxed, allow-listed AI capabilities on the server (not free-form agents). Uses your configured LLM if present, otherwise offline/deterministic fallbacks. Untrusted session text is sanitized before prompts. Pick a capability, pass structured input, Run AI — results are auditable.")}
+      ${hint("Sandboxed, allow-listed AI capabilities on the server (not free-form agents). Uses your configured LLM if present, otherwise offline/deterministic fallbacks. Untrusted session text is sanitized before prompts. Pick a capability, pass structured input, Run AI — results are auditable.", "admin-ai")}
       <div class="stats" style="margin-bottom:8px">
         <div class="stat"><div class="n" id="aiStatusN" style="font-size:0.95rem">—</div><div class="l">Status</div></div>
         <div class="stat"><div class="n" id="aiModeN" style="font-size:0.95rem">—</div><div class="l">Mode</div></div>
@@ -257,13 +269,13 @@
         <button type="button" id="aiDebugBtn">Debug</button>
       </div>
       <div class="outbox empty-out" id="aiOut" style="margin-top:10px;border-color:rgba(192,38,255,0.35);color:#e9d5ff">AI result</div>
-    `, true));
+    `, true, "admin-ai"));
   }
 
   // ----- LLM manage -----
   if (can("llm:manage")) {
     parts.push(panel("llmPanel", "🧠 LLM connections", `
-      ${hint("BYO model endpoints for Admin AI (OpenAI-compatible, including xAI Grok). Keys are stored server-side in data/ and never returned by status APIs. Add a named connection, then Admin AI can use it; without an LLM the AI stays offline-fallback only.")}
+      ${hint("BYO model endpoints for Admin AI (OpenAI-compatible, including xAI Grok). Keys are stored server-side in data/ and never returned by status APIs. Add a named connection, then Admin AI can use it; without an LLM the AI stays offline-fallback only.", "llm-connections")}
       <label for="llmName">Name</label>
       <input id="llmName" placeholder="grok-prod" autocomplete="off" />
       <label for="llmModel">Model</label>
@@ -282,13 +294,13 @@
         <button type="button" id="llmListBtn">List</button>
       </div>
       <div class="outbox empty-out" id="llmOut" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "llm-connections"));
   }
 
   // ----- Tokens -----
   if (can("tokens:manage") || can("admin")) {
     parts.push(panel("tokensPanel", "🔑 Tokens", `
-      ${hint("Mint scoped API tokens for operators, automation, or MCP. The raw <code>sc5_…</code> secret is shown <strong>once</strong> at create — copy it immediately. Presets map to common scope bundles; custom lets you pick exact scopes. Revoke compromised tokens from the list.")}
+      ${hint("Mint scoped API tokens for operators, automation, or MCP. The raw <code>sc5_…</code> secret is shown <strong>once</strong> at create — copy it immediately. Presets map to common scope bundles; custom lets you pick exact scopes. Revoke compromised tokens from the list.", "tokens")}
       <label for="tokName">Name</label>
       <input id="tokName" placeholder="operator-phone" autocomplete="off" />
       <label for="tokPreset">Preset</label>
@@ -311,26 +323,26 @@
       <div class="outbox empty-out" id="tokMintOut" style="margin-top:10px;border-color:rgba(0,255,157,0.35);color:var(--ok)">Minted token appears here once</div>
       <h2 style="margin-top:12px">Active tokens</h2>
       <div id="tokList" class="empty">—</div>
-    `, true));
+    `, true, "tokens"));
   }
 
   // ----- Observability extras -----
   if (can("metrics:read") || can("audit:read") || can("admin")) {
     parts.push(panel("obsExtraPanel", "🗺 Timeline / report", `
-      ${hint("Higher-level ops forensics: anomaly hints, a chronological event timeline, and exportable engagement reports. Complements raw metrics/audit with operator-facing summaries for handoff and after-action.")}
+      ${hint("Higher-level ops forensics: anomaly hints, a chronological event timeline, and exportable engagement reports. Complements raw metrics/audit with operator-facing summaries for handoff and after-action.", "timeline-and-reports")}
       <div class="row">
         <button type="button" id="anomalyBtn">Anomalies</button>
         <button type="button" id="reportBtn">Export report</button>
         <button type="button" id="timelineBtn">Timeline</button>
       </div>
       <div class="outbox empty-out" id="obsExtraOut" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "timeline-and-reports"));
   }
 
   // ----- Collab chat -----
   if (can("collab:use") || can("admin")) {
     parts.push(panel("chatPanel", "💬 Operator chat", `
-      ${hint("Shared notes between operators on this C2 instance (handoff, spectator context). Not a full team chat product — short operational messages stored with the server and visible to collab-scoped tokens.")}
+      ${hint("Shared notes between operators on this C2 instance (handoff, spectator context). Not a full team chat product — short operational messages stored with the server and visible to collab-scoped tokens.", "operator-chat")}
       <label for="chatMsg">Message</label>
       <input id="chatMsg" placeholder="handoff note…" autocomplete="off" />
       <div class="row">
@@ -338,38 +350,38 @@
         <button type="button" id="chatReloadBtn">Reload</button>
       </div>
       <div class="outbox empty-out" id="chatOut" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "operator-chat"));
   }
 
   // ----- C2 Profiles -----
   if (can("profiles:read") || can("admin")) {
     parts.push(panel("profilesPanel", "📡 C2 profiles", `
-      ${hint("<strong>What they are:</strong> malleable traffic profiles that define how HTTP (and related) beacons look on the wire — paths, headers, jitter, decoy behavior — so C2 blends with legitimate traffic. <strong>What they do:</strong> the active profile is the surface generators and the server expect for implant check-ins. Activate a profile, then Generate beacon (active) so payloads match that profile. Switching profiles mid-op changes the expected beacon shape; regenerate implants after a switch.")}
+      ${hint("<strong>What they are:</strong> malleable traffic profiles that define how HTTP (and related) beacons look on the wire — paths, headers, jitter, decoy behavior — so C2 blends with legitimate traffic. <strong>What they do:</strong> the active profile is the surface generators and the server expect for implant check-ins. Activate a profile, then Generate beacon (active) so payloads match that profile. Switching profiles mid-op changes the expected beacon shape; regenerate implants after a switch.", "c2-profiles")}
       <div id="profList" class="empty">—</div>
       <div class="row" style="margin-top:8px">
         <button type="button" id="profReloadBtn">Reload</button>
         ${can("payloads:generate") || can("admin") ? '<button type="button" class="primary" id="profGenBtn">Generate beacon (active)</button>' : ""}
       </div>
       <div class="outbox empty-out" id="profOut" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "c2-profiles"));
   }
 
   // ----- Feature toggles (admin) -----
   if (can("admin") || can("policy:manage")) {
     parts.push(panel("featuresPanel", "🎛 Feature toggles", `
-      ${hint("Runtime kill-switches enforced by the server. Off means the API denies that capability (MCP, AI paths, etc.). Defaults are secure; <code>public_docs</code> stays locked off. Save writes the flag set; Reload refreshes from the server.")}
+      ${hint("Runtime kill-switches enforced by the server. Off means the API denies that capability (MCP, AI paths, etc.). Defaults are secure; <code>public_docs</code> stays locked off. Save writes the flag set; Reload refreshes from the server.", "feature-toggles")}
       <div id="featureToggles"></div>
       <div class="row">
         <button type="button" class="primary" id="saveFeaturesBtn">Save features</button>
         <button type="button" id="reloadFeaturesBtn">Reload</button>
       </div>
-    `, true));
+    `, true, "feature-toggles"));
   }
 
   // ----- Policy -----
   if (can("policy:manage")) {
     parts.push(panel("policyPanel", "📜 Policy", `
-      ${hint("Risk / allow-deny engine rules: thresholds for high-risk actions, HITL gates, and chain limits. Get policy loads current JSON; edit carefully and Save. Bad policy can block operators or weaken guardrails — treat as production config.")}
+      ${hint("Risk / allow-deny engine rules: thresholds for high-risk actions, HITL gates, and chain limits. Get policy loads current JSON; edit carefully and Save. Bad policy can block operators or weaken guardrails — treat as production config.", "policy")}
       <div class="row">
         <button type="button" id="policyGetBtn">Get policy</button>
       </div>
@@ -379,13 +391,13 @@
         <button type="button" class="primary" id="policySetBtn">Save policy</button>
       </div>
       <div class="outbox empty-out" id="policyOut" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "policy"));
   }
 
   // ----- MCP -----
   if (can("mcp:connect")) {
     parts.push(panel("mcpPanel", "🔌 MCP tools", `
-      ${hint("External AI / MCP bridge: tools exposed to models under a per-token allow-list (not open-ended autonomy). List tools shows what this token may call; Call runs one tool with JSON args. MCP is off by default until features/settings enable it.")}
+      ${hint("External AI / MCP bridge: tools exposed to models under a per-token allow-list (not open-ended autonomy). List tools shows what this token may call; Call runs one tool with JSON args. MCP is off by default until features/settings enable it.", "mcp-tools")}
       <div class="row">
         <button type="button" id="mcpToolsBtn">List tools</button>
       </div>
@@ -397,10 +409,10 @@
         <button type="button" class="primary" id="mcpCallBtn">Call</button>
       </div>
       <div class="outbox empty-out" id="mcpOut" style="margin-top:8px">—</div>
-    `, true));
+    `, true, "mcp-tools"));
   }
 
-  root.innerHTML = parts.join("\n") || '<div class="card muted">No scoped actions for this token.</div>';
+  root.innerHTML = parts.join("\n") || '<details class="panel" open><summary>Console</summary><p class="muted">No scoped actions for this token.</p></details>';
 
   function escapeHtml(s) {
     return String(s)
