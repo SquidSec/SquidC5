@@ -621,14 +621,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 
     // file:// opens break CORS (Origin: null) and logo paths — force hosted /ops
     if (location.protocol === "file:") {
-      const pub = "http://<REDACTED_PUBLIC_HOST>:8443/ops";
       document.body.innerHTML = `
         <div style="max-width:520px;margin:40px auto;padding:20px;font-family:system-ui;background:#111;color:#fff;border:1px solid #ff00aa;border-radius:12px">
           <h1 style="color:#ff00aa;margin-top:0">Do not open this file locally</h1>
           <p>You opened <code>phone-dashboard.html</code> via <code>file://</code>. Browsers block API calls from that origin.</p>
           <p><strong>Open the hosted console instead:</strong></p>
-          <p><a href="${pub}" style="color:#00ff9d;font-size:1.1rem">${pub}</a></p>
-          <p style="color:#aaa;font-size:0.9rem">Paste your admin token there → Save &amp; Connect.</p>
+          <p class="mono" style="color:#00ff9d">http://YOUR_HOST:8443/ops</p>
+          <p style="color:#aaa;font-size:0.9rem">Use your C2 public host/IP. Paste your admin token there → Save &amp; Connect.</p>
         </div>`;
     } else {
       loadSettings();
