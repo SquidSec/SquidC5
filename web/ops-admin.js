@@ -12,8 +12,9 @@
   const root = document.getElementById("adminMount");
   if (!root) return;
 
-  function panel(id, title, body, open) {
-    return `<details class="panel" id="${id}"${open ? " open" : ""}>
+  function panel(id, title, body, _open) {
+    // All collapsible panels start collapsed; open arg ignored by design
+    return `<details class="panel" id="${id}">
       <summary>${title}</summary>
       ${body}
     </details>`;
@@ -289,7 +290,7 @@
       <div class="outbox empty-out" id="tokMintOut" style="margin-top:10px;border-color:rgba(0,255,157,0.35);color:var(--ok)">Minted token appears here once</div>
       <h2 style="margin-top:12px">Active tokens</h2>
       <div id="tokList" class="empty">—</div>
-    `, true));
+    `, false));
   }
 
   // ----- Observability extras -----
@@ -327,7 +328,7 @@
         ${can("payloads:generate") || can("admin") ? '<button type="button" class="primary" id="profGenBtn">Generate beacon (active)</button>' : ""}
       </div>
       <div class="outbox empty-out" id="profOut" style="margin-top:8px">—</div>
-    `, true));
+    `, false));
   }
 
   // ----- Feature toggles (admin) -----

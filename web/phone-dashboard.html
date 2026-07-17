@@ -23,8 +23,14 @@
       min-height: 100dvh;
       padding: max(12px, env(safe-area-inset-top)) 12px calc(20px + env(safe-area-inset-bottom));
     }
-    .wrap { max-width: 520px; margin: 0 auto; }
+    .wrap { max-width: 520px; margin: 0 auto; width: 100%; }
     .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .toolbar { margin-bottom: 10px; }
+    .dash-main, .dash-side { min-width: 0; }
+    #adminMount { display: flex; flex-direction: column; gap: 0; }
+    #adminMount > * { margin-bottom: 10px; }
+    #adminMount > *:last-child { margin-bottom: 0; }
+
     .brand img { width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 0 14px #ff00aa); }
     .brand h1 { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
     .brand h1 .p { color: var(--pink); text-shadow: 0 0 10px #ff00aa; }
@@ -138,8 +144,69 @@
     .qr-box { background: #fff; border-radius: 12px; padding: 12px; width: fit-content; margin: 0 auto 12px; }
     .qr-box img { width: 220px; height: 220px; display: block; }
     .share-url { font: 0.65rem var(--mono); color: var(--pink); word-break: break-all; margin-bottom: 10px; }
-    footer { text-align: center; color: var(--muted); font-size: 0.72rem; margin-top: 14px; }
+    footer { text-align: center; color: var(--muted); font-size: 0.72rem; margin-top: 14px; grid-column: 1 / -1; }
     .hidden { display: none !important; }
+
+    /* Tablet / small desktop */
+    @media (min-width: 768px) {
+      body {
+        padding: max(16px, env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
+      }
+      .wrap {
+        max-width: 980px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 16px;
+        align-items: start;
+      }
+      .brand, #error, #okmsg, #settingsPanel, .toolbar, .hero, footer {
+        grid-column: 1 / -1;
+      }
+      .dash-main { grid-column: 1; display: flex; flex-direction: column; gap: 0; }
+      .dash-side { grid-column: 2; display: flex; flex-direction: column; gap: 0; }
+      .dash-main .card, .dash-side .card, .dash-main details.panel, .dash-side details.panel {
+        margin-bottom: 12px;
+      }
+      #adminMount {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 16px;
+        align-items: start;
+      }
+      #adminMount > * { margin-bottom: 0; }
+      #adminMount > #quickRunCard { grid-column: 1 / -1; }
+      #adminMount > #aiCard { grid-column: 1 / -1; }
+
+      .outbox { max-height: 360px; }
+      button { min-width: 120px; flex: 0 1 auto; }
+      .stats { gap: 12px; }
+      .stat .n { font-size: 1.5rem; }
+      .modal { width: min(100%, 420px); }
+    }
+
+    /* Wide desktop */
+    @media (min-width: 1200px) {
+      .wrap {
+        max-width: 1320px;
+        grid-template-columns: 1.25fr 1fr 1fr;
+        gap: 14px 18px;
+      }
+      .dash-main { grid-column: 1; }
+      .dash-side { grid-column: 2 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; align-items: start; }
+      .dash-side > * { margin-bottom: 0; }
+      #adminMount {
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(3, 1fr);
+      }
+      #adminMount > #quickRunCard { grid-column: 1 / 3; }
+      #adminMount > #identityCard { grid-column: 3; }
+      #adminMount > #aiCard { grid-column: 1 / -1; }
+      .brand h1 { font-size: 1.45rem; }
+      .hero { padding: 16px 18px; }
+      .card, details.panel { padding: 14px 16px; }
+      table { font-size: 0.85rem; }
+    }
   </style>
 </head>
 <body>
@@ -160,7 +227,7 @@
     <div id="okmsg" class="okmsg"></div>
 
     <details class="panel" id="settingsPanel">
-      <summary>⚙ Connection</summary>
+      <summary>Connection</summary>
       <label for="url">Server URL</label>
       <input id="url" type="url" placeholder="http://HOST:8443" autocomplete="off" />
       <label for="token">API token</label>
@@ -174,9 +241,9 @@
       <p class="muted" style="margin:8px 0 0">Token stays in this browser. Admin UI is only loaded after the server verifies an admin token.</p>
     </details>
 
-    <div class="row" style="margin-bottom:10px">
-      <button type="button" id="refreshBtn">↻ Refresh</button>
-      <button type="button" class="primary" id="shareBtn">📱 Phone QR</button>
+    <div class="row toolbar">
+      <button type="button" id="refreshBtn">Refresh</button>
+      <button type="button" class="primary" id="shareBtn">Phone QR</button>
     </div>
 
     <div class="hero">
@@ -188,29 +255,33 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>Verified reverse shells</h2>
-      <div id="shellsBox" class="empty">No verified shells</div>
+    <div class="dash-main">
+      <div class="card">
+        <h2>Verified reverse shells</h2>
+        <div id="shellsBox" class="empty">No verified shells</div>
+      </div>
     </div>
 
-    <!-- Admin-only UI is injected here AFTER server-side admin check -->
+    <div class="dash-side">
+      <div class="card">
+        <h2>Listeners</h2>
+        <div id="listenersBox" class="empty">—</div>
+      </div>
+
+      <div class="card">
+        <h2>Signal</h2>
+        <div class="chips" id="chips"><span class="chip">—</span></div>
+        <p class="muted" id="healthLine" style="margin:8px 0 0">—</p>
+      </div>
+
+      <details class="panel" id="eventsPanel">
+        <summary>Recent events</summary>
+        <div id="eventsBox" class="empty">—</div>
+      </details>
+    </div>
+
+    <!-- Admin UI injected after server-side scope check (full width on desktop) -->
     <div id="adminMount"></div>
-
-    <div class="card">
-      <h2>Listeners</h2>
-      <div id="listenersBox" class="empty">—</div>
-    </div>
-
-    <div class="card">
-      <h2>Signal</h2>
-      <div class="chips" id="chips"><span class="chip">—</span></div>
-      <p class="muted" id="healthLine" style="margin:8px 0 0">—</p>
-    </div>
-
-    <details class="panel">
-      <summary>📋 Recent events</summary>
-      <div id="eventsBox" class="empty">—</div>
-    </details>
 
     <footer>
       <div id="footer">Last update: never</div>
@@ -345,6 +416,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       $("url").value = url || "";
       $("token").value = localStorage.getItem(KEYS.token) || "";
       $("refresh").value = localStorage.getItem(KEYS.refresh) || "10";
+      // Collapsed by default; only open connection panel if no token yet
+      $("settingsPanel").open = false;
       if (!$("token").value) $("settingsPanel").open = true;
       if (imported) $("settingsPanel").open = false;
       return imported;
