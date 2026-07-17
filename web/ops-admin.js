@@ -230,6 +230,19 @@
     `, true));
   }
 
+  // ----- C2 Profiles -----
+  if (can("profiles:read") || can("admin")) {
+    parts.push(panel("profilesPanel", "📡 C2 profiles", `
+      <p class="muted">Malleable HTTP profiles. Activate then generate beacons with that surface.</p>
+      <div id="profList" class="empty">—</div>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="profReloadBtn">Reload</button>
+        ${can("payloads:generate") || can("admin") ? '<button type="button" class="primary" id="profGenBtn">Generate beacon (active)</button>' : ""}
+      </div>
+      <div class="outbox empty-out" id="profOut" style="margin-top:8px">—</div>
+    `, true));
+  }
+
   // ----- Feature toggles (admin) -----
   if (can("admin") || can("policy:manage")) {
     parts.push(panel("featuresPanel", "🎛 Feature toggles", `
@@ -845,8 +858,62 @@
     };
   }
 
+  // Profiles UI
+  async function loadProfiles() {
+    if (!$("profList")) return;
+    const data = await api("GET", "/api/v1/profiles");
+    const active = data.active_id;
+    const rows = data.profiles || [];
+    if (!rows.length) {
+      $("profList").innerHTML = '<div class="empty">No profiles</div>';
+      return;
+    }
+    let html = "<table><thead><tr><th>Name</th><th>Channel</th><th></th></tr></thead><tbody>";
+    rows.forEach((p) => {
+      const isAct = p.id === active || p.active;
+      html += `<tr>
+        <td><div>${escapeHtml(p.name)}</div>
+            <div class="muted mono" style="font-size:0.65rem">${escapeHtml(p.id)}${isAct ? " · ACTIVE" : ""}</div></td>
+        <td class="muted">${escapeHtml(p.channel || "http")}</td>
+        <td>${can("profiles:write") || can("admin")
+          ? `<button type="button" class="prof-act" data-id="${escapeHtml(p.id)}" style="padding:6px 8px;font-size:0.7rem">${isAct ? "Active" : "Activate"}</button>`
+          : ""}</td>
+      </tr>`;
+    });
+    html += "</tbody></table>";
+    $("profList").innerHTML = html;
+    $("profList").querySelectorAll(".prof-act").forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          await api("POST", `/api/v1/profiles/${btn.getAttribute("data-id")}/activate`);
+          showOk("Profile activated");
+          await loadProfiles();
+        } catch (e) { showError(String(e.message || e)); }
+      };
+    });
+  }
+  if ($("profReloadBtn")) {
+    $("profReloadBtn").onclick = () => loadProfiles().catch((e) => showError(String(e.message || e)));
+  }
+  if ($("profGenBtn")) {
+    $("profGenBtn").onclick = async () => {
+      try {
+        const host = location.hostname || "127.0.0.1";
+        const port = Number(location.port || 8443);
+        const res = await api("POST", "/api/v1/payloads/generate", {
+          template: "http_beacon_python",
+          host,
+          port,
+        });
+        setOut("profOut", res.content || JSON.stringify(res, null, 2), false);
+        showOk("Beacon generated for active profile");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+
   // Bootstrap data for panels present
   if ($("featureToggles")) loadFeatures().catch((e) => showError(String(e.message || e)));
   if ($("tokList")) loadTokens().catch((e) => showError(String(e.message || e)));
+  if ($("profList")) loadProfiles().catch((e) => showError(String(e.message || e)));
   window.__SC5_ADMIN_LOADED__ = true;
 })();

