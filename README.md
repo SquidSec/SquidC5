@@ -1,10 +1,10 @@
-# SquidSeC2
+# SquidC5
 
 **Lightweight, security-first, AI-native Command & Control for authorized red team operations.**
 
-[![CI](https://github.com/DotNetRussell/SquidSec2/actions/workflows/ci.yml/badge.svg)](https://github.com/DotNetRussell/SquidSec2/actions/workflows/ci.yml)
+[![CI](https://github.com/DotNetRussell/SquidC5/actions/workflows/ci.yml/badge.svg)](https://github.com/DotNetRussell/SquidC5/actions/workflows/ci.yml)
 
-> ⚠️ **Authorized use only.** SquidSeC2 is intended for legitimate penetration testing and red team engagements with explicit permission. Unauthorized access to systems is illegal.
+> ⚠️ **Authorized use only.** SquidC5 is intended for legitimate penetration testing and red team engagements with explicit permission. Unauthorized access to systems is illegal.
 
 ## Features
 
@@ -23,7 +23,7 @@
 ```bash
 docker compose up --build -d
 curl -s http://127.0.0.1:8443/api/v1/health
-docker compose exec squidsec2 cat /data/admin_token.txt
+docker compose exec squidc5 cat /data/admin_token.txt
 ```
 
 ## Quick Start (Local)
@@ -31,28 +31,28 @@ docker compose exec squidsec2 cat /data/admin_token.txt
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt && pip install -e .
-uvicorn squidsec2.main:create_app --factory --host 0.0.0.0 --port 8443
+uvicorn squidc5.main:create_app --factory --host 0.0.0.0 --port 8443
 # Admin token printed path: data/admin_token.txt
 ```
 
-## Operator CLI (`ss2`)
+## Operator CLI (`sc5`)
 
-Local harness to control a remote SquidSeC2 instance:
+Local harness to control a remote SquidC5 instance:
 
 ```bash
 pip install -e .
-ss2 login --url http://YOUR_HOST:8443 --token ss2_...
-ss2 health
-ss2 sessions list
-ss2 tasks create <session_id> "whoami"
-ss2 listeners create http-1 9001 --kind http
-ss2 payloads generate http_beacon_python YOUR_HOST 8443 --raw
-ss2 ai recon_assist --data "windows domain"
-ss2 repl   # interactive mode
+sc5 login --url http://YOUR_HOST:8443 --token sc5_...
+sc5 health
+sc5 sessions list
+sc5 tasks create <session_id> "whoami"
+sc5 listeners create http-1 9001 --kind http
+sc5 payloads generate http_beacon_python YOUR_HOST 8443 --raw
+sc5 ai recon_assist --data "windows domain"
+sc5 repl   # interactive mode
 ```
 
-Config is stored at `~/.config/squidsec2/config.json` (mode 0600).  
-Overrides: `--url` / `--token`, or env `SQUIDSEC2_URL` / `SQUIDSEC2_TOKEN`.
+Config is stored at `~/.config/squidc5/config.json` (mode 0600).  
+Overrides: `--url` / `--token`, or env `SQUIDC5_URL` / `SQUIDC5_TOKEN`.
 
 ## API Overview
 
@@ -109,7 +109,7 @@ curl -s -X POST http://127.0.0.1:8443/api/v1/ai/run \
 
 ## Configuration
 
-Environment variables (prefix `SQUIDSEC2_`):
+Environment variables (prefix `SQUIDC5_`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -130,7 +130,7 @@ Environment variables (prefix `SQUIDSEC2_`):
 See:
 
 - [AGENTS.md](AGENTS.md) — agent/project memory
-- [docs/squidsec2-vision.md](docs/squidsec2-vision.md) — architecture
+- [docs/squidc5-vision.md](docs/squidc5-vision.md) — architecture
 - [docs/operator-runbook.md](docs/operator-runbook.md) — operator CLI & reverse shells
 - [docs/deployment.md](docs/deployment.md) — Docker / droplet deploy
 

@@ -3,13 +3,13 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "squidsec2"
+name = "squidc5"
 version = "0.1.0"
-description = "SquidSeC2 — lightweight, security-first, AI-native C2 for authorized red team operations"
+description = "SquidC5 — lightweight, security-first, AI-native C2 for authorized red team operations"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
-authors = [{ name = "SquidSeC2 Contributors" }]
+authors = [{ name = "SquidC5 Contributors" }]
 keywords = ["c2", "red-team", "penetration-testing", "mcp", "security"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -44,9 +44,9 @@ dev = [
 ]
 
 [project.scripts]
-squidsec2 = "squidsec2.main:cli"
-ss2 = "squidsec2.cli:main"
-squidsec2-cli = "squidsec2.cli:main"
+squidc5 = "squidc5.main:cli"
+sc5 = "squidc5.cli:main"
+squidc5-cli = "squidc5.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

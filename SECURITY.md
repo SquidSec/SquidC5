@@ -8,7 +8,7 @@
 
 ## Responsible Disclosure
 
-If you discover a security vulnerability in SquidSeC2:
+If you discover a security vulnerability in SquidC5:
 
 1. **Do not** open a public GitHub issue
 2. Contact the maintainers privately via GitHub Security Advisories on this repository
@@ -17,7 +17,7 @@ If you discover a security vulnerability in SquidSeC2:
 
 ## Scope Notes
 
-SquidSeC2 is a C2 framework for **authorized** testing. Issues related to:
+SquidC5 is a C2 framework for **authorized** testing. Issues related to:
 
 - Authentication/token bypass
 - MCP tool allow-list bypass

