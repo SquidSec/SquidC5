@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from conftest import bearer, mint_token
 
 # (method, path, body_or_none)

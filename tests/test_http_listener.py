@@ -1,4 +1,5 @@
 import pytest
+
 from squidc5.listeners.http_listener import _json_body
 
 

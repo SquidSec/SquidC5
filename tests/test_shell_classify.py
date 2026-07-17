@@ -1,5 +1,5 @@
 from squidc5.shells.classify import classify_inbound
-from squidc5.shells.stabilize import detect_os, ShellStabilizer
+from squidc5.shells.stabilize import ShellStabilizer, detect_os
 
 
 def test_reject_tls_clienthello():

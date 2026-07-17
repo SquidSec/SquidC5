@@ -6,7 +6,6 @@ import json
 import re
 
 import pytest
-
 from conftest import ADMIN_BOOTSTRAP, bearer, mint_token
 
 SECRET_PATTERNS = [

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from conftest import bearer, mint_token
 
 from squidc5.ai.admin_ai import ALLOWED_CAPABILITIES, sanitize_untrusted
-from conftest import bearer, mint_token
 
 
 @pytest.mark.parametrize(

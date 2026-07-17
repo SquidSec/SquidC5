@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from conftest import bearer, mint_token
 
 from squidc5.auth.tokens import generate_token, hash_token
-from conftest import bearer, mint_token
 
 
 def test_generate_token_prefix_and_entropy():
