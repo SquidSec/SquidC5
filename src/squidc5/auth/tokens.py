@@ -32,6 +32,10 @@ SCOPES = frozenset(
         "files:read",
         "files:write",
         "phone:operator",
+        "profiles:read",
+        "profiles:write",
+        "plugins:manage",
+        "collab:use",
     }
 )
 

@@ -16,16 +16,21 @@ from squidc5.ai.admin_ai import AdminAI
 from squidc5.api.routes import build_api_router
 from squidc5.audit.trail import AuditTrail
 from squidc5.auth.tokens import TokenService
+from squidc5.collab.teams import TeamService
 from squidc5.config import Settings, get_settings
 from squidc5.core.state import AppState
 from squidc5.db.store import Database
 from squidc5.features import FeatureFlags
+from squidc5.implants.registry import ImplantRegistry
 from squidc5.listeners.manager import ListenerManager
 from squidc5.mcp.server import build_mcp_router
 from squidc5.metrics.collector import MetricsCollector
+from squidc5.observability.timeline import TimelineService
 from squidc5.paths import web_dir
 from squidc5.payloads.generator import PayloadGenerator
+from squidc5.plugins.registry import PluginRegistry
 from squidc5.policy.engine import PolicyEngine
+from squidc5.profiles.engine import ProfileEngine
 from squidc5.sessions.manager import SessionManager
 from squidc5.tasking.manager import TaskManager
 
@@ -52,6 +57,12 @@ async def build_state(settings: Settings) -> AppState:
     admin_ai = AdminAI(db, metrics, policy)
     features = FeatureFlags(db)
     await features.load()
+    profiles = ProfileEngine(db)
+    await profiles.load()
+    implants = ImplantRegistry()
+    teams = TeamService(db)
+    plugins = PluginRegistry()
+    timeline = TimelineService(db)
 
     listeners = ListenerManager(
         db,
@@ -94,6 +105,11 @@ async def build_state(settings: Settings) -> AppState:
         payloads=payloads,
         admin_ai=admin_ai,
         features=features,
+        profiles=profiles,
+        implants=implants,
+        teams=teams,
+        plugins=plugins,
+        timeline=timeline,
         admin_token_once=admin_once,
     )
 

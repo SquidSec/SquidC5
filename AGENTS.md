@@ -50,12 +50,30 @@ When adding features: **deny by default**, enable via admin feature flags or env
 
 ## Development pipeline (mandatory)
 
+Source of truth also: Windows SquidSec workspace  
+`/mnt/c/Users/ynot_/OneDrive/Desktop/Company Data/SquidSec/AGENTS.md` + `knowledge-base/MEMORY.md`  
+→ **Development cycles (git repos)**.
+
+### Git cycle (every change)
+
+1. **Update main/master** — pull latest  
+2. **Feature branch** — name for the change  
+3. **Unit tests first** — describe expected behavior  
+4. **Implement** code  
+5. **Red-green-refactor** — all tests pass; clean up  
+6. **Push branch** (never direct to main)  
+7. **Open PR**  
+8. **Wait for CI** — do not merge red  
+9. **Merge** when green  
+10. **Next change** — back to step 1  
+
+### Prod after merge
+
 ```text
-feature branch → PR → CI tests green → merge main/master
-  → CI builds Linux/Windows binaries (sc5, squidc5)
-  → prod deploy = Linux squidc5 binary ONLY (keep data/)
+merge main → CI builds Linux/Windows binaries → deploy Linux squidc5 binary ONLY
 ```
 
+- **Never** commit/push straight to `main`/`master`
 - **Never** rsync WIP source or `docker compose up --build` to prod
 - **Never** deploy a feature-branch-only binary
 - Docker is for **local/lab** only once binary prod path is active

@@ -105,6 +105,31 @@ CREATE TABLE IF NOT EXISTS metrics (
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts);
 CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
+
+CREATE TABLE IF NOT EXISTS c2_profiles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    config TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS teams (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_by TEXT,
+    created_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS session_handoffs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    ts REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_handoffs_session ON session_handoffs(session_id);
 """
 
 
@@ -499,3 +524,80 @@ class Database:
     async def get_metrics(self) -> dict[str, float]:
         rows = await self.fetchall("SELECT key, value FROM metrics")
         return {r["key"]: r["value"] for r in rows}
+
+    # --- C2 profiles ---
+
+    async def list_profiles(self) -> list[dict[str, Any]]:
+        rows = await self.fetchall(
+            "SELECT id, name, config, active, created_at, updated_at FROM c2_profiles ORDER BY name"
+        )
+        for r in rows:
+            if isinstance(r.get("config"), str):
+                r["config"] = json.loads(r["config"])
+        return rows
+
+    async def upsert_profile(
+        self, profile_id: str, name: str, config: dict[str, Any], active: bool = False
+    ) -> None:
+        existing = await self.fetchone("SELECT id FROM c2_profiles WHERE id = ?", (profile_id,))
+        now = _now()
+        if existing:
+            await self.execute(
+                "UPDATE c2_profiles SET name = ?, config = ?, active = ?, updated_at = ? WHERE id = ?",
+                (name, json.dumps(config), 1 if active else 0, now, profile_id),
+            )
+        else:
+            await self.execute(
+                "INSERT INTO c2_profiles (id, name, config, active, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (profile_id, name, json.dumps(config), 1 if active else 0, now, now),
+            )
+
+    async def set_active_profile(self, profile_id: str) -> None:
+        await self.execute("UPDATE c2_profiles SET active = 0")
+        await self.execute(
+            "UPDATE c2_profiles SET active = 1, updated_at = ? WHERE id = ?",
+            (_now(), profile_id),
+        )
+
+    # --- Teams / collab ---
+
+    async def list_teams(self) -> list[dict[str, Any]]:
+        return await self.fetchall("SELECT * FROM teams ORDER BY name")
+
+    async def create_team(self, name: str, created_by: str) -> str:
+        tid = _uid("team_")
+        await self.execute(
+            "INSERT INTO teams (id, name, created_by, created_at) VALUES (?, ?, ?, ?)",
+            (tid, name, created_by, _now()),
+        )
+        return tid
+
+    async def add_session_handoff(self, session_id: str, entry: dict[str, Any]) -> None:
+        await self.execute(
+            "INSERT INTO session_handoffs (session_id, payload, ts) VALUES (?, ?, ?)",
+            (session_id, json.dumps(entry), entry.get("ts") or _now()),
+        )
+
+    async def get_session_handoffs(self, session_id: str) -> list[dict[str, Any]]:
+        rows = await self.fetchall(
+            "SELECT payload, ts FROM session_handoffs WHERE session_id = ? ORDER BY ts ASC",
+            (session_id,),
+        )
+        out = []
+        for r in rows:
+            p = r["payload"]
+            if isinstance(p, str):
+                p = json.loads(p)
+            out.append(p)
+        return out
+
+    async def set_session_owner(self, session_id: str, owner: str) -> None:
+        row = await self.get_session(session_id)
+        if not row:
+            raise KeyError(session_id)
+        meta = row.get("metadata") or {}
+        if isinstance(meta, str):
+            meta = json.loads(meta)
+        meta["owner"] = owner
+        await self.update_session(session_id, metadata=json.dumps(meta))
