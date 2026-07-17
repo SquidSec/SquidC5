@@ -29,12 +29,17 @@
     </details>`;
   }
 
+  function hint(text) {
+    return `<p class="hint">${text}</p>`;
+  }
+
   const parts = [];
 
   // ----- Identity -----
   parts.push(`
     <div class="card" id="identityCard">
       <h2>Identity</h2>
+      ${hint("Who you are on this C2: the API token currently saved in Connection. Pulled from <code>GET /api/v1/meta</code> — actor name, token id, and scopes the server granted. Scopes control which panels and API routes work; <code>admin</code> unlocks full console. Whoami dumps the raw meta JSON; Health is a lightweight liveness check (no secrets).")}
       <p class="muted mono" id="whoLine">—</p>
       <div class="chips" id="scopeChips" style="margin-top:8px"></div>
       <div class="row" style="margin-top:8px">
@@ -50,6 +55,7 @@
     parts.push(`
       <div class="card" id="quickRunCard">
         <h2>Shell</h2>
+        ${hint("Interactive command runner for <strong>verified reverse shells</strong> only (exec-probe passed). Pick a live session, run a command, or broadcast to all verified shells. Buffer shows recent session output already captured by the server — not a live PTY stream.")}
         <label for="shellSelect">Target shell</label>
         <select id="shellSelect"><option value="">(none)</option></select>
         <label for="shellCmd">Command</label>
@@ -68,6 +74,7 @@
   // ----- Sessions -----
   if (can("sessions:read") || can("sessions:write")) {
     parts.push(panel("sessionsPanel", "📡 Sessions", `
+      ${hint("Every implant or reverse-shell connection the server tracks (beacons, shells, closed). <strong>Reap dead</strong> probes and drops mute/zombie shells. <strong>Close selected</strong> uses the Shell dropdown target. List all dumps the full session table for forensics.")}
       <div class="row">
         ${can("sessions:write") ? '<button type="button" id="reapBtn">Reap dead</button>' : ""}
         ${can("sessions:write") ? '<button type="button" class="danger" id="closeShellBtn">Close selected</button>' : ""}
@@ -80,6 +87,7 @@
   // ----- Tasks (beacons) -----
   if (can("tasks:read") || can("tasks:write")) {
     parts.push(panel("tasksPanel", "📋 Tasks", `
+      ${hint("Async work queue for <strong>beacon</strong> implants (not interactive reverse shells). Create a task against a beacon session id; the implant picks it up on next check-in and returns output when complete. Use List tasks to poll status.")}
       ${can("tasks:write") ? `
         <label for="taskSession">Session id</label>
         <input id="taskSession" placeholder="beacon session id" autocomplete="off" />
@@ -97,6 +105,7 @@
   // ----- Listeners -----
   if (can("listeners:read") || can("listeners:write")) {
     parts.push(panel("listenersPanel", "🎧 Listeners", `
+      ${hint("Server-side sockets that accept implant traffic. <strong>How to set up:</strong> (1) Create with a name + port + kind, (2) ensure Start shows running, (3) open the host firewall for that port, (4) point payloads/shells at this host:port. <strong>Kinds:</strong> <code>reverse_shell</code> = raw TCP shells (bash /dev/tcp, etc.); <code>http</code> = HTTP beacon check-ins; <code>tcp</code> = generic TCP channel; <code>dns</code> = DNS TXT C2 (set zone). Privileged ports (&lt;1024) need host sysctl if the process is non-root.")}
       <label for="listenerSelect">Listener</label>
       <select id="listenerSelect"><option value="">(none)</option></select>
       ${can("listeners:write") ? `
@@ -129,6 +138,7 @@
   // ----- Payloads -----
   if (can("payloads:generate")) {
     parts.push(panel("payloadsPanel", "💣 Payloads / implants", `
+      ${hint("Deterministic stagers/agents that call back to your listeners. Pick a template (or implant family), set callback host/port (and scheme/zone if needed), Generate, then run only on authorized targets. Reverse-shell templates need a <code>reverse_shell</code> listener; HTTP/DNS/WS beacons need matching listener kinds and usually an active C2 profile for HTTP surface shape.")}
       <label for="payTpl">Template</label>
       <select id="payTpl">
         <option value="http_beacon_python">http_beacon_python</option>
@@ -180,6 +190,7 @@
   // ----- Plugins -----
   if (can("plugins:manage") || can("admin")) {
     parts.push(panel("pluginsPanel", "🧩 Plugins", `
+      ${hint("Optional server extensions (signed catalog modules) that add curated capabilities — e.g. lab recon helpers — without shipping them in the core binary. Catalog lists available modules; Install + enable loads one by name and turns it on under policy. Plugins stay allow-listed; they are not arbitrary remote code from the internet.")}
       <div class="row">
         <button type="button" id="plugCatBtn">Catalog</button>
         <button type="button" id="plugListBtn">Installed</button>
@@ -196,6 +207,7 @@
   // ----- Deploy helpers -----
   if (can("admin") || can("listeners:write")) {
     parts.push(panel("deployPanel", "🛡 Redirector / certs", `
+      ${hint("OpSec helpers for fronting the C2. Nginx snippet builds a sample reverse-proxy config (server_name + beacon URI paths) for a redirector/CDN hop. Cert plan outlines TLS issuance steps for that hostname — it does not auto-issue certificates on the droplet.")}
       <input id="redirName" placeholder="server_name e.g. cdn.lab" />
       <input id="redirUris" placeholder="beacon uris comma-sep" />
       <div class="row">
@@ -209,6 +221,7 @@
   // ----- Metrics / Audit -----
   if (can("metrics:read") || can("audit:read")) {
     parts.push(panel("obsPanel", "📈 Observability", `
+      ${hint("Live counters (sessions, tasks, AI calls, etc.) and the append-only audit trail of operator/API actions. Use this to verify what happened and when — not a full SIEM, but the authoritative in-product log.")}
       <div class="row">
         ${can("metrics:read") ? '<button type="button" id="metricsBtn">Metrics</button>' : ""}
         ${can("audit:read") ? '<button type="button" id="auditBtn">Audit log</button>' : ""}
@@ -219,39 +232,38 @@
 
   // ----- Admin AI -----
   if (can("ai:use")) {
-    parts.push(`
-      <div class="card" id="aiCard">
-        <h2>Admin AI</h2>
-        <div class="stats" style="margin-bottom:8px">
-          <div class="stat"><div class="n" id="aiStatusN" style="font-size:0.95rem">—</div><div class="l">Status</div></div>
-          <div class="stat"><div class="n" id="aiModeN" style="font-size:0.95rem">—</div><div class="l">Mode</div></div>
-          <div class="stat"><div class="n" id="aiCallsN">—</div><div class="l">Calls</div></div>
-        </div>
-        <p class="muted mono" id="aiModelLine">—</p>
-        <p class="muted" id="aiLastLine" style="margin-top:6px">last: —</p>
-        <label for="aiCap">Capability</label>
-        <select id="aiCap">
-          <option value="recon_assist">recon_assist</option>
-          <option value="shell_classify">shell_classify</option>
-          <option value="payload_template">payload_template</option>
-          <option value="phishing_asset">phishing_asset</option>
-          <option value="doc_generate">doc_generate</option>
-        </select>
-        <label for="aiData">Input</label>
-        <textarea id="aiData" placeholder="context for AI…"></textarea>
-        <div class="row" style="margin-top:8px">
-          <button type="button" class="primary" id="aiRunBtn">Run AI</button>
-          <button type="button" id="aiRefreshBtn">Status</button>
-          <button type="button" id="aiDebugBtn">Debug</button>
-        </div>
-        <div class="outbox empty-out" id="aiOut" style="margin-top:10px;border-color:rgba(192,38,255,0.35);color:#e9d5ff">AI result</div>
+    parts.push(panel("aiCard", "✨ Admin AI", `
+      ${hint("Sandboxed, allow-listed AI capabilities on the server (not free-form agents). Uses your configured LLM if present, otherwise offline/deterministic fallbacks. Untrusted session text is sanitized before prompts. Pick a capability, pass structured input, Run AI — results are auditable.")}
+      <div class="stats" style="margin-bottom:8px">
+        <div class="stat"><div class="n" id="aiStatusN" style="font-size:0.95rem">—</div><div class="l">Status</div></div>
+        <div class="stat"><div class="n" id="aiModeN" style="font-size:0.95rem">—</div><div class="l">Mode</div></div>
+        <div class="stat"><div class="n" id="aiCallsN">—</div><div class="l">Calls</div></div>
       </div>
-    `);
+      <p class="muted mono" id="aiModelLine">—</p>
+      <p class="muted" id="aiLastLine" style="margin-top:6px">last: —</p>
+      <label for="aiCap">Capability</label>
+      <select id="aiCap">
+        <option value="recon_assist">recon_assist</option>
+        <option value="shell_classify">shell_classify</option>
+        <option value="payload_template">payload_template</option>
+        <option value="phishing_asset">phishing_asset</option>
+        <option value="doc_generate">doc_generate</option>
+      </select>
+      <label for="aiData">Input</label>
+      <textarea id="aiData" placeholder="context for AI…"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button type="button" class="primary" id="aiRunBtn">Run AI</button>
+        <button type="button" id="aiRefreshBtn">Status</button>
+        <button type="button" id="aiDebugBtn">Debug</button>
+      </div>
+      <div class="outbox empty-out" id="aiOut" style="margin-top:10px;border-color:rgba(192,38,255,0.35);color:#e9d5ff">AI result</div>
+    `, true));
   }
 
   // ----- LLM manage -----
   if (can("llm:manage")) {
     parts.push(panel("llmPanel", "🧠 LLM connections", `
+      ${hint("BYO model endpoints for Admin AI (OpenAI-compatible, including xAI Grok). Keys are stored server-side in data/ and never returned by status APIs. Add a named connection, then Admin AI can use it; without an LLM the AI stays offline-fallback only.")}
       <label for="llmName">Name</label>
       <input id="llmName" placeholder="grok-prod" autocomplete="off" />
       <label for="llmModel">Model</label>
@@ -276,7 +288,7 @@
   // ----- Tokens -----
   if (can("tokens:manage") || can("admin")) {
     parts.push(panel("tokensPanel", "🔑 Tokens", `
-      <p class="muted">Raw secret is shown <strong>once</strong> at create — copy it.</p>
+      ${hint("Mint scoped API tokens for operators, automation, or MCP. The raw <code>sc5_…</code> secret is shown <strong>once</strong> at create — copy it immediately. Presets map to common scope bundles; custom lets you pick exact scopes. Revoke compromised tokens from the list.")}
       <label for="tokName">Name</label>
       <input id="tokName" placeholder="operator-phone" autocomplete="off" />
       <label for="tokPreset">Preset</label>
@@ -305,6 +317,7 @@
   // ----- Observability extras -----
   if (can("metrics:read") || can("audit:read") || can("admin")) {
     parts.push(panel("obsExtraPanel", "🗺 Timeline / report", `
+      ${hint("Higher-level ops forensics: anomaly hints, a chronological event timeline, and exportable engagement reports. Complements raw metrics/audit with operator-facing summaries for handoff and after-action.")}
       <div class="row">
         <button type="button" id="anomalyBtn">Anomalies</button>
         <button type="button" id="reportBtn">Export report</button>
@@ -317,6 +330,7 @@
   // ----- Collab chat -----
   if (can("collab:use") || can("admin")) {
     parts.push(panel("chatPanel", "💬 Operator chat", `
+      ${hint("Shared notes between operators on this C2 instance (handoff, spectator context). Not a full team chat product — short operational messages stored with the server and visible to collab-scoped tokens.")}
       <label for="chatMsg">Message</label>
       <input id="chatMsg" placeholder="handoff note…" autocomplete="off" />
       <div class="row">
@@ -330,7 +344,7 @@
   // ----- C2 Profiles -----
   if (can("profiles:read") || can("admin")) {
     parts.push(panel("profilesPanel", "📡 C2 profiles", `
-      <p class="muted">Malleable HTTP profiles. Activate then generate beacons with that surface.</p>
+      ${hint("<strong>What they are:</strong> malleable traffic profiles that define how HTTP (and related) beacons look on the wire — paths, headers, jitter, decoy behavior — so C2 blends with legitimate traffic. <strong>What they do:</strong> the active profile is the surface generators and the server expect for implant check-ins. Activate a profile, then Generate beacon (active) so payloads match that profile. Switching profiles mid-op changes the expected beacon shape; regenerate implants after a switch.")}
       <div id="profList" class="empty">—</div>
       <div class="row" style="margin-top:8px">
         <button type="button" id="profReloadBtn">Reload</button>
@@ -343,7 +357,7 @@
   // ----- Feature toggles (admin) -----
   if (can("admin") || can("policy:manage")) {
     parts.push(panel("featuresPanel", "🎛 Feature toggles", `
-      <p class="muted">Server-enforced. Off = API denies the feature.</p>
+      ${hint("Runtime kill-switches enforced by the server. Off means the API denies that capability (MCP, AI paths, etc.). Defaults are secure; <code>public_docs</code> stays locked off. Save writes the flag set; Reload refreshes from the server.")}
       <div id="featureToggles"></div>
       <div class="row">
         <button type="button" class="primary" id="saveFeaturesBtn">Save features</button>
@@ -355,6 +369,7 @@
   // ----- Policy -----
   if (can("policy:manage")) {
     parts.push(panel("policyPanel", "📜 Policy", `
+      ${hint("Risk / allow-deny engine rules: thresholds for high-risk actions, HITL gates, and chain limits. Get policy loads current JSON; edit carefully and Save. Bad policy can block operators or weaken guardrails — treat as production config.")}
       <div class="row">
         <button type="button" id="policyGetBtn">Get policy</button>
       </div>
@@ -370,6 +385,7 @@
   // ----- MCP -----
   if (can("mcp:connect")) {
     parts.push(panel("mcpPanel", "🔌 MCP tools", `
+      ${hint("External AI / MCP bridge: tools exposed to models under a per-token allow-list (not open-ended autonomy). List tools shows what this token may call; Call runs one tool with JSON args. MCP is off by default until features/settings enable it.")}
       <div class="row">
         <button type="button" id="mcpToolsBtn">List tools</button>
       </div>
