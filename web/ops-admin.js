@@ -89,6 +89,8 @@
       ${hint("Every implant or reverse-shell connection the server tracks (beacons, shells, closed). <strong>Reap dead</strong> probes and drops mute/zombie shells. <strong>Close selected</strong> uses the Shell dropdown target. List all dumps the full session table for forensics.", "sessions")}
       <div class="row">
         ${can("sessions:write") ? '<button type="button" id="reapBtn">Reap dead</button>' : ""}
+        ${can("sessions:write") ? '<button type="button" class="danger" id="clearUnverifiedBtn" title="Delete unverified reverse shells (internet scanner noise)">Clear unverified</button>' : ""}
+        ${can("sessions:write") ? '<button type="button" class="danger" id="clearClosedBtn" title="Purge closed shell rows from DB">Purge closed shells</button>' : ""}
         ${can("sessions:write") ? '<button type="button" class="danger" id="closeShellBtn">Close selected</button>' : ""}
         <button type="button" id="listAllSesBtn">List all</button>
       </div>
@@ -580,6 +582,26 @@
     };
   }
 
+  if ($("clearUnverifiedBtn")) {
+    $("clearUnverifiedBtn").onclick = async () => {
+      if (!confirm("Delete all unverified reverse shells? (keeps verified)")) return;
+      try {
+        const res = await api("POST", "/api/v1/sessions/clear", { unverified_only: true, delete: true });
+        showOk(`Cleared ${res.removed || 0} unverified shell(s)`);
+        if (typeof refresh === "function") refresh();
+      } catch (e) { showError(e.message || String(e)); }
+    };
+  }
+  if ($("clearClosedBtn")) {
+    $("clearClosedBtn").onclick = async () => {
+      if (!confirm("Hard-delete all closed reverse-shell rows?")) return;
+      try {
+        const res = await api("POST", "/api/v1/sessions/clear", { closed_only: true, unverified_only: false, delete: true });
+        showOk(`Purged ${res.removed || 0} closed shell(s)`);
+        if (typeof refresh === "function") refresh();
+      } catch (e) { showError(e.message || String(e)); }
+    };
+  }
   if ($("reapBtn")) {
     $("reapBtn").onclick = async () => {
       try {

@@ -349,6 +349,57 @@ def build_api_router() -> APIRouter:
         n = await state.sessions.close_orphaned_shells(probe=probe)
         return {"closed": n, "probed": probe}
 
+    @api.post("/sessions/clear")
+    async def clear_sessions(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("sessions:write", "admin")),
+    ) -> dict[str, Any]:
+        """Bulk remove reverse-shell/tcp noise (scanners on public ports)."""
+        state = get_state(request)
+        body: dict[str, Any] = {}
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        unverified_only = bool(body.get("unverified_only", True))
+        closed_only = bool(body.get("closed_only", False))
+        active_only = bool(body.get("active_only", False))
+        delete = bool(body.get("delete", True))
+        if body.get("all_shells"):
+            unverified_only = False
+            closed_only = False
+            active_only = False
+        decision = await state.policy.check_and_audit(
+            auth,
+            "sessions.clear",
+            extra={
+                "unverified_only": unverified_only,
+                "closed_only": closed_only,
+                "delete": delete,
+            },
+        )
+        if not decision.allowed:
+            raise HTTPException(403, decision.reason)
+        result = await state.sessions.clear_shells(
+            unverified_only=unverified_only,
+            closed_only=closed_only,
+            active_only=active_only,
+            delete=delete,
+        )
+        return result
+
+    @api.delete("/sessions/{session_id}")
+    async def delete_session(
+        session_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("sessions:write", "admin")),
+    ) -> dict[str, str]:
+        state = get_state(request)
+        ok = await state.sessions.delete(session_id)
+        if not ok:
+            raise HTTPException(404, "session not found")
+        return {"status": "deleted", "id": session_id}
+
     # ----- Tasks -----
 
     @api.get("/tasks")

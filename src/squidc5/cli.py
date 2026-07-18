@@ -211,6 +211,24 @@ def cmd_sessions_close(args: argparse.Namespace, client: Client) -> None:
     pp(client.post(f"/api/v1/sessions/{args.id}/close"))
 
 
+def cmd_sessions_delete(args: argparse.Namespace, client: Client) -> None:
+    pp(client.delete(f"/api/v1/sessions/{args.id}"))
+
+
+def cmd_sessions_clear(args: argparse.Namespace, client: Client) -> None:
+    """Bulk remove reverse-shell noise (default: unverified only)."""
+    body: dict[str, Any] = {
+        "delete": not getattr(args, "close_only", False),
+        "unverified_only": not getattr(args, "all_shells", False),
+        "closed_only": bool(getattr(args, "closed", False)),
+        "active_only": bool(getattr(args, "active", False)),
+        "all_shells": bool(getattr(args, "all_shells", False)),
+    }
+    if body["closed_only"] or body["active_only"]:
+        body["unverified_only"] = bool(getattr(args, "unverified", False))
+    pp(client.post("/api/v1/sessions/clear", json=body))
+
+
 def cmd_sessions_reap(args: argparse.Namespace, client: Client) -> None:
     # Exec probe can take a bit with many sessions — raise timeout
     old = client._client.timeout
@@ -797,9 +815,42 @@ def build_parser() -> argparse.ArgumentParser:
     s_get = ses_sub.add_parser("get", help="Get session")
     s_get.add_argument("id")
     s_get.set_defaults(func=cmd_sessions_get, needs_client=True)
-    s_close = ses_sub.add_parser("close", help="Close session")
+    s_close = ses_sub.add_parser("close", help="Close session (keep row)")
     s_close.add_argument("id")
     s_close.set_defaults(func=cmd_sessions_close, needs_client=True)
+    s_del = ses_sub.add_parser("delete", help="Hard-delete one session")
+    s_del.add_argument("id")
+    s_del.set_defaults(func=cmd_sessions_delete, needs_client=True)
+    s_clear = ses_sub.add_parser(
+        "clear",
+        help="Bulk remove reverse-shell noise (default: unverified scanners)",
+    )
+    s_clear.add_argument(
+        "--all-shells",
+        action="store_true",
+        help="Remove ALL reverse_shell/tcp sessions (verified too)",
+    )
+    s_clear.add_argument(
+        "--closed",
+        action="store_true",
+        help="Only purge already-closed shell rows",
+    )
+    s_clear.add_argument(
+        "--active",
+        action="store_true",
+        help="Only active shells",
+    )
+    s_clear.add_argument(
+        "--unverified",
+        action="store_true",
+        help="With --closed/--active: only unverified",
+    )
+    s_clear.add_argument(
+        "--close-only",
+        action="store_true",
+        help="Mark closed instead of hard-delete",
+    )
+    s_clear.set_defaults(func=cmd_sessions_clear, needs_client=True)
     s_reap = ses_sub.add_parser(
         "reap",
         help="Close dead reverse shells (no TCP, or fail exec probe)",

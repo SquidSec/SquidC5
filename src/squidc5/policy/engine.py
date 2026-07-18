@@ -46,6 +46,7 @@ DEFAULT_POLICY: dict[str, Any] = {
     "action_risk": {
         "sessions.list": 0,
         "sessions.get": 0,
+        "sessions.clear": 2,
         "tasks.list": 0,
         "tasks.create": 4,
         "listeners.create": 5,
