@@ -2,12 +2,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_sessions_clear_unverified(client, admin_headers, tmp_path):
-    # create reverse_shell-looking rows via API isn't easy without TCP;
-    # use DB through register path: implant beacon is different kind.
-    # Seed sessions by calling create via internal store after login.
-    from pathlib import Path
-
+async def test_sessions_clear_unverified(client, admin_headers):
     # Create shell sessions via reverse_shell listener + raw connect that goes quiet
     lr = await client.post(
         "/api/v1/listeners",
