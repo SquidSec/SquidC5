@@ -71,16 +71,98 @@ class SessionManager:
         await self.db.update_session(session_id, **fields)
         await self.metrics.emit("session.heartbeat", {"id": session_id})
 
-    async def close(self, session_id: str) -> None:
+    async def close(self, session_id: str, *, drop: bool = True) -> None:
+        if drop and self.drop_channel is not None:
+            try:
+                await self.drop_channel(session_id)
+            except Exception:
+                pass
         await self.db.update_session(session_id, status="closed")
         async with self._lock:
             self._live.pop(session_id, None)
         await self.metrics.emit("session.closed", {"id": session_id})
 
+    async def delete(self, session_id: str, *, drop: bool = True) -> bool:
+        """Hard-remove session row (and drop TCP if any)."""
+        if drop and self.drop_channel is not None:
+            try:
+                await self.drop_channel(session_id)
+            except Exception:
+                pass
+        async with self._lock:
+            self._live.pop(session_id, None)
+        ok = await self.db.delete_session(session_id)
+        if ok:
+            await self.metrics.emit("session.deleted", {"id": session_id})
+        return ok
+
+    async def clear_shells(
+        self,
+        *,
+        unverified_only: bool = False,
+        closed_only: bool = False,
+        active_only: bool = False,
+        delete: bool = True,
+        kinds: tuple[str, ...] = ("reverse_shell", "tcp"),
+    ) -> dict[str, int]:
+        """
+        Bulk remove reverse-shell/tcp sessions (scanner noise cleanup).
+
+        unverified_only: only shells that are not exec-verified
+        closed_only: only status=closed
+        active_only: only status=active
+        delete: hard-delete rows (default); if False, mark closed
+        """
+        if closed_only:
+            rows = await self.db.list_sessions(status="closed")
+        elif active_only:
+            rows = await self.db.list_sessions(status="active")
+        else:
+            rows = await self.db.list_sessions(status=None)
+        removed = 0
+        closed = 0
+        for row in rows:
+            if row.get("kind") not in kinds:
+                continue
+            sid = str(row["id"])
+            status = row.get("status") or ""
+            if closed_only and status != "closed":
+                continue
+            if active_only and status != "active":
+                continue
+            if unverified_only:
+                verified = False
+                if self.verified_check is not None:
+                    verified = bool(self.verified_check(sid))
+                meta = row.get("metadata")
+                if isinstance(meta, str):
+                    try:
+                        meta = json.loads(meta)
+                    except json.JSONDecodeError:
+                        meta = {}
+                if isinstance(meta, dict) and (meta.get("verified") or meta.get("exec_ok")):
+                    verified = True
+                if verified:
+                    continue
+            if delete:
+                if await self.delete(sid, drop=True):
+                    removed += 1
+            else:
+                await self.close(sid, drop=True)
+                closed += 1
+        if removed:
+            await self.metrics.incr("sessions.cleared", float(removed))
+        return {"removed": removed, "closed": closed}
+
     async def reject(self, session_id: str, reason: str) -> None:
         """Remove false-positive / scanner sessions entirely."""
         async with self._lock:
             self._live.pop(session_id, None)
+        if self.drop_channel is not None:
+            try:
+                await self.drop_channel(session_id)
+            except Exception:
+                pass
         await self.db.delete_session(session_id)
         await self.metrics.incr("sessions.rejected")
         await self.metrics.emit(
