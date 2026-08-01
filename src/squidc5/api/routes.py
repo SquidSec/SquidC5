@@ -1831,50 +1831,7 @@ def build_api_router() -> APIRouter:
             raise HTTPException(404, "token not found")
         return {"status": "deleted", "id": token_id}
 
-    # ----- Implant (no auth — session-bound beacon) -----
+    from squidc5.api.routers.implant import router as implant_router
 
-    implant = APIRouter(prefix="/implant", tags=["implant"])
-
-    @implant.post("/beacon")
-    async def beacon(request: Request):
-        from fastapi.responses import Response as FastResponse
-
-        from squidc5.profiles.http_beacon import process_beacon_checkin
-
-        state = get_state(request)
-        pe = state.profiles
-        prof = pe.active()
-        raw = await request.body()
-        payload = pe.unwrap_request_body(prof, raw)
-        client = request.client.host if request.client else None
-        try:
-            result = await process_beacon_checkin(
-                state,
-                remote_addr=client,
-                payload=payload if isinstance(payload, dict) else {},
-                user_agent=request.headers.get("user-agent"),
-            )
-        except PermissionError as e:
-            raise HTTPException(403, str(e)) from e
-        return FastResponse(content=pe.wrap_response(prof, result), media_type="application/json")
-
-    @implant.post("/beacon/result")
-    async def beacon_result(request: Request):
-        from fastapi.responses import Response as FastResponse
-
-        from squidc5.profiles.http_beacon import process_beacon_result
-
-        state = get_state(request)
-        pe = state.profiles
-        prof = pe.active()
-        raw = await request.body()
-        payload = pe.unwrap_request_body(prof, raw)
-        try:
-            result = await process_beacon_result(
-                state, payload if isinstance(payload, dict) else {}
-            )
-        except ValueError as e:
-            raise HTTPException(400, str(e)) from e
-        return FastResponse(content=pe.wrap_response(prof, result), media_type="application/json")
-    api.include_router(implant)
+    api.include_router(implant_router)
     return api
