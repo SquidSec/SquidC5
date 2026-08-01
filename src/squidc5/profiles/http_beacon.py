@@ -113,7 +113,13 @@ async def process_beacon_checkin(
         )
     task = await state.tasks.poll(sid)
     await state.metrics.incr("implant.beacon")
-    return _wrap_response(state, {"session_id": sid, "task": task})
+    out: dict[str, Any] = {"session_id": sid, "task": task}
+    # C11: push active profile id for runtime switch (implant may re-pull config)
+    active = state.profiles.active()
+    if active:
+        out["profile_id"] = active.id
+        out["profile_version"] = active.version
+    return _wrap_response(state, out)
 
 
 async def process_beacon_result(state: AppState, payload: dict[str, Any]) -> dict[str, str]:

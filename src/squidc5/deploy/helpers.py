@@ -46,6 +46,31 @@ server {{
 """
 
 
+def caddy_redirector_config(
+    *,
+    server_name: str = "cdn.example.invalid",
+    upstream: str = "127.0.0.1:8443",
+    beacon_uris: list[str] | None = None,
+) -> str:
+    """Caddyfile snippet for authorized redirector tier (auto HTTPS)."""
+    uris = beacon_uris or ["/api/v1/implant/beacon"]
+    handles = "\n".join(
+        f"\thandle {u if u.startswith('/') else '/' + u}* {{\n"
+        f"\t\treverse_proxy {upstream}\n"
+        f"\t}}"
+        for u in uris
+    )
+    return f"""# SquidC5 Caddy redirector — authorized lab only
+{server_name} {{
+\tencode gzip
+{handles}
+\thandle {{
+\t\trespond 404
+\t}}
+}}
+"""
+
+
 def cert_rotation_plan(domains: list[str], days: int = 60) -> dict[str, Any]:
     """Deterministic checklist for certificate / domain rotation."""
     return {

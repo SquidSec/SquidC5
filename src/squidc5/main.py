@@ -126,11 +126,13 @@ async def build_state(settings: Settings) -> AppState:
         log.warning("Bootstrap admin token written to %s — store securely and rotate", token_file)
 
     from squidc5.implants.crypto import resolve_implant_psk
+    from squidc5.pivot.socks import SocksBroker
 
     implant_psk = resolve_implant_psk(
         explicit=settings.implant_psk,
         data_dir=settings.data_dir,
     )
+    socks = SocksBroker()
 
     return AppState(
         settings=settings,
@@ -154,6 +156,7 @@ async def build_state(settings: Settings) -> AppState:
         ai_chain=ai_chain,
         admin_token_once=admin_once,
         implant_psk=implant_psk,
+        socks=socks,
     )
 
 
