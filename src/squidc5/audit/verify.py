@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from typing import Any
 
@@ -85,7 +86,7 @@ def verify_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
             int(row.get("risk_score") or 0),
             allowed_i,
         )
-        if not hashlib.compare_digest(calc, chain):
+        if not hmac.compare_digest(calc, chain):
             broken_at = rid
             break
         last_chain = chain
