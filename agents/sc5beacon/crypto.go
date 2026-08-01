@@ -30,7 +30,8 @@ func seal(psk string, obj map[string]any) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	ct := aead.Seal(nil, nonce, pt, nil)
+	aad := []byte("sc5-aead-v1")
+	ct := aead.Seal(nil, nonce, pt, aad)
 	return map[string]any{
 		"v":   1,
 		"alg": "chacha20-poly1305",
@@ -53,9 +54,14 @@ func openEnv(psk string, env map[string]any) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	pt, err := aead.Open(nil, n, c, nil)
+	// Prefer AAD binding; fall back to legacy empty AAD for older servers
+	aad := []byte("sc5-aead-v1")
+	pt, err := aead.Open(nil, n, c, aad)
 	if err != nil {
-		return nil, err
+		pt, err = aead.Open(nil, n, c, nil)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var out map[string]any
 	if err := json.Unmarshal(pt, &out); err != nil {

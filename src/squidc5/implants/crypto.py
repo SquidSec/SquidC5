@@ -18,6 +18,7 @@ ENVELOPE_KEYS = frozenset({"v", "n", "c", "alg"})
 
 
 def derive_key(psk: str | bytes) -> bytes:
+    """SHA256(psk) — must match agents/sc5beacon crypto.go."""
     raw = psk.encode("utf-8") if isinstance(psk, str) else psk
     return hashlib.sha256(raw).digest()
 
@@ -40,12 +41,18 @@ def resolve_implant_psk(*, explicit: str | None, data_dir: Path) -> str:
     return val
 
 
-def seal(psk: str | bytes, obj: dict[str, Any]) -> dict[str, Any]:
+def _aad(extra: bytes | None = None) -> bytes:
+    # H09: bind protocol version as AAD (session/path can be layered later)
+    base = b"sc5-aead-v1"
+    return base + (b"|" + extra if extra else b"")
+
+
+def seal(psk: str | bytes, obj: dict[str, Any], *, aad: bytes | None = None) -> dict[str, Any]:
     key = derive_key(psk)
     aead = ChaCha20Poly1305(key)
     nonce = os.urandom(12)
     pt = json.dumps(obj, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    ct = aead.encrypt(nonce, pt, None)
+    ct = aead.encrypt(nonce, pt, _aad(aad))
     return {
         "v": 1,
         "alg": ALG,
@@ -63,7 +70,9 @@ def is_envelope(obj: Any) -> bool:
     return isinstance(obj, dict) and ENVELOPE_KEYS.issubset(obj.keys()) and obj.get("v") == 1
 
 
-def open_envelope(psk: str | bytes, envelope: dict[str, Any]) -> dict[str, Any]:
+def open_envelope(
+    psk: str | bytes, envelope: dict[str, Any], *, aad: bytes | None = None
+) -> dict[str, Any]:
     if not is_envelope(envelope):
         raise ValueError("not an implant envelope")
     if envelope.get("alg") != ALG:
@@ -71,9 +80,19 @@ def open_envelope(psk: str | bytes, envelope: dict[str, Any]) -> dict[str, Any]:
     key = derive_key(psk)
     aead = ChaCha20Poly1305(key)
     nonce = _b64d(str(envelope["n"]))
+    if len(nonce) != 12:
+        raise ValueError("invalid nonce")
     ct = _b64d(str(envelope["c"]))
-    pt = aead.decrypt(nonce, ct, None)
-    data = json.loads(pt.decode("utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError("implant payload must be object")
-    return data
+    # Try new AAD first; fall back to legacy empty AAD for rolling upgrade
+    last_err: Exception | None = None
+    for associated in (_aad(aad), b"", None):
+        try:
+            pt = aead.decrypt(nonce, ct, associated)
+            data = json.loads(pt.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("implant payload must be object")
+            return data
+        except Exception as e:
+            last_err = e
+            continue
+    raise ValueError("invalid implant authentication") from last_err

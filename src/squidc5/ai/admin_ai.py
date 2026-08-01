@@ -241,6 +241,10 @@ class AdminAI:
         llm_id: str | None = None,
     ) -> str:
         caps = [c for c in (capabilities or list(ALLOWED_CAPABILITIES)) if c in ALLOWED_CAPABILITIES]
+        if base_url:
+            from squidc5.security.ssrf import validate_llm_base_url
+
+            base_url = validate_llm_base_url(base_url, allow_private=False)
         stored_key = api_key
         if api_key and self.secrets is not None:
             stored_key = self.secrets.encrypt(api_key)
@@ -422,7 +426,13 @@ class AdminAI:
             f"USER_DATA:\n---\n{safe_data}\n---\n"
             "Respond with JSON only."
         )
-        base = (llm.get("base_url") or "https://api.openai.com/v1").rstrip("/")
+        from squidc5.security.ssrf import validate_llm_base_url
+
+        raw_base = (llm.get("base_url") or "https://api.openai.com/v1").rstrip("/")
+        try:
+            base = validate_llm_base_url(raw_base, allow_private=False)
+        except ValueError as e:
+            raise PermissionError(f"LLM base_url blocked: {e}") from e
         model = llm["model"]
         raw_key = llm.get("api_key_enc") or ""
         if self.secrets is not None and raw_key:
@@ -460,7 +470,7 @@ class AdminAI:
         }
 
         url = f"{base}/chat/completions"
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
             resp = await client.post(url, headers=headers, json=payload)
             resp.raise_for_status()
             data = resp.json()

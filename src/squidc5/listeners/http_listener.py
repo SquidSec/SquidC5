@@ -39,16 +39,8 @@ async def handle_http_client(
         path_only = path.split("?", 1)[0]
 
         if method == "GET" and path_only in ("/", "/health", "/api/v1/health"):
-            await _respond(
-                writer,
-                200,
-                {
-                    "status": "ok",
-                    "listener_id": listener_id,
-                    "kind": "http",
-                    "service": "squidc5-http-listener",
-                },
-            )
+            # L07: minimal fingerprint
+            await _respond(writer, 200, {"status": "ok"})
             return
 
         # Beacon endpoints: legacy paths + active/known profile URIs
@@ -71,13 +63,23 @@ async def handle_http_client(
             kind = "result"
 
         if method == "POST" and kind == "beacon":
+            from squidc5.listeners.implant_auth import unwrap_implant_payload, wrap_implant_response
+
             data = pe.unwrap_request_body(prof, body) if pe else _json_body(body)
+            psk = getattr(manager, "implant_psk", "") or ""
+            require = bool(getattr(manager, "implant_require_auth", True))
+            try:
+                data = unwrap_implant_payload(data, psk=psk, require_auth=require)
+            except PermissionError as e:
+                await _respond(writer, 403, {"error": str(e)})
+                return
             result = await manager.handle_beacon(
                 listener_id=listener_id,
                 remote_addr=peer[0] if peer else remote,
                 payload=data,
                 user_agent=headers.get("user-agent"),
             )
+            result = wrap_implant_response(result, psk=psk, require_auth=require)
             if pe:
                 await _respond_text(writer, 200, pe.wrap_response(prof, result), "application/json")
             else:
@@ -85,8 +87,18 @@ async def handle_http_client(
             return
 
         if method == "POST" and kind == "result":
+            from squidc5.listeners.implant_auth import unwrap_implant_payload, wrap_implant_response
+
             data = pe.unwrap_request_body(prof, body) if pe else _json_body(body)
+            psk = getattr(manager, "implant_psk", "") or ""
+            require = bool(getattr(manager, "implant_require_auth", True))
+            try:
+                data = unwrap_implant_payload(data, psk=psk, require_auth=require)
+            except PermissionError as e:
+                await _respond(writer, 403, {"error": str(e)})
+                return
             result = await manager.handle_beacon_result(data)
+            result = wrap_implant_response(result, psk=psk, require_auth=require)
             if pe:
                 await _respond_text(writer, 200, pe.wrap_response(prof, result), "application/json")
             else:

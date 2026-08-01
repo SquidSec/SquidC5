@@ -59,9 +59,19 @@ class SocksBroker:
         listen_host: str = "127.0.0.1",
         listen_port: int = 0,
         mode: str = "implant",
+        allow_direct: bool = False,
+        allow_non_loopback: bool = False,
     ) -> dict[str, Any]:
         pid = f"socks_{secrets.token_hex(6)}"
         mode = mode if mode in ("implant", "direct") else "implant"
+        # H07: direct mode is C2-side SSRF — deny unless admin explicitly allows
+        if mode == "direct" and not allow_direct:
+            raise PermissionError("SOCKS direct mode requires admin allow_direct")
+        # H06: default bind loopback only
+        lh = (listen_host or "127.0.0.1").strip()
+        if lh not in ("127.0.0.1", "localhost", "::1") and not allow_non_loopback:
+            raise PermissionError("SOCKS listen_host must be loopback unless admin allows")
+        listen_host = lh if lh != "localhost" else "127.0.0.1"
         pivot = SocksPivot(
             id=pid,
             session_id=session_id,
@@ -92,7 +102,11 @@ class SocksBroker:
         data_server = None
         data_port = 0
         if mode == "implant":
-            data_server = await asyncio.start_server(_data_handler, host="0.0.0.0", port=0)
+            # Bind data plane to loopback or public_host only (not 0.0.0.0)
+            data_bind = "127.0.0.1"
+            if self.public_host and self.public_host not in ("0.0.0.0", ""):
+                data_bind = self.public_host
+            data_server = await asyncio.start_server(_data_handler, host=data_bind, port=0)
             dsocks = list(data_server.sockets or [])
             data_port = int(dsocks[0].getsockname()[1]) if dsocks else 0
             pivot.data_server = data_server

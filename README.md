@@ -49,9 +49,9 @@ Security-first, AI-native C5 teamserver for **authorized** red team and penetrat
 - **File ops** — `file:list|read|write|delete` (+ chunk offset/length)
 - **Engagement ROE** — banned commands, end time, HITL file-write
 - **Multi-op collab** — session claim/lock, handoff packs, spectator, presence, team chat, per-op audit
-- **Ops console** — session workbench, live events rail, teams/handoff UI, layout presets, file crumbs, pivot map
-- **OAST** — DNS/HTTP/SMTP collaborator
-- **Secure defaults** — TLS on, empty CORS, no public OpenAPI, admin.js gated
+- **Ops console** — multi-page nav (Dashboard/Sessions/Listeners/Post-Ex/Collab/Admin), role layouts, workbench
+- **Secure defaults** — TLS on, empty CORS (no null), no public OpenAPI, admin.js gated, MCP scoped+HITL, implant AEAD on all listeners
+
 - **Binary CI** — Linux/Windows server+CLI, native agents, SBOM
 
 ## Quick start (Docker lab)

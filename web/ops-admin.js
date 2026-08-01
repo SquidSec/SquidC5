@@ -53,21 +53,36 @@
 
   const parts = [];
 
+  // Multi-page nav (competitor-style: Dashboard / Sessions / Listeners / Post-Ex / Collab / Admin)
+  const uiRole = window.__SC5_UI_ROLE__ || (can("admin") ? "admin" : "operator");
+  parts.push(`
+    <div id="opsNavBar" class="ops-nav" style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 4px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08)">
+      <strong style="margin-right:8px">SquidC5</strong>
+      <button type="button" class="ops-page-btn primary" data-page="dashboard">Dashboard</button>
+      <button type="button" class="ops-page-btn" data-page="sessions">Sessions</button>
+      <button type="button" class="ops-page-btn" data-page="listeners">Listeners</button>
+      <button type="button" class="ops-page-btn" data-page="postex">Post-Ex</button>
+      <button type="button" class="ops-page-btn" data-page="collab">Collab</button>
+      ${can("admin") || uiRole === "admin" ? '<button type="button" class="ops-page-btn" data-page="admin">Admin</button>' : ""}
+      <span style="flex:1"></span>
+      <label for="layoutPreset" class="muted" style="font-size:0.75rem">Role layout</label>
+      <select id="layoutPreset" style="max-width:140px">
+        <option value="operator">Operator</option>
+        <option value="lead">Lead</option>
+        ${can("admin") ? '<option value="admin">Admin</option>' : ""}
+      </select>
+    </div>
+  `);
+
   // ----- Identity -----
   parts.push(panel("identityCard", "🪪 Identity", `
-    ${hint("Who you are on this C2: the API token currently saved in Connection. Pulled from <code>GET /api/v1/meta</code> — actor name, token id, and scopes the server granted. Scopes control which panels and API routes work; <code>admin</code> unlocks full console. Whoami dumps the raw meta JSON; Health is a lightweight liveness check (no secrets).", "identity")}
+    ${hint("Who you are on this C2. Scopes gate panels; admin unlocks Admin page.", "identity")}
     <p class="muted mono" id="whoLine">—</p>
     <div class="chips" id="scopeChips" style="margin-top:8px"></div>
     <div class="row" style="margin-top:8px">
       <button type="button" id="whoamiBtn">Whoami</button>
       <button type="button" id="healthBtn">Health</button>
     </div>
-    <label for="layoutPreset">Layout preset (U4)</label>
-    <select id="layoutPreset">
-      <option value="admin">Admin (all panels)</option>
-      <option value="operator">Operator</option>
-      <option value="lead">Lead / spectator</option>
-    </select>
     <div class="outbox empty-out" id="identOut" style="margin-top:8px">—</div>
   `, true, "identity"));
 
@@ -1561,28 +1576,64 @@
     };
   }
 
-  // ----- U4 Layout presets -----
+  // ----- Multi-page + role layouts (admin can switch) -----
+  const PAGE_PANELS = {
+    dashboard: ["identityCard", "workbenchPanel", "eventsRailPanel", "sessionsPanel", "obsPanel", "obsExtraPanel"],
+    sessions: ["workbenchPanel", "sessionsPanel", "quickRunCard", "tasksPanel", "eventsRailPanel"],
+    listeners: ["listenersPanel", "payloadsPanel", "profilesPanel", "deployPanel"],
+    postex: ["workbenchPanel", "filesPanel", "socksPanel", "modulesPanel", "pivotMapPanel", "pluginsPanel"],
+    collab: ["chatPanel", "teamsPanel", "hitlPanel", "engagementPanel", "auditMePanel"],
+    admin: ["tokensPanel", "featuresPanel", "policyPanel", "llmPanel", "mcpPanel", "aiCard", "deployPanel"],
+  };
   const PRESET_HIDE = {
-    operator: ["llmPanel", "tokensPanel", "featuresPanel", "policyPanel", "mcpPanel", "pluginsPanel", "deployPanel"],
-    lead: ["llmPanel", "tokensPanel", "featuresPanel", "policyPanel", "mcpPanel", "payloadsPanel", "modulesPanel"],
+    operator: ["llmPanel", "tokensPanel", "featuresPanel", "policyPanel", "mcpPanel", "pluginsPanel", "deployPanel", "aiCard"],
+    lead: ["llmPanel", "tokensPanel", "featuresPanel", "policyPanel", "mcpPanel", "payloadsPanel", "modulesPanel", "aiCard"],
     admin: [],
   };
-  function applyLayoutPreset(name) {
-    const hide = PRESET_HIDE[name] || [];
+  let _currentPage = "dashboard";
+  function applyPage(page) {
+    _currentPage = page || "dashboard";
+    const show = PAGE_PANELS[_currentPage] || PAGE_PANELS.dashboard;
+    const preset = ($("layoutPreset") && $("layoutPreset").value) || "operator";
+    const hideExtra = PRESET_HIDE[preset] || [];
+    // Non-admin cannot open admin page
+    if (_currentPage === "admin" && !can("admin")) {
+      _currentPage = "dashboard";
+    }
     document.querySelectorAll("details.panel").forEach((p) => {
       if (!p.id) return;
-      p.style.display = hide.indexOf(p.id) >= 0 ? "none" : "";
+      const onPage = show.indexOf(p.id) >= 0;
+      const roleHide = hideExtra.indexOf(p.id) >= 0;
+      p.style.display = onPage && !roleHide ? "" : "none";
+      if (onPage && !roleHide && isDesktopLayout()) p.open = true;
     });
-    try { localStorage.setItem("sc5_layout_preset", name); } catch (_) {}
-    showOk("Layout: " + name);
+    document.querySelectorAll(".ops-page-btn").forEach((b) => {
+      b.classList.toggle("primary", b.getAttribute("data-page") === _currentPage);
+    });
+    try {
+      localStorage.setItem("sc5_ops_page", _currentPage);
+      localStorage.setItem("sc5_layout_preset", preset);
+    } catch (_) {}
   }
+  function applyLayoutPreset(name) {
+    if ($("layoutPreset")) $("layoutPreset").value = name;
+    applyPage(_currentPage);
+    showOk("Layout: " + name + " / " + _currentPage);
+  }
+  document.querySelectorAll(".ops-page-btn").forEach((b) => {
+    b.onclick = () => applyPage(b.getAttribute("data-page"));
+  });
   if ($("layoutPreset")) {
     try {
       const saved = localStorage.getItem("sc5_layout_preset");
-      if (saved) $("layoutPreset").value = saved;
+      if (saved && (saved !== "admin" || can("admin"))) $("layoutPreset").value = saved;
+      else if (!can("admin")) $("layoutPreset").value = "operator";
+      else $("layoutPreset").value = "admin";
+      const sp = localStorage.getItem("sc5_ops_page");
+      if (sp) _currentPage = sp;
     } catch (_) {}
     $("layoutPreset").onchange = () => applyLayoutPreset($("layoutPreset").value);
-    applyLayoutPreset($("layoutPreset").value || "admin");
+    applyPage(_currentPage);
   }
 
   // ----- Teams / handoff / presence -----

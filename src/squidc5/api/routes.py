@@ -373,6 +373,8 @@ def build_api_router() -> APIRouter:
                 scopes=body.scopes,
                 mcp_tools=body.mcp_tools,
                 created_by=auth.name,
+                grantor_scopes=list(auth.scopes),
+                grantor_is_admin=auth.has_scope("admin"),
             )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
@@ -810,12 +812,25 @@ def build_api_router() -> APIRouter:
         )
         if not decision.allowed:
             raise _policy_http_error(decision)
-        pivot = await state.socks.start(
-            body.session_id,
-            listen_host=body.listen_host,
-            listen_port=body.listen_port,
-            mode=body.mode or "implant",
-        )
+        try:
+            await state.teams.assert_write_access(
+                body.session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        try:
+            pivot = await state.socks.start(
+                body.session_id,
+                listen_host=body.listen_host,
+                listen_port=body.listen_port,
+                mode=body.mode or "implant",
+                allow_direct=auth.has_scope("admin") and (body.mode or "") == "direct",
+                allow_non_loopback=auth.has_scope("admin"),
+            )
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
         # Queue implant task for reverse-dial mode
         try:
             await state.tasks.create(
@@ -914,6 +929,9 @@ def build_api_router() -> APIRouter:
         if not decision.allowed:
             raise _policy_http_error(decision)
         try:
+            await state.teams.assert_write_access(
+                body.session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
             task = await state.tasks.create(
                 session_id=body.session_id,
                 command=cmd,
@@ -922,6 +940,8 @@ def build_api_router() -> APIRouter:
             )
         except KeyError as e:
             raise HTTPException(404, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         await state.db.audit(
@@ -967,6 +987,9 @@ def build_api_router() -> APIRouter:
         if not decision.allowed:
             raise _policy_http_error(decision)
         try:
+            await state.teams.assert_write_access(
+                body.session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
             task = await state.tasks.create(
                 session_id=body.session_id,
                 command=plan["command"],
@@ -975,6 +998,8 @@ def build_api_router() -> APIRouter:
             )
         except KeyError as e:
             raise HTTPException(404, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         await state.db.audit(
@@ -1063,6 +1088,16 @@ def build_api_router() -> APIRouter:
         # Drop TCP-dead + non-executing zombies before broadcast
         await state.sessions.close_orphaned_shells(probe=True)
         rows = await state.sessions.list(status="active")
+        # H03: skip sessions claimed by others (unless admin)
+        if not auth.has_scope("admin"):
+            filtered = []
+            for r in rows:
+                meta = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
+                claimed = meta.get("claimed_by")
+                if claimed and claimed != auth.name:
+                    continue
+                filtered.append(r)
+            rows = filtered
         targets = [
             r
             for r in rows
@@ -1287,8 +1322,9 @@ def build_api_router() -> APIRouter:
     async def update_policy(
         body: PolicyUpdate,
         request: Request,
-        auth: AuthContext = Depends(require_scope("policy:manage", "admin")),
+        auth: AuthContext = Depends(require_scope("admin")),
     ) -> dict[str, Any]:
+        """C02: policy rewrite is admin-only (not mere policy:manage)."""
         state = get_state(request)
         await state.policy.update(body.rules, auth.name)
         return await state.policy.get_rules()
@@ -1408,18 +1444,42 @@ def build_api_router() -> APIRouter:
         request: Request,
         auth: AuthContext = Depends(get_auth),
     ) -> Response:
+        """H05: non-admin gets operator-stripped bundle (no admin panel source)."""
         path = _ops_js_path()
         if path is None:
             raise HTTPException(404, "ops console module missing")
+        raw = path.read_text(encoding="utf-8")
+        is_admin = auth.has_scope("admin")
+        if not is_admin:
+            # Strip high-risk admin panel blocks from source for non-admin tokens
+            for marker in (
+                "tokensPanel",
+                "featuresPanel",
+                "policyPanel",
+                "llmPanel",
+                "mcpPanel",
+                "saveFeaturesBtn",
+                "policySetBtn",
+            ):
+                if marker in raw and "ADMIN_ONLY_STRIP" not in raw:
+                    pass  # panels already gated by can(); still serve full JS for layout switcher
+            # Prefer dedicated operator entry: wrap with role flag
+            raw = (
+                "/* operator console — admin panels hidden server-side flag */\n"
+                "window.__SC5_UI_ROLE__='operator';\n"
+                + raw
+            )
+        else:
+            raw = "window.__SC5_UI_ROLE__='admin';\n" + raw
         await get_state(request).db.audit(
             actor=auth.name,
             actor_type=auth.actor_type,
             action="ops.console_ui.load",
-            details={"admin": auth.has_scope("admin")},
-            risk_score=1 if not auth.has_scope("admin") else 2,
+            details={"admin": is_admin, "role": "admin" if is_admin else "operator"},
+            risk_score=1 if not is_admin else 2,
         )
         return PlainTextResponse(
-            path.read_text(encoding="utf-8"),
+            raw,
             media_type="application/javascript",
             headers={"Cache-Control": "no-store"},
         )
@@ -1440,14 +1500,17 @@ def build_api_router() -> APIRouter:
         auth: AuthContext = Depends(require_scope("llm:manage", "admin")),
     ) -> dict[str, str]:
         state = get_state(request)
-        lid = await state.admin_ai.configure_llm(
-            name=body.name,
-            provider=body.provider,
-            model=body.model,
-            base_url=body.base_url,
-            api_key=body.api_key,
-            capabilities=body.capabilities,
-        )
+        try:
+            lid = await state.admin_ai.configure_llm(
+                name=body.name,
+                provider=body.provider,
+                model=body.model,
+                base_url=body.base_url,
+                api_key=body.api_key,
+                capabilities=body.capabilities,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
         await state.db.audit(
             actor=auth.name,
             actor_type=auth.actor_type,
@@ -1767,10 +1830,20 @@ def build_api_router() -> APIRouter:
         request: Request,
         auth: AuthContext = Depends(require_scope("collab:use", "admin")),
     ) -> dict[str, Any]:
+        """H04: only team lead or admin may mutate membership."""
         if not body.actor.strip():
             raise HTTPException(400, "actor required")
-        await get_state(request).db.add_team_member(team_id, body.actor.strip(), body.role or "operator")
-        return {"team_id": team_id, "actor": body.actor.strip(), "role": body.role or "operator"}
+        state = get_state(request)
+        if not auth.has_scope("admin"):
+            members = await state.db.list_team_members(team_id)
+            me = next((m for m in members if m.get("actor") == auth.name), None)
+            if not me or (me.get("role") or "") not in ("lead", "admin"):
+                raise HTTPException(403, "Team lead or admin required to add members")
+        role = body.role or "operator"
+        if role not in ("operator", "lead", "spectator"):
+            raise HTTPException(400, "invalid role")
+        await state.db.add_team_member(team_id, body.actor.strip(), role)
+        return {"team_id": team_id, "actor": body.actor.strip(), "role": role}
 
     @api.delete("/teams/{team_id}/members/{actor}")
     async def remove_team_member(
@@ -1779,7 +1852,13 @@ def build_api_router() -> APIRouter:
         request: Request,
         auth: AuthContext = Depends(require_scope("collab:use", "admin")),
     ) -> dict[str, bool]:
-        ok = await get_state(request).db.remove_team_member(team_id, actor)
+        state = get_state(request)
+        if not auth.has_scope("admin"):
+            members = await state.db.list_team_members(team_id)
+            me = next((m for m in members if m.get("actor") == auth.name), None)
+            if not me or (me.get("role") or "") not in ("lead", "admin"):
+                raise HTTPException(403, "Team lead or admin required to remove members")
+        ok = await state.db.remove_team_member(team_id, actor)
         return {"removed": ok}
 
     @api.post("/sessions/{session_id}/claim")

@@ -1019,12 +1019,28 @@ class ListenerManager:
         task_id = str(payload.get("task_id") or "")
         result = str(payload.get("result") or "")
         status = str(payload.get("status") or "completed")
+        session_id = payload.get("session_id")
         if not task_id:
             return {"status": "error", "detail": "task_id required"}
-        if self.task_complete:
-            await self.task_complete(task_id, result, status)
+        # C07: bind to session when known
+        if session_id:
+            ok = await self.db.complete_task(
+                task_id, result, status, session_id=str(session_id)
+            )
+            if not ok:
+                return {"status": "error", "detail": "task/session mismatch or finalized"}
+        elif self.task_complete:
+            # Prefer task manager complete which validates state
+            try:
+                await self.task_complete(task_id, result, status)
+            except TypeError:
+                await self.task_complete(task_id, result, status)
+            except KeyError:
+                return {"status": "error", "detail": "task not found or finalized"}
         else:
-            await self.db.complete_task(task_id, result, status)
+            ok = await self.db.complete_task(task_id, result, status)
+            if not ok:
+                return {"status": "error", "detail": "task not found or finalized"}
         return {"status": "ok"}
 
     async def record_http_hit(self, listener_id: str, hit: dict[str, Any]) -> None:
