@@ -1,8 +1,8 @@
 # SquidC5
 
 <p align="center">
-  <a href="https://squidoffense.com/">
-    <img src="assets/squidsec-logo.png" alt="SquidSec logo" width="180">
+  <a href="https://github.com/SquidSec/SquidC5">
+    <img src="assets/squidc5-banner.png" alt="SquidC5 — The teamserver you own. Run dark. Stay loud." width="100%">
   </a>
 </p>
 

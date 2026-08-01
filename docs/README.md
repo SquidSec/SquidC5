@@ -1,5 +1,9 @@
 # SquidC5 documentation
 
+<p align="center">
+  <img src="squidc5-banner.png" alt="SquidC5" width="100%">
+</p>
+
 **[SquidSec](https://squidoffense.com/)** open-source C5 — [GitHub](https://github.com/SquidSec/SquidC5) · [Releases](https://github.com/SquidSec/SquidC5/releases/latest)
 
 | Document | Description |
