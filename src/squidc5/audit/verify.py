@@ -1,4 +1,4 @@
-"""Verify audit log hash chain integrity."""
+"""Verify audit log hash chain integrity (must match db.store.audit insert)."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ def compute_chain_hash(
     risk_score: int,
     allowed: int,
 ) -> str:
+    """Same formula as Database.audit()."""
     material = (
         f"{prev}|{ts}|{actor}|{actor_type}|{action}|{resource or ''}|"
         f"{details}|{risk_score}|{allowed}"
@@ -25,53 +26,68 @@ def compute_chain_hash(
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
+def _details_str(row: dict[str, Any]) -> str:
+    details = row.get("details")
+    if details is None:
+        return "{}"
+    if isinstance(details, dict):
+        return json.dumps(details, sort_keys=True, separators=(",", ":"))
+    if isinstance(details, str):
+        # Re-canonicalize if possible
+        try:
+            obj = json.loads(details)
+            if isinstance(obj, dict):
+                return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+        except json.JSONDecodeError:
+            pass
+        return details
+    return "{}"
+
+
 def verify_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """rows ordered by id ascending."""
-    prev = ""
+    """Validate chain_hash using stored prev_hash and sequential linkage.
+
+    rows must be ordered by id ascending.
+    """
     checked = 0
     broken_at: int | None = None
-    for row in rows:
-        details = row.get("details") or "{}"
-        if isinstance(details, dict):
-            details = json.dumps(details, sort_keys=True, separators=(",", ":"))
-        expected_prev = row.get("prev_hash") or ""
-        if expected_prev != prev and checked > 0:
-            # first row may have empty prev
-            if not (checked == 0 and expected_prev == ""):
-                broken_at = int(row.get("id") or checked)
-                break
-        chain = row.get("chain_hash") or ""
+    last_chain = ""
+    for i, row in enumerate(rows):
+        rid = int(row.get("id") or i)
+        chain = (row.get("chain_hash") or "").strip()
+        prev = (row.get("prev_hash") or "").strip()
         if not chain:
+            # legacy rows without chain — skip crypto check but track linkage gap
             checked += 1
-            prev = chain
+            last_chain = ""
             continue
-        calc = compute_chain_hash(
-            prev if checked > 0 else (expected_prev or ""),
-            float(row.get("ts") or 0),
-            str(row.get("actor") or ""),
-            str(row.get("actor_type") or ""),
-            str(row.get("action") or ""),
-            row.get("resource"),
-            details if isinstance(details, str) else "{}",
-            int(row.get("risk_score") or 0),
-            int(row.get("allowed") if row.get("allowed") is not None else 1),
-        )
-        # Prefer stored prev linkage
-        calc2 = compute_chain_hash(
-            expected_prev,
-            float(row.get("ts") or 0),
-            str(row.get("actor") or ""),
-            str(row.get("actor_type") or ""),
-            str(row.get("action") or ""),
-            row.get("resource"),
-            details if isinstance(details, str) else "{}",
-            int(row.get("risk_score") or 0),
-            int(row.get("allowed") if row.get("allowed") is not None else 1),
-        )
-        if chain not in (calc, calc2) and checked > 0:
-            broken_at = int(row.get("id") or checked)
+        # Sequential: after first chained row, prev must equal previous chain
+        if i > 0 and last_chain and prev != last_chain:
+            broken_at = rid
             break
-        prev = chain
+        details = _details_str(row)
+        allowed = row.get("allowed")
+        if allowed is True:
+            allowed_i = 1
+        elif allowed is False:
+            allowed_i = 0
+        else:
+            allowed_i = int(allowed if allowed is not None else 1)
+        calc = compute_chain_hash(
+            prev,
+            float(row.get("ts") or 0),
+            str(row.get("actor") or ""),
+            str(row.get("actor_type") or ""),
+            str(row.get("action") or ""),
+            row.get("resource"),
+            details,
+            int(row.get("risk_score") or 0),
+            allowed_i,
+        )
+        if not hashlib.compare_digest(calc, chain):
+            broken_at = rid
+            break
+        last_chain = chain
         checked += 1
     return {
         "ok": broken_at is None,
