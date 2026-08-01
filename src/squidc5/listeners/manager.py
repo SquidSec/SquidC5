@@ -176,7 +176,7 @@ class ListenerManager:
         updated = await self.db.get_listener(listener_id)
         return self._norm(updated)  # type: ignore[arg-type]
 
-    async def stop(self, listener_id: str) -> dict[str, Any]:
+    async def stop(self, listener_id: str, *, persist_status: bool = True) -> dict[str, Any]:
         async with self._lock:
             task = self._tasks.pop(listener_id, None)
             server = self._servers.pop(listener_id, None)
@@ -192,7 +192,8 @@ class ListenerManager:
                 await server.wait_closed()
             if udp:
                 udp.close()
-            await self.db.set_listener_status(listener_id, "stopped")
+            if persist_status:
+                await self.db.set_listener_status(listener_id, "stopped")
         await self.metrics.emit("listener.stopped", {"id": listener_id})
         row = await self.db.get_listener(listener_id)
         return self._norm(row)  # type: ignore[arg-type]
@@ -202,13 +203,41 @@ class ListenerManager:
             await self.stop(listener_id)
         return await self.db.delete_listener(listener_id)
 
-    async def stop_all(self) -> None:
+    async def stop_all(self, *, persist_status: bool = False) -> None:
+        """Stop in-process sockets. Default leaves DB status for restart restore."""
         ids = list(set(self._servers.keys()) | set(self._udp.keys()))
         for lid in ids:
             try:
-                await self.stop(lid)
+                await self.stop(lid, persist_status=persist_status)
             except Exception:
                 log.exception("Error stopping listener %s", lid)
+
+    async def restore_running(self) -> dict[str, Any]:
+        """Start listeners marked running in DB (process restart recovery)."""
+        restored: list[str] = []
+        errors: list[dict[str, str]] = []
+        rows = await self.db.list_listeners()
+        for row in rows:
+            if (row.get("status") or "") != "running":
+                continue
+            lid = row["id"]
+            try:
+                await self.start(lid)
+                restored.append(lid)
+            except Exception as e:
+                log.exception("Failed to restore listener %s", lid)
+                try:
+                    await self.db.set_listener_status(lid, "error")
+                except Exception:
+                    pass
+                errors.append({"id": lid, "error": str(e)[:200]})
+                await self.metrics.emit(
+                    "listener.restore_failed",
+                    {"id": lid, "error": str(e)[:200]},
+                )
+        if restored:
+            log.info("Restored %s listener(s) from DB: %s", len(restored), restored)
+        return {"restored": restored, "errors": errors}
 
     def _enable_keepalive(self, writer: asyncio.StreamWriter) -> None:
         sock = writer.get_extra_info("socket")

@@ -153,11 +153,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         state = await build_state(settings)
         app.state.app_state = state
+        try:
+            restore = await state.listeners.restore_running()
+        except Exception:
+            log.exception("Listener restore failed")
+            restore = {"restored": [], "errors": [{"error": "restore crashed"}]}
         await state.db.audit(
             actor="system",
             actor_type="system",
             action="server.start",
-            details={"version": __version__, "port": settings.port},
+            details={
+                "version": __version__,
+                "port": settings.port,
+                "listeners_restored": restore.get("restored") or [],
+                "listeners_restore_errors": restore.get("errors") or [],
+            },
         )
         log.info("SquidC5 v%s listening on %s:%s", __version__, settings.host, settings.port)
         yield
