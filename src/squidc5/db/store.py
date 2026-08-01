@@ -352,21 +352,53 @@ class Database:
         risk_score: int = 0,
         allowed: bool = True,
     ) -> None:
-        await self.execute(
-            """INSERT INTO audit_log
-               (ts, actor, actor_type, action, resource, details, risk_score, allowed)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                _now(),
-                actor,
-                actor_type,
-                action,
-                resource,
-                json.dumps(details or {}),
-                risk_score,
-                1 if allowed else 0,
-            ),
+        import hashlib
+
+        ts = _now()
+        det = json.dumps(details or {}, sort_keys=True, separators=(",", ":"))
+        prev_row = await self.fetchone(
+            "SELECT chain_hash FROM audit_log ORDER BY id DESC LIMIT 1"
         )
+        prev = ""
+        if prev_row:
+            prev = (prev_row.get("chain_hash") if isinstance(prev_row, dict) else prev_row[0]) or ""
+        material = f"{prev}|{ts}|{actor}|{actor_type}|{action}|{resource or ''}|{det}|{risk_score}|{1 if allowed else 0}"
+        chain = hashlib.sha256(material.encode("utf-8")).hexdigest()
+        # Prefer new columns when migration applied; fall back for mid-upgrade
+        try:
+            await self.execute(
+                """INSERT INTO audit_log
+                   (ts, actor, actor_type, action, resource, details, risk_score, allowed, chain_hash, prev_hash)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    ts,
+                    actor,
+                    actor_type,
+                    action,
+                    resource,
+                    det,
+                    risk_score,
+                    1 if allowed else 0,
+                    chain,
+                    prev,
+                ),
+            )
+        except Exception:
+            await self.execute(
+                """INSERT INTO audit_log
+                   (ts, actor, actor_type, action, resource, details, risk_score, allowed)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    ts,
+                    actor,
+                    actor_type,
+                    action,
+                    resource,
+                    det,
+                    risk_score,
+                    1 if allowed else 0,
+                ),
+            )
 
     async def list_audit(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         return await self.fetchall(
