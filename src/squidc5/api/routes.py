@@ -945,6 +945,62 @@ def build_api_router() -> APIRouter:
     ) -> list[dict[str, Any]]:
         return await get_state(request).audit.list(limit=limit, offset=offset)
 
+    @api.get("/audit/verify")
+    async def audit_verify(
+        request: Request,
+        limit: int = 500,
+        auth: AuthContext = Depends(require_scope("audit:read", "admin")),
+    ) -> dict[str, Any]:
+        from squidc5.audit.verify import verify_rows
+
+        rows = await get_state(request).db.fetchall(
+            "SELECT id, ts, actor, actor_type, action, resource, details, risk_score, allowed, "
+            "chain_hash, prev_hash FROM audit_log ORDER BY id ASC LIMIT ?",
+            (min(max(int(limit), 1), 5000),),
+        )
+        return verify_rows(list(rows or []))
+
+    @api.post("/profiles/{profile_id}/push")
+    async def push_profile(
+        profile_id: str,
+        request: Request,
+        session_id: str | None = None,
+        auth: AuthContext = Depends(require_scope("profiles:write", "admin")),
+    ) -> dict[str, Any]:
+        """Queue profile:switch tasks for one or all active beacon sessions (C11)."""
+        state = get_state(request)
+        if profile_id not in {p["id"] for p in state.profiles.list_profiles()}:
+            # list returns dicts
+            ids = [p.get("id") for p in state.profiles.list_profiles()]
+            if profile_id not in ids:
+                raise HTTPException(404, "profile not found")
+        await state.profiles.set_active(profile_id)
+        sessions = await state.sessions.list(status="active")
+        beacons = [s for s in sessions if s.get("kind") == "beacon"]
+        if session_id:
+            beacons = [s for s in beacons if s["id"] == session_id]
+        queued = []
+        for s in beacons:
+            try:
+                t = await state.tasks.create(
+                    session_id=s["id"],
+                    command="profile:switch",
+                    args={"profile_id": profile_id},
+                    created_by=auth.name,
+                )
+                queued.append(t["id"])
+            except Exception:
+                continue
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="profile.push",
+            resource=profile_id,
+            details={"queued": len(queued)},
+            risk_score=4,
+        )
+        return {"profile_id": profile_id, "tasks": queued, "count": len(queued)}
+
     @api.get("/events/stream")
     async def events_stream(
         request: Request,
