@@ -661,6 +661,22 @@ Ops panel buttons call observability endpoints (metrics/audit scoped). Export fo
 
 ---
 
+## Ops console layout
+
+The `/ops` console is an **app shell** (like Mythic / Havoc-style UIs):
+
+| Region | Purpose |
+|--------|---------|
+| **Top bar** | Host, online status, Connect |
+| **Left nav** | Dashboard, Sessions, Listeners, Payloads, Post-Ex, Collab, Observe, Admin |
+| **Main** | Active workspace for the selected nav item |
+| **Right rail** | Selected session context (claim, shell, task) |
+| **Bottom** | Live event stream + command output |
+
+Discoverability: pick **Sessions** → click a row → use the right rail. Admin tools live under **Admin** (admin scope only).
+
+---
+
 ## Multi-operator collab
 
 ### What

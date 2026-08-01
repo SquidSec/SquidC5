@@ -3,1561 +3,767 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#09090b" />
-  <link rel="icon" href="https://i.imgur.com/m1FBjqj.png" type="image/png" />
-  <link rel="stylesheet" href="https://squidoffense.com/css/typography.css" />
-  <title>SquidC5 — Command • Control • Cognitive • Collaborative • Coordination</title>
+  <meta name="theme-color" content="#0b0b0f" />
+  <link rel="icon" href="/ops/assets/squidsec-logo-96.png" type="image/png" />
+  <title>SquidC5 Ops</title>
   <style>
     :root {
+      --bg: #0b0b0f;
+      --bg2: #121218;
+      --bg3: #1a1a22;
+      --border: rgba(255,255,255,0.08);
+      --border2: rgba(255,255,255,0.14);
+      --text: #e8e8ed;
+      --muted: #8b8b9a;
       --pink: #e91e8c;
-      --pink-hot: #f472b6;
-      --purple: #a855f7;
+      --pink2: #f472b6;
       --ok: #34d399;
       --warn: #fbbf24;
       --bad: #f87171;
       --cyan: #38bdf8;
-      --muted: #a1a1aa;
-      --border: rgba(255, 255, 255, 0.1);
-      --card: rgba(24, 24, 27, 0.92);
-      --glow: none;
-      --radius: 14px;
-      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      --purple: #a78bfa;
+      --sidebar-w: 200px;
+      --top-h: 48px;
+      --bottom-h: 160px;
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --radius: 8px;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
     body {
-      margin: 0; font-family: var(--font); color: #f4f4f5;
-      background: linear-gradient(180deg, #09090b 0%, #121016 55%, #0c0a0f 100%);
-      min-height: 100dvh;
-      padding: max(12px, env(safe-area-inset-top)) 12px calc(20px + env(safe-area-inset-bottom));
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--bg);
+      overflow: hidden;
     }
-    .wrap { max-width: 520px; margin: 0 auto; width: 100%; }
-    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
-    .brand .brand-text { min-width: 0; }
-    .toolbar { margin-bottom: 10px; }
-    .overview { display: flex; flex-direction: column; gap: 8px; }
-    .overview > * { min-width: 0; margin: 0 !important; }
-    #adminMount {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+    button, input, select, textarea { font: inherit; color: inherit; }
+    button {
+      cursor: pointer; border: 1px solid var(--border2); background: var(--bg3);
+      border-radius: 6px; padding: 6px 12px; color: var(--text);
     }
-    #adminMount > * { margin: 0 !important; }
-    #opsNavBar.ops-nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-      padding: 8px 10px;
-      margin: 0 0 4px !important;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: rgba(18,18,22,0.95);
-    }
-    #opsNavBar .ops-page-btn {
-      min-width: 0 !important;
-      flex: 0 0 auto !important;
-      padding: 6px 10px !important;
-      font-size: 0.75rem !important;
-    }
-    /* Full-width work surfaces (used by multi-column layouts) */
-    .col-span-all { width: 100%; grid-column: 1 / -1; }
-
-    .brand img { width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 0 8px rgba(233,30,140,0.35)); }
-    .brand h1 { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
-    .brand h1 .p { color: var(--pink); text-shadow: none; }
-    .brand .sub { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
-    .brand .c5-expand {
-      font-size: 0.62rem; color: var(--pink-hot); letter-spacing: 0.04em;
-      margin-top: 4px; line-height: 1.35; font-weight: 600;
-      text-transform: none;
-    }
-    .brand .c5-expand .dot { color: var(--muted); margin: 0 0.15em; font-weight: 400; }
-    .badge {
-      margin-left: auto; font: 700 0.65rem/1 var(--mono); letter-spacing: 0.06em;
-      text-transform: uppercase; padding: 6px 10px; border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.16); color: var(--muted);
-    }
-    .badge.ok { color: var(--ok); border-color: rgba(52,211,153,0.35); }
-    .badge.bad { color: var(--bad); border-color: rgba(248,113,113,0.35); }
-    .badge.admin { color: var(--pink-hot); border-color: rgba(233,30,140,0.35); margin-left: 6px; }
-    .hero {
-      border: 1px solid rgba(233,30,140,0.28); border-radius: 16px; padding: 12px;
-      margin: 0; background: rgba(18,18,22,0.95);
-      position: relative;
-    }
-    .hero::before {
-      content: ""; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
-      border-radius: 16px 0 0 16px;
-      background: var(--pink);
-      box-shadow: none;
-    }
-    .hero-host { font: 0.85rem var(--mono); color: var(--pink-hot); word-break: break-all; margin-bottom: 10px; }
-    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .stat {
-      background: rgba(0,0,0,0.35);
-      border: 1px solid var(--border); border-radius: 12px;
-      padding: 10px 6px; text-align: center;
-    }
-    .stat .n { font-size: 1.35rem; font-weight: 800; color: #fafafa; text-shadow: none; }
-    .stat .l { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
-    .stat.tone-ok { border-color: rgba(52,211,153,0.28); }
-    .stat.tone-ok .n { color: var(--ok); text-shadow: none; }
-    .stat.tone-pink { border-color: rgba(233,30,140,0.3); }
-    .stat.tone-pink .n { color: var(--pink-hot); text-shadow: none; }
-    .stat.tone-purple { border-color: rgba(168,85,247,0.28); }
-    .stat.tone-purple .n { color: #d8b4fe; text-shadow: none; }
-    .stat.tone-cyan { border-color: rgba(56,189,248,0.28); }
-    .stat.tone-cyan .n { color: var(--cyan); text-shadow: none; }
-    .stat.tone-warn { border-color: rgba(251,191,36,0.28); }
-    .stat.tone-warn .n { color: var(--warn); text-shadow: none; }
-    .stat.tone-bad { border-color: rgba(248,113,113,0.28); }
-    .stat.tone-bad .n { color: var(--bad); text-shadow: none; }
-    .card {
-      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 10px 12px; margin: 0;
-    }
-    .card h2 {
-      margin: 0 0 8px; font-size: 0.72rem; letter-spacing: 0.12em;
-      text-transform: uppercase; color: #e4e4e7;
-    }
-    .muted { color: var(--muted); font-size: 0.8rem; }
-    .hint {
-      color: var(--muted); font-size: 0.78rem; line-height: 1.45;
-      margin: 0 0 10px; padding: 8px 10px;
-      background: rgba(255,255,255,0.03); border-left: 3px solid rgba(233,30,140,0.55);
-      border-radius: 0 8px 8px 0;
-    }
-    .hint code {
-      font-family: var(--mono); font-size: 0.72rem; color: #e9d5ff;
-    }
-    .hint strong { color: #e4e4e7; font-weight: 700; }
-    a.doc-link {
-      color: var(--pink-hot); font-weight: 600; text-decoration: none;
-      border-bottom: 1px solid rgba(233,30,140,0.35);
-    }
-    a.doc-link:hover { color: #fff; border-bottom-color: var(--pink-hot); }
-    a.doc-link.summary-doc {
-      font: 700 0.65rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
-      border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; padding: 4px 8px;
-      border-bottom: 1px solid rgba(255,255,255,0.14); flex-shrink: 0;
-      background: rgba(255,255,255,0.04); color: var(--muted);
-    }
-    a.doc-link.summary-doc:hover { color: var(--pink-hot); border-color: rgba(233,30,140,0.4); background: rgba(233,30,140,0.08); }
-    .mono { font-family: var(--mono); font-size: 0.75rem; word-break: break-all; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-    th, td { text-align: left; padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); vertical-align: top; }
-    th { color: #d4d4d8; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    tr:last-child td { border-bottom: 0; }
-    .pill {
-      display: inline-block; font: 700 0.62rem var(--mono); padding: 2px 6px;
-      border-radius: 6px; border: 1px solid var(--border); color: var(--muted); text-transform: uppercase;
-    }
-    .pill.ok { color: var(--ok); border-color: rgba(0,255,157,0.35); }
-    .pill.bad { color: var(--bad); border-color: rgba(251,113,133,0.35); }
-    :root {
-      --panel-head-h: 36px;
-      --panel-gap: 8px;
-      --panel-body-max: 420px;
-    }
-    details.panel {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 8px 12px;
-      margin: 0;
-      box-sizing: border-box;
-      height: auto;
-      max-height: none;
-      overflow: visible;
-      display: block;
-    }
-    details.panel summary {
-      cursor: pointer; font-weight: 700; font-size: 0.88rem; list-style: none;
-      display: flex; align-items: center; gap: 8px; user-select: none;
-      flex-shrink: 0;
-      min-height: var(--panel-head-h);
-      box-sizing: border-box;
-    }
-    details.panel summary::-webkit-details-marker { display: none; }
-    details.panel summary::before {
-      content: "▸"; color: var(--pink); font-size: 0.75rem; line-height: 1;
-      transition: transform 0.12s ease;
-    }
-    details.panel[open] summary::before { transform: rotate(90deg); }
-    details.panel[open] summary { margin-bottom: 6px; color: var(--pink-hot); }
-    details.panel .panel-title { flex: 1; min-width: 0; }
-    /* Natural height panels — body scrolls only when content is tall */
-    details.panel[open] {
-      height: auto;
-      max-height: none;
-      display: block;
-      overflow: visible;
-    }
-    details.panel.hero[open],
-    details.panel#heroPanel[open],
-    details.panel#settingsPanel[open] {
-      height: auto !important;
-      max-height: none !important;
-      display: block !important;
-      overflow: visible !important;
-    }
-    details.panel.hero[open] > .panel-body,
-    details.panel#heroPanel[open] > .panel-body,
-    details.panel#settingsPanel[open] > .panel-body {
-      height: auto !important;
-      max-height: none !important;
-      overflow: visible !important;
-      padding-bottom: 8px;
-    }
-    /* Connection actions: one full-width horizontal row */
-    #settingsPanel .conn-actions {
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 8px;
-      margin-top: 12px;
-      width: 100%;
-    }
-    #settingsPanel .conn-actions button {
-      flex: 1 1 0;
-      min-width: 0;
-      width: auto;
-    }
-    details.panel:not([open]) {
-      height: auto;
-      max-height: none;
-      display: block;
-      overflow: visible;
-    }
-    details.panel > .panel-body {
-      min-height: 0;
-      max-height: var(--panel-body-max);
-      overflow-x: hidden;
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(233,30,140,0.35) rgba(0,0,0,0.2);
-      padding-right: 2px;
-      padding-bottom: 8px;
-      box-sizing: border-box;
-    }
-    /* U7 mobile: larger hit targets */
-    @media (max-width: 767px) {
-      button.touch-lg, .touch-lg {
-        min-height: 44px;
-        font-size: 1rem;
-        padding: 10px 14px;
-      }
-      input.touch-lg, textarea.touch-lg, select.touch-lg {
-        min-height: 44px;
-        font-size: 1rem;
-      }
-      details.panel summary {
-        min-height: 48px;
-      }
-    }
-    #eventsRail .mono { word-break: break-all; }
-    #fileTable table { width: 100%; font-size: 0.75rem; }
-    #fileCrumbs .chip { cursor: pointer; }
-
-    details.panel > .panel-body.scroll-focus {
-      outline: 1px solid rgba(233,30,140,0.25);
-      outline-offset: -1px;
-      overscroll-behavior: contain;
-    }
-    details.panel:not([open]) > .panel-body {
-      display: none;
-    }
-    details.panel[open] .outbox {
-      max-height: none;
-    }
-    details.panel[open] .event-feed {
-      max-height: none;
-    }
-    details.panel[open] textarea {
-      max-height: 120px;
-    }
-    .wide-btn {
-      appearance: none; flex: 0 0 auto !important; min-width: 0 !important;
-      width: auto; margin-left: auto; padding: 4px 8px !important;
-      font: 700 0.75rem/1 var(--mono) !important;
-      border-radius: 8px; border: 1px solid var(--border);
-      background: rgba(255,255,255,0.06); color: var(--muted);
-      cursor: pointer; box-shadow: none !important;
-    }
-    .wide-btn:hover { color: var(--pink-hot); border-color: rgba(233,30,140,0.35); }
-    details.panel.is-wide .wide-btn {
-      color: var(--pink-hot); border-color: rgba(233,30,140,0.4);
-      background: rgba(233,30,140,0.1);
-    }
-    .drag-handle {
-      cursor: grab; color: var(--muted); font: 700 0.85rem/1 var(--mono);
-      letter-spacing: -0.08em; padding: 4px 6px; margin: -4px 0 -4px -2px;
-      border-radius: 6px; flex-shrink: 0; touch-action: none;
-    }
-    .drag-handle:hover { color: var(--pink-hot); background: rgba(233,30,140,0.1); }
-    .drag-handle:active { cursor: grabbing; }
-    details.panel.is-dragging {
-      opacity: 0.55; outline: 1px dashed rgba(233,30,140,0.45);
-    }
-    details.panel.drag-over {
-      box-shadow: 0 0 0 2px rgba(233,30,140,0.35);
-    }
-    .layout-hint {
-      font-size: 0.68rem; color: var(--muted); margin: 0 0 8px;
-      letter-spacing: 0.04em;
-    }
-    label {
-      display: block; font-size: 0.68rem; color: var(--muted); text-transform: uppercase;
-      letter-spacing: 0.06em; font-weight: 700; margin: 8px 0 4px;
+    button:hover { border-color: rgba(233,30,140,0.45); background: #22222c; }
+    button.primary { background: rgba(233,30,140,0.2); border-color: rgba(233,30,140,0.5); color: var(--pink2); font-weight: 600; }
+    button.primary:hover { background: rgba(233,30,140,0.35); }
+    button.danger { border-color: rgba(248,113,113,0.4); color: var(--bad); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.active, .nav-item.active {
+      background: rgba(233,30,140,0.18); border-color: rgba(233,30,140,0.4); color: var(--pink2);
     }
     input, select, textarea {
-      width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
-      background: rgba(0,0,0,0.45); color: #fff; font: 0.95rem var(--font);
+      width: 100%; background: #0e0e14; border: 1px solid var(--border2);
+      border-radius: 6px; padding: 7px 10px; outline: none;
     }
-    textarea { min-height: 72px; resize: vertical; font-family: var(--mono); font-size: 0.85rem; }
-    input:focus, select:focus, textarea:focus {
-      outline: none; border-color: rgba(233,30,140,0.55); box-shadow: 0 0 0 2px rgba(233,30,140,0.12);
+    input:focus, select:focus, textarea:focus { border-color: rgba(233,30,140,0.55); }
+    label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 8px 0 4px; }
+    .mono { font-family: var(--mono); font-size: 0.78rem; }
+    .muted { color: var(--muted); }
+    .hidden { display: none !important; }
+    a { color: var(--pink2); }
+
+    /* —— App shell —— */
+    .app {
+      display: grid;
+      grid-template-rows: var(--top-h) 1fr var(--bottom-h);
+      grid-template-columns: var(--sidebar-w) 1fr minmax(260px, 320px);
+      grid-template-areas:
+        "top top top"
+        "side main ctx"
+        "bottom bottom bottom";
+      height: 100dvh;
+      width: 100%;
     }
-    .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-    button {
-      appearance: none; flex: 1; min-width: 110px; border: 1px solid var(--border);
-      background: rgba(255,255,255,0.06); color: #fff; border-radius: 12px;
-      padding: 11px 12px; font: 700 0.85rem var(--font); cursor: pointer;
+    .app.no-ctx {
+      grid-template-columns: var(--sidebar-w) 1fr;
+      grid-template-areas:
+        "top top"
+        "side main"
+        "bottom bottom";
     }
-    button.primary {
-      background: var(--pink);
-      color: #fff; border-color: transparent;
-      box-shadow: none;
+    .app.no-ctx .ctx { display: none; }
+
+    /* Top bar */
+    .top {
+      grid-area: top;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+      z-index: 20;
     }
-    button.primary:hover { background: #d4157a; }
-    button.danger { border-color: rgba(251,113,133,0.4); color: #fecdd3; }
-    button:disabled { opacity: 0.45; cursor: not-allowed; }
-    button:active:not(:disabled) { transform: scale(0.98); }
-    .err {
-      display: none; background: rgba(251,113,133,0.1); border: 1px solid rgba(251,113,133,0.35);
-      color: #fecdd3; border-radius: var(--radius); padding: 10px 12px; margin-bottom: 10px; font-size: 0.84rem;
+    .top .logo { width: 28px; height: 28px; object-fit: contain; }
+    .top .title { font-weight: 800; letter-spacing: -0.02em; font-size: 0.95rem; }
+    .top .title span { color: var(--pink); }
+    .top .sep { width: 1px; height: 20px; background: var(--border2); }
+    .top .host { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .top .spacer { flex: 1; }
+    .pill {
+      font: 700 0.62rem/1 var(--mono); text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 5px 8px; border-radius: 999px; border: 1px solid var(--border2); color: var(--muted);
     }
-    .err.show { display: block; }
-    .okmsg {
-      display: none; background: rgba(0,255,157,0.08); border: 1px solid rgba(0,255,157,0.3);
-      color: #bbf7d0; border-radius: var(--radius); padding: 10px 12px; margin-bottom: 10px; font-size: 0.84rem;
+    .pill.ok { color: var(--ok); border-color: rgba(52,211,153,0.35); }
+    .pill.bad { color: var(--bad); border-color: rgba(248,113,113,0.35); }
+    .pill.live { color: var(--pink2); border-color: rgba(233,30,140,0.4); }
+    .top button { padding: 5px 10px; font-size: 0.78rem; }
+
+    /* Sidebar */
+    .side {
+      grid-area: side;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow: hidden;
     }
-    .okmsg.show { display: block; }
+    .side-nav {
+      padding: 8px 6px;
+      display: flex; flex-direction: column; gap: 2px;
+      overflow-y: auto; flex: 1;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      width: 100%; text-align: left;
+      padding: 9px 10px; border: 1px solid transparent;
+      background: transparent; border-radius: 8px;
+      font-size: 0.84rem; font-weight: 600; color: var(--muted);
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); border-color: var(--border); }
+    .nav-item.active { color: var(--pink2); background: rgba(233,30,140,0.12); border-color: rgba(233,30,140,0.28); }
+    .nav-item .ico { width: 18px; text-align: center; opacity: 0.9; }
+    .nav-item .badge-n {
+      margin-left: auto; font: 700 0.65rem var(--mono);
+      background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 999px; color: var(--text);
+    }
+    .side-foot {
+      border-top: 1px solid var(--border); padding: 8px;
+      font-size: 0.68rem; color: var(--muted);
+    }
+
+    /* Main workspace */
+    .main {
+      grid-area: main;
+      display: flex; flex-direction: column;
+      min-width: 0; min-height: 0;
+      background: var(--bg);
+      overflow: hidden;
+    }
+    .main-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      background: rgba(18,18,24,0.6);
+      flex-shrink: 0;
+    }
+    .main-head h2 { margin: 0; font-size: 0.95rem; font-weight: 700; }
+    .main-head .sub { font-size: 0.75rem; color: var(--muted); }
+    .main-head .tools { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+    .main-body {
+      flex: 1; min-height: 0; overflow: auto;
+      padding: 12px 14px;
+    }
+    .view { display: none; height: 100%; }
+    .view.active { display: block; }
+
+    /* Context rail (session detail) */
+    .ctx {
+      grid-area: ctx;
+      border-left: 1px solid var(--border);
+      background: var(--bg2);
+      display: flex; flex-direction: column;
+      min-height: 0; overflow: hidden;
+    }
+    .ctx-head {
+      padding: 10px 12px; border-bottom: 1px solid var(--border);
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); font-weight: 700; flex-shrink: 0;
+    }
+    .ctx-body { flex: 1; overflow: auto; padding: 10px 12px; min-height: 0; }
+    .ctx-empty { color: var(--muted); font-size: 0.85rem; line-height: 1.45; padding: 12px 4px; }
+
+    /* Bottom console */
+    .bottom {
+      grid-area: bottom;
+      border-top: 1px solid var(--border);
+      background: #0a0a0e;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 0;
+    }
+    .bottom-pane {
+      display: flex; flex-direction: column; min-height: 0; min-width: 0;
+      border-right: 1px solid var(--border);
+    }
+    .bottom-pane:last-child { border-right: 0; }
+    .bottom-pane .bp-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 10px; border-bottom: 1px solid var(--border);
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); font-weight: 700; flex-shrink: 0;
+    }
+    .bottom-pane .bp-head .live-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--ok);
+      box-shadow: 0 0 6px var(--ok);
+    }
+    .bottom-pane .bp-body {
+      flex: 1; overflow: auto; padding: 6px 10px;
+      font-family: var(--mono); font-size: 0.72rem; line-height: 1.4;
+      color: #c4c4d0; white-space: pre-wrap; word-break: break-word;
+    }
+
+    /* Content primitives */
+    .toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; align-items: center; }
+    .stats {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px; margin-bottom: 12px;
+    }
+    .stat {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 10px; text-align: center;
+    }
+    .stat .n { font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .stat .l { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+    .stat.ok .n { color: var(--ok); }
+    .stat.pink .n { color: var(--pink2); }
+    .stat.cyan .n { color: var(--cyan); }
+    .stat.purple .n { color: var(--purple); }
+    .stat.warn .n { color: var(--warn); }
+    .stat.bad .n { color: var(--bad); }
+
+    .split {
+      display: grid; grid-template-columns: minmax(240px, 340px) 1fr;
+      gap: 12px; height: calc(100% - 4px); min-height: 280px;
+    }
+    .list-panel, .work-panel {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+      display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+    }
+    .list-panel .lp-head, .work-panel .wp-head {
+      padding: 8px 10px; border-bottom: 1px solid var(--border);
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--muted); display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    .list-panel .lp-body, .work-panel .wp-body {
+      flex: 1; overflow: auto; min-height: 0;
+    }
+    .work-panel .wp-body { padding: 10px 12px; }
+
+    table.data { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    table.data th, table.data td {
+      text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.05);
+      vertical-align: middle;
+    }
+    table.data th {
+      position: sticky; top: 0; background: var(--bg3);
+      font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);
+      z-index: 1;
+    }
+    table.data tr { cursor: pointer; }
+    table.data tr:hover td { background: rgba(255,255,255,0.03); }
+    table.data tr.selected td { background: rgba(233,30,140,0.12); }
+    table.data .mono { font-size: 0.72rem; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+    .outbox {
+      background: #08080c; border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px 10px; font-family: var(--mono); font-size: 0.75rem;
+      max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+      color: #d4d4de; margin-top: 8px;
+    }
+    .outbox.empty { color: var(--muted); }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip {
-      font: 0.68rem var(--mono); padding: 5px 8px; border-radius: 8px;
-      background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: #e4e4e7;
+      font: 600 0.68rem var(--mono); padding: 3px 8px; border-radius: 999px;
+      border: 1px solid var(--border2); color: var(--muted); background: rgba(0,0,0,0.25);
     }
-    .chip b { color: var(--pink-hot); }
-    .outbox {
-      margin-top: 8px; background: #0a0a0b; border: 1px solid rgba(52,211,153,0.28);
-      border-radius: 10px; padding: 12px; font: 0.85rem/1.45 var(--mono);
-      white-space: pre-wrap; word-break: break-word; max-height: 280px; overflow: auto;
-      color: var(--ok); min-height: 3.2em;
+    .chip.ok { color: var(--ok); border-color: rgba(52,211,153,0.3); }
+    .chip.warn { color: var(--warn); }
+    .toast {
+      position: fixed; top: 56px; right: 16px; z-index: 100;
+      max-width: 360px; padding: 10px 14px; border-radius: 8px;
+      font-size: 0.84rem; box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+      display: none;
     }
-    .outbox.empty-out { color: var(--muted); border-color: var(--border); }
-    .empty { color: var(--muted); font-size: 0.85rem; padding: 6px 0; }
+    .toast.show { display: block; }
+    .toast.err { background: #3f1219; border: 1px solid rgba(248,113,113,0.4); color: #fecdd3; }
+    .toast.ok { background: #0f2e22; border: 1px solid rgba(52,211,153,0.35); color: #bbf7d0; }
+
     .modal-bg {
-      display: none; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.82);
-      align-items: center; justify-content: center; padding: 16px;
+      position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 50;
+      display: none; align-items: center; justify-content: center; padding: 16px;
     }
     .modal-bg.show { display: flex; }
     .modal {
-      width: min(100%, 380px); background: #0a0a0b; border: 1px solid rgba(255,0,170,0.4);
-      border-radius: 16px; padding: 16px; box-shadow: 0 0 30px rgba(255,0,170,0.25);
+      background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px;
+      width: min(420px, 100%); padding: 16px; max-height: 90dvh; overflow: auto;
     }
-    .qr-box { background: #fff; border-radius: 12px; padding: 12px; width: fit-content; margin: 0 auto 12px; }
-    .qr-box img { width: 220px; height: 220px; display: block; }
-    .share-url { font: 0.65rem var(--mono); color: var(--pink); word-break: break-all; margin-bottom: 10px; }
-    footer { text-align: center; color: var(--muted); font-size: 0.72rem; margin-top: 14px; }
-    .hidden { display: none !important; }
+    .modal h3 { margin: 0 0 8px; font-size: 1rem; }
+    .empty-state {
+      text-align: center; padding: 32px 16px; color: var(--muted);
+    }
+    .empty-state strong { display: block; color: var(--text); margin-bottom: 6px; font-size: 0.95rem; }
 
-    /* Live event stream (top of ops surface) */
-    details.panel.event-stream {
-      background: var(--card);
-      border: 1px solid rgba(233,30,140,0.22);
-      border-radius: 16px;
-      margin-bottom: 12px;
-    }
-    .event-stream-head {
-      display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;
-      font-weight: 700;
-    }
-    .event-stream-head .live-dot {
-      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-      background: var(--ok); box-shadow: 0 0 6px rgba(52,211,153,0.5);
-      animation: pulse-live 1.6s ease-in-out infinite;
-    }
-    @keyframes pulse-live {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.45; transform: scale(0.85); }
-    }
-    .event-stream-head .count {
-      font: 700 0.65rem var(--mono); color: var(--muted);
-      letter-spacing: 0.04em; margin-left: auto;
-    }
-    .event-feed {
-      max-height: 220px; overflow: auto;
-      display: flex; flex-direction: column; gap: 6px;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(255,0,170,0.35) transparent;
-    }
-    .event-item {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 8px 10px;
-      align-items: start;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: rgba(0,0,0,0.4);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-left: 3px solid rgba(255,0,170,0.45);
-    }
-    .event-item.ok { border-left-color: var(--ok); }
-    .event-item.warn { border-left-color: var(--warn); }
-    .event-item.bad { border-left-color: var(--bad); }
-    .event-item .etype {
-      font: 700 0.62rem var(--mono); letter-spacing: 0.04em;
-      text-transform: uppercase; color: #ffb3ff;
-      white-space: nowrap;
-    }
-    .event-item.ok .etype { color: var(--ok); }
-    .event-item.warn .etype { color: var(--warn); }
-    .event-item.bad .etype { color: var(--bad); }
-    .event-item .edetail {
-      font: 0.78rem/1.35 var(--mono); color: #e4e4e7;
-      word-break: break-word; min-width: 0;
-    }
-    .event-item .etime {
-      font: 0.62rem var(--mono); color: var(--muted);
-      white-space: nowrap;
-    }
-    .event-feed .empty { padding: 16px 8px; text-align: center; }
-
-    /* Dense multi-column grid (no absolute masonry — fixes huge desktop gaps) */
-    .masonry {
-      position: relative;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: var(--panel-gap);
-    }
-    .masonry > * {
-      box-sizing: border-box;
-      min-width: 0;
-      position: static !important;
-      left: auto !important;
-      top: auto !important;
-      width: auto !important;
-      transform: none !important;
-      height: auto !important;
-      max-height: none !important;
-    }
-    .masonry.is-packed {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: var(--panel-gap);
-      align-items: start;
-      height: auto !important;
-    }
-    .masonry.is-packed > * {
-      position: static !important;
-      margin: 0 !important;
-    }
-    .masonry-span, details.panel.is-wide {
-      grid-column: 1 / -1;
-    }
-    #opsNavBar.ops-nav {
-      grid-column: 1 / -1;
-    }
-
-    /* Tablet+ */
-    @media (min-width: 768px) {
-      body {
-        padding: max(12px, env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+    /* Mobile: stack */
+    @media (max-width: 900px) {
+      .app {
+        grid-template-rows: var(--top-h) auto 1fr minmax(120px, 28vh);
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "top"
+          "side"
+          "main"
+          "bottom";
+        overflow: auto;
       }
-      .wrap { max-width: 1100px; }
-      .overview { margin-bottom: 0; gap: 8px; }
-      #adminMount { margin-top: 8px; gap: 0; }
-      #adminMount.masonry.is-packed {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+      .side {
+        flex-direction: row; border-right: 0; border-bottom: 1px solid var(--border);
+        overflow-x: auto; max-height: none;
       }
-      .event-stream { margin-bottom: 0; }
-      .event-feed { max-height: 240px; }
-      .outbox { max-height: 280px; }
-      button { min-width: 0; flex: 0 1 auto; }
-      .stats { gap: 8px; grid-template-columns: repeat(3, 1fr); }
-      .stat .n { font-size: 1.35rem; }
-      .modal { width: min(100%, 420px); }
-      details.panel { padding: 10px 12px; }
-      details.panel > .panel-body { max-height: 360px; padding-bottom: 8px; }
-      .card { margin-bottom: 0; padding: 10px 12px; }
-      .hero { margin-bottom: 0; padding: 12px; }
-      .row { margin-top: 8px; gap: 6px; }
-    }
-
-    /* Desktop */
-    @media (min-width: 1100px) {
-      .wrap { max-width: 1400px; }
-      .brand h1 { font-size: 1.35rem; }
-      .hero { padding: 12px 14px; }
-      .card, details.panel { padding: 10px 12px; }
-      table { font-size: 0.82rem; }
-      .outbox { max-height: 300px; }
-      .event-feed { max-height: 260px; }
-      .event-item {
-        grid-template-columns: minmax(100px, auto) minmax(0, 1fr) auto;
+      .side-nav {
+        flex-direction: row; padding: 6px; gap: 4px; overflow-x: auto;
       }
-      .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-      #adminMount.masonry.is-packed {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 10px;
-      }
-      details.panel > .panel-body { max-height: 380px; }
+      .nav-item { white-space: nowrap; flex: 0 0 auto; padding: 8px 12px; }
+      .nav-item .badge-n { display: none; }
+      .side-foot { display: none; }
+      .ctx { display: none !important; }
+      .bottom { grid-template-columns: 1fr; }
+      .bottom-pane:first-child { border-right: 0; border-bottom: 1px solid var(--border); }
+      .split { grid-template-columns: 1fr; height: auto; }
+      .main-body { overflow: visible; }
+      body { overflow: auto; }
+      .app { height: auto; min-height: 100dvh; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="brand">
-      <img src="/ops/assets/squidsec-logo-256.png"
-           onerror="this.onerror=null;this.src='https://i.imgur.com/m1FBjqj.png'"
-           alt="SquidC5" width="48" height="48" />
-      <div class="brand-text">
-        <h1>SQUID<span class="p">C5</span></h1>
-        <div class="sub">operator console</div>
-        <div class="c5-expand" title="What C5 stands for">
-          Command<span class="dot">•</span>Control<span class="dot">•</span>Cognitive<span class="dot">•</span>Collaborative<span class="dot">•</span>Coordination
+  <div class="app" id="app">
+    <header class="top">
+      <img class="logo" src="/ops/assets/squidsec-logo-96.png" alt=""
+           onerror="this.src='/ops/assets/squidsec-logo-256.png'" />
+      <div class="title">SQUID<span>C5</span></div>
+      <div class="sep"></div>
+      <div class="host mono" id="hostLine" title="Server">not connected</div>
+      <div class="spacer"></div>
+      <span class="pill" id="statusBadge">offline</span>
+      <span class="pill live hidden" id="roleBadge">—</span>
+      <button type="button" id="btnConnect" title="Connection settings">Connect</button>
+      <button type="button" id="btnRefresh" title="Refresh data">↻</button>
+    </header>
+
+    <nav class="side" aria-label="Primary">
+      <div class="side-nav" id="sideNav">
+        <button type="button" class="nav-item active" data-view="dashboard"><span class="ico">▣</span> Dashboard</button>
+        <button type="button" class="nav-item" data-view="sessions"><span class="ico">◉</span> Sessions <span class="badge-n" id="navNSes">0</span></button>
+        <button type="button" class="nav-item" data-view="listeners"><span class="ico">◎</span> Listeners <span class="badge-n" id="navNLis">0</span></button>
+        <button type="button" class="nav-item" data-view="payloads"><span class="ico">⌘</span> Payloads</button>
+        <button type="button" class="nav-item" data-view="postex"><span class="ico">⚡</span> Post-Ex</button>
+        <button type="button" class="nav-item" data-view="collab"><span class="ico">⇄</span> Collab</button>
+        <button type="button" class="nav-item" data-view="observe"><span class="ico">▤</span> Observe</button>
+        <button type="button" class="nav-item hidden" data-view="admin" id="navAdmin"><span class="ico">⚙</span> Admin</button>
+      </div>
+      <div class="side-foot" id="sideFoot">Authorized use only</div>
+    </nav>
+
+    <main class="main">
+      <div class="main-head">
+        <div>
+          <h2 id="viewTitle">Dashboard</h2>
+          <div class="sub" id="viewSub">Overview of this teamserver</div>
         </div>
+        <div class="tools" id="viewTools"></div>
       </div>
-      <span id="statusBadge" class="badge">offline</span>
-      <span id="roleBadge" class="badge admin hidden">—</span>
-    </div>
-
-    <div id="error" class="err"></div>
-    <div id="okmsg" class="okmsg"></div>
-
-    <details class="panel" id="settingsPanel">
-      <summary>Connection <a class="doc-link summary-doc" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#connection" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Docs</a></summary>
-      <p class="hint">Browser credentials for this console. Server URL is the SquidC5 base (usually this host when opened via <code>/ops</code>). API token is a scoped <code>sc5_…</code> secret stored only in localStorage. Admin panels load only after the server accepts the token. Refresh interval polls sessions/listeners/metrics. <a class="doc-link" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#connection" target="_blank" rel="noopener noreferrer">Full docs →</a></p>
-      <label for="url">Server URL</label>
-      <input id="url" type="url" placeholder="https://HOST:8443" autocomplete="off" />
-      <label for="token">API token</label>
-      <input id="token" type="password" placeholder="sc5_…" autocomplete="off" />
-      <label for="refresh">Refresh (sec)</label>
-      <input id="refresh" type="number" min="5" max="120" value="10" />
-      <div class="conn-actions">
-        <button type="button" class="primary" id="saveBtn">Save &amp; Connect</button>
-        <button type="button" id="toggleToken">Show token</button>
-        <button type="button" id="refreshBtn">Refresh</button>
-        <button type="button" class="primary" id="shareBtn">Phone QR</button>
+      <div class="main-body" id="mainBody">
+        <!-- Views filled by ops-admin.js after auth; shell shows login empty states -->
+        <div class="view active" id="view-dashboard">
+          <div class="empty-state" id="dashEmpty">
+            <strong>Connect to get started</strong>
+            Enter your server URL and API token (top-right Connect).
+          </div>
+          <div id="dashContent" class="hidden">
+            <div class="stats" id="dashStats"></div>
+            <div class="split" style="min-height:300px">
+              <div class="list-panel">
+                <div class="lp-head">Recent sessions</div>
+                <div class="lp-body" id="dashSes"></div>
+              </div>
+              <div class="work-panel">
+                <div class="wp-head">Quick actions</div>
+                <div class="wp-body" id="dashQuick"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="view" id="view-sessions"></div>
+        <div class="view" id="view-listeners"></div>
+        <div class="view" id="view-payloads"></div>
+        <div class="view" id="view-postex"></div>
+        <div class="view" id="view-collab"></div>
+        <div class="view" id="view-observe"></div>
+        <div class="view" id="view-admin"></div>
       </div>
-    </details>
+    </main>
 
-    <details class="panel event-stream" id="eventStream" aria-label="Live event stream">
-      <summary>
-        <span class="event-stream-head">
-          <span class="live-dot" title="Live"></span>
-          <span>Event stream</span>
-          <span class="count" id="eventCount">0 events</span>
-        </span>
-        <a class="doc-link summary-doc" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#event-stream" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Docs</a>
-      </summary>
-      <p class="hint">Live activity from this C2: shell connect / verify / reject, listener changes, tasks, and other server events. Newest first; refreshes with the poll interval. <a class="doc-link" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#event-stream" target="_blank" rel="noopener noreferrer">Full docs →</a></p>
-      <div class="event-feed" id="eventsBox">
-        <div class="empty">Connect to load events</div>
+    <aside class="ctx" id="ctxRail">
+      <div class="ctx-head">Session context</div>
+      <div class="ctx-body" id="ctxBody">
+        <div class="ctx-empty">Select a session to see details, claim/release, and interact.</div>
       </div>
-    </details>
+    </aside>
 
-    <details class="panel hero" id="heroPanel">
-      <summary>Status overview <a class="doc-link summary-doc" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#status-overview" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Docs</a></summary>
-      <div class="hero-host" id="hostLine">not connected</div>
-      <p class="hint" style="margin-top:0">At-a-glance C2 health: sessions, listeners, implant traffic, AI usage, and host uptime. Values refresh with the poll interval. <a class="doc-link" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#status-overview" target="_blank" rel="noopener noreferrer">Full docs →</a></p>
-      <div class="stats">
-        <div class="stat tone-ok"><div class="n" id="nVerified">—</div><div class="l">Verified shells</div></div>
-        <div class="stat tone-pink"><div class="n" id="nListeners">—</div><div class="l">Listeners up</div></div>
-        <div class="stat tone-cyan"><div class="n" id="nSessions">—</div><div class="l">Active sessions</div></div>
-        <div class="stat tone-purple"><div class="n" id="nTasks">—</div><div class="l">Open tasks</div></div>
-        <div class="stat tone-ok"><div class="n" id="nBeacons">—</div><div class="l">HTTP hits</div></div>
-        <div class="stat tone-warn"><div class="n" id="nStabilized">—</div><div class="l">Stabilized</div></div>
-        <div class="stat tone-bad"><div class="n" id="nFalsePos">—</div><div class="l">False shells</div></div>
-        <div class="stat tone-purple"><div class="n" id="nAi">—</div><div class="l">AI calls</div></div>
-        <div class="stat tone-cyan"><div class="n" id="nUptime">—</div><div class="l">Uptime</div></div>
+    <footer class="bottom">
+      <div class="bottom-pane">
+        <div class="bp-head"><span class="live-dot"></span> Event stream <span class="muted" id="eventCount" style="margin-left:auto;text-transform:none;letter-spacing:0">0</span></div>
+        <div class="bp-body" id="eventsBox">Connect to stream events…</div>
       </div>
-    </details>
-
-    <div class="overview masonry" id="overviewMount">
-      <details class="panel shells-card" id="shellsPanel">
-        <summary>Verified reverse shells <a class="doc-link summary-doc" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#verified-reverse-shells-overview-card" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Docs</a></summary>
-        <p class="hint">Live TCP reverse shells that passed false-shell filtering and the exec probe (real command execution). Prefer these for interactive Shell commands. Dead/echo-only connections are reaped automatically. <a class="doc-link" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#shell" target="_blank" rel="noopener noreferrer">Full docs →</a></p>
-        <div id="shellsBox" class="empty">No verified shells</div>
-      </details>
-
-      <details class="panel listeners-card" id="listenersOverviewPanel">
-        <summary>Listeners <a class="doc-link summary-doc" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#listeners" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Docs</a></summary>
-        <p class="hint">Bound acceptors on this host (name, port, kind, status). Running listeners are what implants and reverse shells connect to. Create/start more under the Listeners panel below. <a class="doc-link" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#listeners" target="_blank" rel="noopener noreferrer">Full docs →</a></p>
-        <div id="listenersBox" class="empty">—</div>
-      </details>
-
-      <details class="panel signal-card" id="signalPanel">
-        <summary>Signal <a class="doc-link summary-doc" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#signal" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Docs</a></summary>
-        <p class="hint">Quick status chips from the last poll (health, feature hints, session counts). Use this to confirm the API is reachable and the server is not in a degraded state. <a class="doc-link" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md#signal" target="_blank" rel="noopener noreferrer">Full docs →</a></p>
-        <div class="chips" id="chips"><span class="chip">—</span></div>
-        <p class="muted" id="healthLine" style="margin:8px 0 0">—</p>
-      </details>
-    </div>
-
-    <!-- Admin UI injected after server-side scope check -->
-    <div id="adminMount" class="masonry"></div>
-
-    <footer>
-      <div id="footer">Last update: never</div>
-      <div style="margin-top:6px;font-size:0.65rem;color:var(--muted);line-height:1.4">
-        <strong style="color:var(--pink)">SquidC5</strong>
-        — Command • Control • Cognitive • Collaborative • Coordination
-      </div>
-      <div style="margin-top:4px;letter-spacing:0.12em;text-transform:uppercase;font-size:0.62rem">
-        authorized ops only
-      </div>
-      <div style="margin-top:8px;font-size:0.72rem">
-        <a class="doc-link" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md" target="_blank" rel="noopener noreferrer">User guide (GitHub)</a>
-        ·
-        <a class="doc-link" href="https://github.com/DotNetRussell/SquidC5/blob/master/docs/README.md" target="_blank" rel="noopener noreferrer">Docs index</a>
+      <div class="bottom-pane">
+        <div class="bp-head">Output / console</div>
+        <div class="bp-body" id="consoleBox">Command and task output appears here.</div>
       </div>
     </footer>
   </div>
 
-  <div class="modal-bg" id="qrModal">
+  <div class="toast err" id="toastErr"></div>
+  <div class="toast ok" id="toastOk"></div>
+
+  <div class="modal-bg" id="connectModal" role="dialog" aria-modal="true" aria-labelledby="connTitle">
     <div class="modal">
-      <h2 style="margin:0 0 6px;font-size:1.05rem">Scan with phone</h2>
-      <p class="muted">Opens this console pre-configured. QR embeds your token — don’t share.</p>
-      <div class="qr-box" id="qrCanvas"></div>
-      <div class="share-url" id="shareUrl">—</div>
-      <div class="row">
-        <button type="button" id="copyShareBtn">Copy link</button>
-        <button type="button" class="primary" id="closeQrBtn">Done</button>
+      <h3 id="connTitle">Connect to teamserver</h3>
+      <p class="muted" style="font-size:0.85rem;margin:0 0 8px">Token stays in this browser only (localStorage).</p>
+      <label for="url">Server URL</label>
+      <input id="url" type="url" placeholder="https://HOST:8443" autocomplete="off" />
+      <label for="token">API token</label>
+      <input id="token" type="password" placeholder="sc5_…" autocomplete="off" />
+      <label for="refresh">Poll interval (sec)</label>
+      <input id="refresh" type="number" min="5" max="120" value="10" />
+      <div class="row" style="margin-top:14px">
+        <button type="button" class="primary" id="saveBtn">Save &amp; Connect</button>
+        <button type="button" id="toggleToken">Show token</button>
+        <button type="button" id="closeModal">Cancel</button>
       </div>
     </div>
   </div>
 
-  <script>
-/* qrcode-generator 1.4.4 — offline */
-/**
- * Minified by jsDelivr using Terser v5.37.0.
- * Original file: /npm/qrcode-generator@1.4.4/qrcode.js
- *
- * Do NOT use SRI with dynamically generated files! More information: https://www.jsdelivr.com/using-sri-with-dynamic-files
- */
-var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],f={},c=function(t,r){o=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(i=4*e+17),l(0,0),l(i-7,0),l(0,i-7),s(),h(),d(t,r),e>=7&&v(t),null==a&&(a=p(e,n,u)),w(a,r)},l=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||i<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||i<=r+n||(o[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},h=function(){for(var t=8;t<i-8;t+=1)null==o[t][6]&&(o[t][6]=t%2==0);for(var r=8;r<i-8;r+=1)null==o[6][r]&&(o[6][r]=r%2==0)},s=function(){for(var t=B.getPatternPosition(e),r=0;r<t.length;r+=1)for(var n=0;n<t.length;n+=1){var i=t[r],a=t[n];if(null==o[i][a])for(var u=-2;u<=2;u+=1)for(var f=-2;f<=2;f+=1)o[i+u][a+f]=-2==u||2==u||-2==f||2==f||0==u&&0==f}},v=function(t){for(var r=B.getBCHTypeNumber(e),n=0;n<18;n+=1){var a=!t&&1==(r>>n&1);o[Math.floor(n/3)][n%3+i-8-3]=a}for(n=0;n<18;n+=1){a=!t&&1==(r>>n&1);o[n%3+i-8-3][Math.floor(n/3)]=a}},d=function(t,r){for(var e=n<<3|r,a=B.getBCHTypeInfo(e),u=0;u<15;u+=1){var f=!t&&1==(a>>u&1);u<6?o[u][8]=f:u<8?o[u+1][8]=f:o[i-15+u][8]=f}for(u=0;u<15;u+=1){f=!t&&1==(a>>u&1);u<8?o[8][i-u-1]=f:u<9?o[8][15-u-1+1]=f:o[8][15-u-1]=f}o[i-8][8]=!t},w=function(t,r){for(var e=-1,n=i-1,a=7,u=0,f=B.getMaskFunction(r),c=i-1;c>0;c-=2)for(6==c&&(c-=1);;){for(var g=0;g<2;g+=1)if(null==o[n][c-g]){var l=!1;u<t.length&&(l=1==(t[u]>>>a&1)),f(n,c-g)&&(l=!l),o[n][c-g]=l,-1==(a-=1)&&(u+=1,a=7)}if((n+=e)<0||i<=n){n-=e,e=-e;break}}},p=function(t,r,e){for(var n=A.getRSBlocks(t,r),o=b(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=k(i[u],l.getLength()-1).mod(l);for(a[u]=new Array(l.getLength()-1),g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=s>=0?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};f.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=M(t);break;case"Alphanumeric":e=x(t);break;case"Byte":e=m(t);break;case"Kanji":e=L(t);break;default:throw"mode:"+r}u.push(e),a=null},f.isDark=function(t,r){if(t<0||i<=t||r<0||i<=r)throw t+","+r;return o[t][r]},f.getModuleCount=function(){return i},f.make=function(){if(e<1){for(var t=1;t<40;t++){for(var r=A.getRSBlocks(t,n),o=b(),i=0;i<u.length;i++){var a=u[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var g=0;for(i=0;i<r.length;i++)g+=r[i].dataCount;if(o.getLengthInBits()<=8*g)break}e=t}c(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){c(!0,e);var n=B.getLostPoint(f);(0==e||t>n)&&(t=n,r=e)}return r}())},f.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<f.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<f.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=f.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},f.createSvgTag=function(t,r,e,n){var o={};"object"==typeof arguments[0]&&(t=(o=arguments[0]).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,c,g=f.getModuleCount()*t+2*r,l="";for(c="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",l+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',l+=o.scalable?"":' width="'+g+'px" height="'+g+'px"',l+=' viewBox="0 0 '+g+" "+g+'" ',l+=' preserveAspectRatio="xMinYMin meet"',l+=n.text||e.text?' role="img" aria-labelledby="'+y([n.id,e.id].join(" ").trim())+'"':"",l+=">",l+=n.text?'<title id="'+y(n.id)+'">'+y(n.text)+"</title>":"",l+=e.text?'<description id="'+y(e.id)+'">'+y(e.text)+"</description>":"",l+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',l+='<path d="',a=0;a<f.getModuleCount();a+=1)for(u=a*t+r,i=0;i<f.getModuleCount();i+=1)f.isDark(a,i)&&(l+="M"+(i*t+r)+","+u+c);return l+='" stroke="transparent" fill="black"/>',l+="</svg>"},f.createDataURL=function(t,r){t=t||2,r=void 0===r?4*t:r;var e=f.getModuleCount()*t+2*r,n=r,o=e-r;return I(e,e,(function(r,e){if(n<=r&&r<o&&n<=e&&e<o){var i=Math.floor((r-n)/t),a=Math.floor((e-n)/t);return f.isDark(a,i)?0:1}return 1}))},f.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=f.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=f.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=y(e),o+='"'),o+="/>"};var y=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return f.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*f.getModuleCount()+2*t,u=t,c=a-t,g={"██":"█","█ ":"▀"," █":"▄","  ":" "},l={"██":"▀","█ ":"▀"," █":" ","  ":" "},h="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<c&&u<=r&&r<c&&f.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<c&&u<=r+1&&r+1<c&&f.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",h+=t<1&&r+1>=c?l[i]:g[i];h+="\n"}return a%2&&t>0?h.substring(0,h.length-a-1)+Array(a+1).join("▀"):h.substring(0,h.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=f.getModuleCount()*t+2*r,u=r,c=a-r,g=Array(t+1).join("██"),l=Array(t+1).join("  "),h="",s="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),s="",n=0;n<a;n+=1)i=1,u<=n&&n<c&&u<=e&&e<c&&f.isDark(o,Math.floor((n-u)/t))&&(i=0),s+=i?g:l;for(o=0;o<t;o+=1)h+=s+"\n"}return h.substring(0,h.length-1)},f.renderTo2dContext=function(t,r){r=r||2;for(var e=f.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=f.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},f};t.stringToBytes=(t.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,t.createStringToBytes=function(t,r){var e=function(){for(var e=S(t),n=function(){var t=e.read();if(-1==t)throw"eof";return t},o=0,i={};;){var a=e.read();if(-1==a)break;var u=n(),f=n()<<8|n();i[String.fromCharCode(a<<8|u)]=f,o+=1}if(o!=r)throw o+" != "+r;return i}(),n="?".charCodeAt(0);return function(t){for(var r=[],o=0;o<t.length;o+=1){var i=t.charCodeAt(o);if(i<128)r.push(i);else{var a=e[t.charAt(o)];"number"==typeof a?(255&a)==a?r.push(a):(r.push(a>>>8),r.push(255&a)):r.push(n)}}return r}};var r,e,n,o,i,a=1,u=2,f=4,c=8,g={L:1,M:0,Q:3,H:2},l=0,h=1,s=2,v=3,d=4,w=5,p=6,y=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],e=1335,n=7973,i=function(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r},(o={}).getBCHTypeInfo=function(t){for(var r=t<<10;i(r)-i(e)>=0;)r^=e<<i(r)-i(e);return 21522^(t<<10|r)},o.getBCHTypeNumber=function(t){for(var r=t<<12;i(r)-i(n)>=0;)r^=n<<i(r)-i(n);return t<<12|r},o.getPatternPosition=function(t){return r[t-1]},o.getMaskFunction=function(t){switch(t){case l:return function(t,r){return(t+r)%2==0};case h:return function(t,r){return t%2==0};case s:return function(t,r){return r%3==0};case v:return function(t,r){return(t+r)%3==0};case d:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case w:return function(t,r){return t*r%2+t*r%3==0};case p:return function(t,r){return(t*r%2+t*r%3)%2==0};case y:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},o.getErrorCorrectPolynomial=function(t){for(var r=k([1],0),e=0;e<t;e+=1)r=r.multiply(k([1,C.gexp(e)],0));return r},o.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case f:case c:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case f:return 16;case c:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case f:return 16;case c:return 12;default:throw"mode:"+t}}},o.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);i>5&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},o),C=function(){for(var t=new Array(256),r=new Array(256),e=0;e<8;e+=1)t[e]=1<<e;for(e=8;e<256;e+=1)t[e]=t[e-4]^t[e-5]^t[e-6]^t[e-8];for(e=0;e<255;e+=1)r[t[e]]=e;var n={glog:function(t){if(t<1)throw"glog("+t+")";return r[t]},gexp:function(r){for(;r<0;)r+=255;for(;r>=256;)r-=255;return t[r]}};return n}();function k(t,r){if(void 0===t.length)throw t.length+"/"+r;var e=function(){for(var e=0;e<t.length&&0==t[e];)e+=1;for(var n=new Array(t.length-e+r),o=0;o<t.length-e;o+=1)n[o]=t[o+e];return n}(),n={getAt:function(t){return e[t]},getLength:function(){return e.length},multiply:function(t){for(var r=new Array(n.getLength()+t.getLength()-1),e=0;e<n.getLength();e+=1)for(var o=0;o<t.getLength();o+=1)r[e+o]^=C.gexp(C.glog(n.getAt(e))+C.glog(t.getAt(o)));return k(r,0)},mod:function(t){if(n.getLength()-t.getLength()<0)return n;for(var r=C.glog(n.getAt(0))-C.glog(t.getAt(0)),e=new Array(n.getLength()),o=0;o<n.getLength();o+=1)e[o]=n.getAt(o);for(o=0;o<t.getLength();o+=1)e[o]^=C.gexp(C.glog(t.getAt(o))+r);return k(e,0).mod(t)}};return n}var A=function(){var t=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],r=function(t,r){var e={};return e.totalCount=t,e.dataCount=r,e},e={};return e.getRSBlocks=function(e,n){var o=function(r,e){switch(e){case g.L:return t[4*(r-1)+0];case g.M:return t[4*(r-1)+1];case g.Q:return t[4*(r-1)+2];case g.H:return t[4*(r-1)+3];default:return}}(e,n);if(void 0===o)throw"bad rs block @ typeNumber:"+e+"/errorCorrectionLevel:"+n;for(var i=o.length/3,a=[],u=0;u<i;u+=1)for(var f=o[3*u+0],c=o[3*u+1],l=o[3*u+2],h=0;h<f;h+=1)a.push(r(c,l));return a},e}(),b=function(){var t=[],r=0,e={getBuffer:function(){return t},getAt:function(r){var e=Math.floor(r/8);return 1==(t[e]>>>7-r%8&1)},put:function(t,r){for(var n=0;n<r;n+=1)e.putBit(1==(t>>>r-n-1&1))},getLengthInBits:function(){return r},putBit:function(e){var n=Math.floor(r/8);t.length<=n&&t.push(0),e&&(t[n]|=128>>>r%8),r+=1}};return e},M=function(t){var r=a,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+2<r.length;)t.put(o(r.substring(n,n+3)),10),n+=3;n<r.length&&(r.length-n==1?t.put(o(r.substring(n,n+1)),4):r.length-n==2&&t.put(o(r.substring(n,n+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return n},x=function(t){var r=u,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+1<r.length;)t.put(45*o(r.charAt(n))+o(r.charAt(n+1)),11),n+=2;n<r.length&&t.put(o(r.charAt(n)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return n},m=function(r){var e=f,n=t.stringToBytes(r),o={getMode:function(){return e},getLength:function(t){return n.length},write:function(t){for(var r=0;r<n.length;r+=1)t.put(n[r],8)}};return o},L=function(r){var e=c,n=t.stringToBytesFuncs.SJIS;if(!n)throw"sjis not supported.";!function(){var t=n("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=n(r),i={getMode:function(){return e},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return i},D=function(){var t=[],r={writeByte:function(r){t.push(255&r)},writeShort:function(t){r.writeByte(t),r.writeByte(t>>>8)},writeBytes:function(t,e,n){e=e||0,n=n||t.length;for(var o=0;o<n;o+=1)r.writeByte(t[o+e])},writeString:function(t){for(var e=0;e<t.length;e+=1)r.writeByte(t.charCodeAt(e))},toByteArray:function(){return t},toString:function(){var r="";r+="[";for(var e=0;e<t.length;e+=1)e>0&&(r+=","),r+=t[e];return r+="]"}};return r},S=function(t){var r=t,e=0,n=0,o=0,i={read:function(){for(;o<8;){if(e>=r.length){if(0==o)return-1;throw"unexpected end of file./"+o}var t=r.charAt(e);if(e+=1,"="==t)return o=0,-1;t.match(/^\s$/)||(n=n<<6|a(t.charCodeAt(0)),o+=6)}var i=n>>>o-8&255;return o-=8,i}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return i},I=function(t,r,e){for(var n=function(t,r){var e=t,n=r,o=new Array(t*r),i={setPixel:function(t,r,n){o[r*e+t]=n},write:function(t){t.writeString("GIF87a"),t.writeShort(e),t.writeShort(n),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(e),t.writeShort(n),t.writeByte(0);var r=a(2);t.writeByte(2);for(var o=0;r.length-o>255;)t.writeByte(255),t.writeBytes(r,o,255),o+=255;t.writeByte(r.length-o),t.writeBytes(r,o,r.length-o),t.writeByte(0),t.writeString(";")}},a=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,i=u(),a=0;a<r;a+=1)i.add(String.fromCharCode(a));i.add(String.fromCharCode(r)),i.add(String.fromCharCode(e));var f,c,g,l=D(),h=(f=l,c=0,g=0,{write:function(t,r){if(t>>>r!=0)throw"length over";for(;c+r>=8;)f.writeByte(255&(t<<c|g)),r-=8-c,t>>>=8-c,g=0,c=0;g|=t<<c,c+=r},flush:function(){c>0&&f.writeByte(g)}});h.write(r,n);var s=0,v=String.fromCharCode(o[s]);for(s+=1;s<o.length;){var d=String.fromCharCode(o[s]);s+=1,i.contains(v+d)?v+=d:(h.write(i.indexOf(v),n),i.size()<4095&&(i.size()==1<<n&&(n+=1),i.add(v+d)),v=d)}return h.write(i.indexOf(v),n),h.write(e,n),h.flush(),l.toByteArray()},u=function(){var t={},r=0,e={add:function(n){if(e.contains(n))throw"dup key:"+n;t[n]=r,r+=1},size:function(){return r},indexOf:function(r){return t[r]},contains:function(r){return void 0!==t[r]}};return e};return i}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=D();n.write(a);for(var u=function(){var t=0,r=0,e=0,n="",o={},i=function(t){n+=String.fromCharCode(a(63&t))},a=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return o.writeByte=function(n){for(t=t<<8|255&n,r+=8,e+=1;r>=6;)i(t>>>r-6),r-=6},o.flush=function(){if(r>0&&(i(t<<6-r),t=0,r=0),e%3!=0)for(var o=3-e%3,a=0;a<o;a+=1)n+="="},o.toString=function(){return n},o}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return t}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||n>=57344?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}((function(){return qrcode}));
-//# sourceMappingURL=/sm/26b4b0d0b1e283d6b3ec9857ac597d7a60c76ac17be1ef4c965f03086de426bb.map
-  </script>
+  <!-- Bridge mount for legacy hooks; content lives in views -->
+  <div id="adminMount" class="hidden" aria-hidden="true"></div>
 
   <script>
-    const $ = (id) => document.getElementById(id);
-    const KEYS = {
-      url: "sc5_dash_url",
-      token: "sc5_dash_token",
-      refresh: "sc5_dash_refresh",
-      layoutOverview: "sc5_layout_overview",
-      layoutAdmin: "sc5_layout_admin",
-      layoutWide: "sc5_layout_wide",
+(function () {
+  const KEYS = { url: "sc5_dash_url", token: "sc5_dash_token", refresh: "sc5_dash_refresh" };
+  const $ = (id) => document.getElementById(id);
+  const state = { scopes: [], actor: null, meta: null, token: "", sessions: [], listeners: [], selectedId: null };
+
+  function showError(msg) {
+    const el = $("toastErr");
+    if (!msg) { el.classList.remove("show"); return; }
+    el.textContent = msg; el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 5000);
+  }
+  function showOk(msg) {
+    const el = $("toastOk");
+    if (!msg) { el.classList.remove("show"); return; }
+    el.textContent = msg; el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 3000);
+  }
+  function showOutput(text, meta) {
+    const box = $("consoleBox");
+    if (!box) return;
+    const body = text == null || text === "" ? "(no output)" : String(text);
+    box.textContent = meta ? meta + "\n\n" + body : body;
+    box.scrollTop = box.scrollHeight;
+  }
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function defaultServerUrl() {
+    try {
+      if (location.protocol.startsWith("http")) return location.origin;
+    } catch (_) {}
+    return "";
+  }
+  function cfg() {
+    return {
+      url: (localStorage.getItem(KEYS.url) || defaultServerUrl() || "").replace(/\/$/, ""),
+      token: localStorage.getItem(KEYS.token) || "",
+      refresh: Math.max(5, Number(localStorage.getItem(KEYS.refresh) || 10)),
     };
-    let timer = null;
-    let tokenVisible = false;
-    let lastShare = "";
-    let scopes = new Set();
-    let isAdmin = false;
-    const state = { features: {}, adminLoaded: false };
+  }
+  function apiBase() {
+    try {
+      if (location.protocol.startsWith("http") && location.pathname.indexOf("/ops") === 0)
+        return location.origin.replace(/\/$/, "");
+    } catch (_) {}
+    return (cfg().url || "").replace(/\/$/, "");
+  }
+  function can(scope) {
+    if (!state.scopes || !state.scopes.length) return false;
+    if (state.scopes.indexOf("admin") >= 0) return true;
+    return state.scopes.indexOf(scope) >= 0;
+  }
+  async function api(method, path, body) {
+    const base = apiBase();
+    const token = cfg().token;
+    if (!base || !token) throw new Error("Not connected");
+    const opts = {
+      method,
+      headers: { Authorization: "Bearer " + token, Accept: "application/json" },
+    };
+    if (body !== undefined) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    const r = await fetch(base + path, opts);
+    const ct = r.headers.get("content-type") || "";
+    const data = ct.includes("json") ? await r.json().catch(() => ({})) : await r.text();
+    if (!r.ok) {
+      let msg = typeof data === "object" ? (data.detail || data.error || JSON.stringify(data)) : String(data);
+      if (typeof msg === "object") msg = JSON.stringify(msg);
+      throw new Error(msg || ("HTTP " + r.status));
+    }
+    return data;
+  }
 
-    function defaultServerUrl() {
-      try { if (location.protocol.startsWith("http")) return location.origin.replace(/\/$/, ""); } catch (_) {}
-      return "";
-    }
-    function b64urlEncode(obj) {
-      const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
-      return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-    }
-    function b64urlDecode(s) {
-      let b64 = s.replace(/-/g, "+").replace(/_/g, "/");
-      while (b64.length % 4) b64 += "=";
-      return JSON.parse(decodeURIComponent(escape(atob(b64))));
-    }
-    function showError(msg) {
-      const el = $("error");
-      if (!msg) { el.classList.remove("show"); el.textContent = ""; return; }
-      el.textContent = msg; el.classList.add("show");
-    }
-    function showOk(msg) {
-      const el = $("okmsg");
-      if (!msg) { el.classList.remove("show"); el.textContent = ""; return; }
-      el.textContent = msg; el.classList.add("show");
-      setTimeout(() => el.classList.remove("show"), 3500);
-    }
-    function esc(s) {
-      return String(s == null ? "" : s)
-        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-    }
+  /* —— Navigation —— */
+  const VIEWS = {
+    dashboard: { title: "Dashboard", sub: "Teamserver health and shortcuts" },
+    sessions: { title: "Sessions", sub: "Beacons and reverse shells" },
+    listeners: { title: "Listeners", sub: "Bind ports and manage acceptors" },
+    payloads: { title: "Payloads", sub: "Generate implants and templates" },
+    postex: { title: "Post-Ex", sub: "Files, SOCKS, modules on selected session" },
+    collab: { title: "Collab", sub: "Teams, chat, handoff, presence" },
+    observe: { title: "Observe", sub: "Metrics, audit, timeline, reports" },
+    admin: { title: "Admin", sub: "Tokens, policy, features, LLM, MCP" },
+  };
+  let currentView = "dashboard";
+  function setView(name) {
+    if (name === "admin" && !can("admin")) name = "dashboard";
+    currentView = name;
+    document.querySelectorAll(".nav-item").forEach((b) => {
+      b.classList.toggle("active", b.getAttribute("data-view") === name);
+    });
+    document.querySelectorAll(".view").forEach((v) => {
+      v.classList.toggle("active", v.id === "view-" + name);
+    });
+    const meta = VIEWS[name] || VIEWS.dashboard;
+    $("viewTitle").textContent = meta.title;
+    $("viewSub").textContent = meta.sub;
+    $("viewTools").innerHTML = "";
+    if (window.__SC5_onView) window.__SC5_onView(name);
+    try { localStorage.setItem("sc5_ops_view", name); } catch (_) {}
+  }
+  document.querySelectorAll(".nav-item").forEach((b) => {
+    b.addEventListener("click", () => setView(b.getAttribute("data-view")));
+  });
 
-    function showOutput(text, meta) {
-      const box = $("shellOut");
-      if (!box) return;
-      const body = (text == null || text === "") ? "(no output)" : String(text);
-      box.textContent = meta ? meta + "\n\n" + body : body;
-      box.classList.toggle("empty-out", body === "(no output)");
-      try { box.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (_) {}
-    }
-    function cfg() {
-      return {
-        url: (localStorage.getItem(KEYS.url) || defaultServerUrl() || "").replace(/\/$/, ""),
-        token: localStorage.getItem(KEYS.token) || "",
-        refresh: Math.max(5, Number(localStorage.getItem(KEYS.refresh) || 10)),
-      };
-    }
-    /** Prefer same-origin when the page is served from this host (/ops) — avoids CORS breakage. */
-    function apiBase() {
-      try {
-        if (location.protocol.startsWith("http") && location.pathname.indexOf("/ops") === 0) {
-          return location.origin.replace(/\/$/, "");
-        }
-      } catch (_) {}
-      const u = cfg().url;
-      return (u || "").replace(/\/$/, "");
-    }
-    function saveSettings() {
-      let url = $("url").value.trim().replace(/\/$/, "");
-      // If user left URL blank while on /ops, default to this host
-      if (!url) url = defaultServerUrl();
-      // If on /ops, force same-origin base so connect always works
-      try {
-        if (location.pathname.indexOf("/ops") === 0 && location.protocol.startsWith("http")) {
-          url = location.origin.replace(/\/$/, "");
-          $("url").value = url;
-        }
-      } catch (_) {}
-      localStorage.setItem(KEYS.url, url);
-      localStorage.setItem(KEYS.token, $("token").value.trim());
-      localStorage.setItem(KEYS.refresh, String(Math.max(5, Number($("refresh").value) || 10)));
-    }
-    function applyHashConfig() {
-      const hash = (location.hash || "").replace(/^#/, "");
-      if (!hash.startsWith("sc5=") && !hash.startsWith("ss2=") && !hash.startsWith("cfg=")) return false;
-      try {
-        const payload = b64urlDecode(hash.split("=")[1]);
-        if (!payload.token) return false;
-        if (payload.url) localStorage.setItem(KEYS.url, String(payload.url).replace(/\/$/, ""));
-        localStorage.setItem(KEYS.token, payload.token);
-        if (payload.refresh) localStorage.setItem(KEYS.refresh, String(payload.refresh));
-        history.replaceState(null, "", location.pathname + location.search);
-        return true;
-      } catch (_) { return false; }
-    }
-    function loadSettings() {
-      const imported = applyHashConfig();
-      let url = localStorage.getItem(KEYS.url) || defaultServerUrl();
-      // Always prefer the host serving this page when opened via /ops
-      try {
-        if (location.pathname.indexOf("/ops") === 0 && location.protocol.startsWith("http")) {
-          url = location.origin.replace(/\/$/, "");
-          localStorage.setItem(KEYS.url, url);
-        }
-      } catch (_) {}
-      $("url").value = url || "";
-      $("token").value = localStorage.getItem(KEYS.token) || "";
-      $("refresh").value = localStorage.getItem(KEYS.refresh) || "10";
-      // Mobile: collapse panels; open Connection only if no token yet.
-      // Desktop: expand all details.panel by default.
-      applyPanelDefaults();
-      return imported;
-    }
-    function isDesktopLayout() {
-      try {
-        return window.matchMedia && window.matchMedia("(min-width: 768px)").matches;
-      } catch (_) {
-        return false;
-      }
-    }
-    function applyPanelDefaults() {
-      const desktop = isDesktopLayout();
-      const hasToken = !!(($("token") && $("token").value) || "").trim();
-      // Every container is a details.panel — expand on desktop, collapse on mobile
-      document.querySelectorAll("details.panel").forEach((el) => {
-        if (el.id === "settingsPanel") return;
-        el.open = desktop;
-      });
-      // Connection stays collapsed when already configured
-      $("settingsPanel").open = !hasToken;
-      scheduleMasonry();
-    }
+  /* —— Connect modal —— */
+  function openModal() { $("connectModal").classList.add("show"); }
+  function closeModal() { $("connectModal").classList.remove("show"); }
+  $("btnConnect").onclick = openModal;
+  $("closeModal").onclick = closeModal;
+  $("connectModal").addEventListener("click", (e) => { if (e.target === $("connectModal")) closeModal(); });
+  $("toggleToken").onclick = () => {
+    const t = $("token");
+    t.type = t.type === "password" ? "text" : "password";
+  };
+  $("saveBtn").onclick = async () => {
+    localStorage.setItem(KEYS.url, ($("url").value || "").trim().replace(/\/$/, ""));
+    localStorage.setItem(KEYS.token, ($("token").value || "").trim());
+    localStorage.setItem(KEYS.refresh, String(Math.max(5, Number($("refresh").value) || 10)));
+    closeModal();
+    await connect();
+  };
+  $("btnRefresh").onclick = () => refresh().catch((e) => showError(String(e.message || e)));
 
-    let masonryTimer = null;
-    function isFullWidthPanel(el) {
-      return !!(el && (el.classList.contains("is-wide") || el.classList.contains("masonry-span")));
+  function loadForm() {
+    let url = localStorage.getItem(KEYS.url) || defaultServerUrl();
+    if (url) {
+      try { localStorage.setItem(KEYS.url, url.replace(/\/$/, "")); } catch (_) {}
     }
-    function masonryCols() {
-      const w = window.innerWidth || document.documentElement.clientWidth || 0;
-      if (w >= 1100) return 3;
-      if (w >= 768) return 2;
-      return 1;
-    }
-    function masonryGap() {
-      return (window.innerWidth || 0) >= 1100 ? 18 : 14;
-    }
-    function clearMasonry(container) {
-      if (!container) return;
-      container.classList.remove("is-packed");
-      container.style.height = "";
-      Array.from(container.children).forEach((el) => {
-        el.style.position = "";
-        el.style.left = "";
-        el.style.top = "";
-        el.style.width = "";
-        el.style.transform = "";
-        el.style.height = "";
-        el.style.maxHeight = "";
-        el.style.overflow = "";
-        const body = el.querySelector && el.querySelector(":scope > .panel-body");
-        if (body) {
-          body.style.height = "";
-          body.style.maxHeight = "";
-          body.style.overflowY = "";
-          body.style.overflowX = "";
-        }
-      });
-    }
-    function isAutoHeightPanel(el) {
-      return !!(el && (
-        el.id === "heroPanel" ||
-        el.id === "settingsPanel" ||
-        el.id === "opsNavBar" ||
-        el.classList.contains("hero") ||
-        el.classList.contains("ops-nav")
-      ));
-    }
-    function applyTileScroll(el) {
-      // Dense natural-height layout — clear any legacy fixed-tile inline styles
-      if (!el) return;
-      el.style.height = "";
-      el.style.maxHeight = "";
-      el.style.overflow = "";
-      el.style.position = "";
-      el.style.left = "";
-      el.style.top = "";
-      el.style.width = "";
-      el.style.transform = "";
-      const body = el.querySelector && el.querySelector(":scope > .panel-body");
-      if (!body) return;
-      body.style.height = "";
-      body.style.maxHeight = "";
-      body.style.overflowY = "";
-      body.style.overflowX = "";
-      requestAnimationFrame(() => {
-        const canScroll = body.scrollHeight > body.clientHeight + 1;
-        body.classList.toggle("is-scrollable", canScroll);
-        if (!canScroll) body.classList.remove("scroll-focus");
-      });
-    }
+    $("url").value = url || "";
+    $("token").value = localStorage.getItem(KEYS.token) || "";
+    $("refresh").value = localStorage.getItem(KEYS.refresh) || "10";
+  }
 
-    // Wheel: page scrolls freely unless a scrollable panel-body was clicked (focused).
-    let scrollFocusBody = null;
-    function clearScrollFocus() {
-      document.querySelectorAll(".panel-body.scroll-focus").forEach((el) => {
-        el.classList.remove("scroll-focus");
-      });
-      scrollFocusBody = null;
+  /* —— Data refresh —— */
+  let timer = null;
+  async function connect() {
+    loadForm();
+    const c = cfg();
+    state.token = c.token;
+    if (!c.token || !apiBase()) {
+      $("statusBadge").textContent = "offline";
+      $("statusBadge").className = "pill bad";
+      openModal();
+      return;
     }
-    function bodyCanScroll(el) {
-      return !!(el && el.scrollHeight > el.clientHeight + 1);
-    }
-    document.addEventListener("pointerdown", (e) => {
-      const body = e.target.closest && e.target.closest(".panel-body");
-      if (body && bodyCanScroll(body)) {
-        if (scrollFocusBody && scrollFocusBody !== body) {
-          scrollFocusBody.classList.remove("scroll-focus");
-        }
-        scrollFocusBody = body;
-        body.classList.add("scroll-focus");
-        body.classList.add("is-scrollable");
-      } else if (!e.target.closest || !e.target.closest(".panel-body")) {
-        // Click outside any panel body → release focus so page can scroll
-        clearScrollFocus();
-      } else {
-        // Clicked a non-scrollable panel body — do not trap
-        clearScrollFocus();
-      }
-    }, true);
-    document.addEventListener(
-      "wheel",
-      (e) => {
-        const body = e.target.closest && e.target.closest(".panel-body");
-        // Default: never stop page scroll
-        if (!body) return;
-        // Only the focused, actually-scrollable body may consume wheel
-        if (body !== scrollFocusBody || !bodyCanScroll(body)) return;
-        const dy = e.deltaY;
-        if (dy === 0) return;
-        const max = body.scrollHeight - body.clientHeight;
-        const top = body.scrollTop;
-        const atTop = top <= 0;
-        const atBottom = top >= max - 1;
-        // Scroll the body ourselves; prevent page only while this focused body can move
-        if ((dy < 0 && !atTop) || (dy > 0 && !atBottom)) {
-          e.preventDefault();
-          body.scrollTop = Math.min(max, Math.max(0, top + dy));
-        }
-        // At edges: let the event bubble so the page can scroll
-      },
-      { passive: false, capture: true }
-    );
-    function packMasonry(container) {
-      // CSS grid layout only — no absolute positioning (dense desktop, no huge gaps)
-      if (!container) return;
-      const cols = masonryCols();
-      clearMasonry(container);
-      Array.from(container.children).forEach((el) => {
-        if (el.matches && el.matches("details.panel")) applyTileScroll(el);
-        if (el.id === "opsNavBar" || (el.classList && el.classList.contains("ops-nav"))) {
-          el.classList.add("col-span-all");
-        }
-        if (isFullWidthPanel(el)) el.classList.add("col-span-all");
-      });
-      if (cols <= 1) {
-        container.classList.remove("is-packed");
-        return;
-      }
-      container.classList.add("is-packed");
-      container.style.height = "auto";
-    }
-    function layoutMasonry() {
-      document.querySelectorAll("details.panel").forEach((el) => applyTileScroll(el));
-      packMasonry(document.querySelector(".overview"));
-      packMasonry($("adminMount"));
-    }
-    function scheduleMasonry() {
-      if (masonryTimer) clearTimeout(masonryTimer);
-      masonryTimer = setTimeout(() => {
-        requestAnimationFrame(() => {
-          layoutMasonry();
-          requestAnimationFrame(layoutMasonry);
-        });
-      }, 40);
-    }
-    window.__SC5_scheduleMasonry = scheduleMasonry;
-    window.addEventListener("resize", scheduleMasonry);
-    document.addEventListener("toggle", (e) => {
-      if (e.target && e.target.matches && e.target.matches("details.panel")) scheduleMasonry();
-    }, true);
-
-    // ----- Card reorder (browser localStorage only — never sent to C2) -----
-    function loadLayoutOrder(key) {
-      try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return null;
-        const arr = JSON.parse(raw);
-        return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : null;
-      } catch (_) {
-        return null;
-      }
-    }
-    function saveLayoutOrder(container, key) {
-      if (!container || !key) return;
-      const ids = Array.from(container.children)
-        .map((el) => el.id)
-        .filter((id) => id);
-      try {
-        localStorage.setItem(key, JSON.stringify(ids));
-      } catch (_) {}
-    }
-    function applyLayoutOrder(container, key) {
-      if (!container || !key) return;
-      const order = loadLayoutOrder(key);
-      if (!order || !order.length) return;
-      const byId = new Map();
-      Array.from(container.children).forEach((el) => {
-        if (el.id) byId.set(el.id, el);
-      });
-      order.forEach((id) => {
-        const el = byId.get(id);
-        if (el) {
-          container.appendChild(el);
-          byId.delete(id);
-        }
-      });
-      byId.forEach((el) => container.appendChild(el));
-    }
-    function loadWideIds() {
-      try {
-        const raw = localStorage.getItem(KEYS.layoutWide);
-        if (!raw) return new Set();
-        const arr = JSON.parse(raw);
-        return new Set(Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : []);
-      } catch (_) {
-        return new Set();
-      }
-    }
-    function saveWideIds(set) {
-      try {
-        localStorage.setItem(KEYS.layoutWide, JSON.stringify(Array.from(set)));
-      } catch (_) {}
-    }
-    function applyWideState(root) {
-      const wide = loadWideIds();
-      (root || document).querySelectorAll("details.panel[id]").forEach((el) => {
-        el.classList.toggle("is-wide", wide.has(el.id));
-        const btn = el.querySelector(":scope > summary .wide-btn");
-        if (btn) {
-          btn.setAttribute("aria-pressed", wide.has(el.id) ? "true" : "false");
-          btn.title = wide.has(el.id) ? "Use normal tile width" : "Expand to full row";
-        }
-      });
-    }
-    function toggleWide(panel) {
-      if (!panel || !panel.id) return;
-      const wide = loadWideIds();
-      if (wide.has(panel.id)) wide.delete(panel.id);
-      else wide.add(panel.id);
-      saveWideIds(wide);
-      panel.classList.toggle("is-wide", wide.has(panel.id));
-      const btn = panel.querySelector(":scope > summary .wide-btn");
-      if (btn) {
-        btn.setAttribute("aria-pressed", wide.has(panel.id) ? "true" : "false");
-        btn.title = wide.has(panel.id) ? "Use normal tile width" : "Expand to full row";
-      }
-      // Full-row cards force a hard row break — repack so neighbors drop below
-      scheduleMasonry();
-    }
-    function ensurePanelBodies(root) {
-      const scope = root || document;
-      scope.querySelectorAll("details.panel").forEach((el) => {
-        if (el.querySelector(":scope > .panel-body")) return;
-        const body = document.createElement("div");
-        body.className = "panel-body";
-        Array.from(el.childNodes).forEach((n) => {
-          if (n.nodeType === 1 && n.tagName === "SUMMARY") return;
-          body.appendChild(n);
-        });
-        el.appendChild(body);
-      });
-    }
-    function ensureDragHandles(container) {
-      if (!container) return;
-      Array.from(container.children).forEach((el) => {
-        if (!el.matches || !el.matches("details.panel")) return;
-        if (!el.id) el.id = "panel_" + Math.random().toString(36).slice(2, 9);
-        const sum = el.querySelector(":scope > summary");
-        if (!sum) return;
-        if (!sum.querySelector(".drag-handle")) {
-          const h = document.createElement("span");
-          h.className = "drag-handle";
-          h.draggable = true;
-          h.title = "Drag to reorder (saved in this browser only)";
-          h.textContent = "⋮⋮";
-          h.addEventListener("click", (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          });
-          sum.insertBefore(h, sum.firstChild);
-        }
-        if (!sum.querySelector(".panel-title")) {
-          const title = document.createElement("span");
-          title.className = "panel-title";
-          // move existing text nodes / non-control children into title
-          const nodes = Array.from(sum.childNodes).filter((n) => {
-            if (n.nodeType === 1 && (n.classList.contains("drag-handle") || n.classList.contains("wide-btn") || n.classList.contains("event-stream-head"))) return false;
-            return true;
-          });
-          if (nodes.length) {
-            nodes.forEach((n) => title.appendChild(n));
-            const handle = sum.querySelector(".drag-handle");
-            if (handle && handle.nextSibling) sum.insertBefore(title, handle.nextSibling);
-            else sum.appendChild(title);
-          }
-        }
-        if (!sum.querySelector(".wide-btn")) {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.className = "wide-btn";
-          b.textContent = "⟷";
-          b.title = "Expand to full row";
-          b.addEventListener("click", (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleWide(el);
-          });
-          sum.appendChild(b);
-        }
-      });
-    }
-    function ensurePanelChrome(root) {
-      ensurePanelBodies(root);
-      const overview = document.querySelector(".overview");
-      const admin = $("adminMount");
-      ensureDragHandles(overview);
-      ensureDragHandles(admin);
-      // wide buttons on non-masonry panels too (connection/hero/events)
-      document.querySelectorAll("details.panel").forEach((el) => {
-        if (overview && overview.contains(el)) return;
-        if (admin && admin.contains(el)) return;
-        if (!el.id) return;
-        const sum = el.querySelector(":scope > summary");
-        if (!sum || sum.querySelector(".wide-btn")) return;
-        if (!sum.querySelector(".panel-title") && !sum.querySelector(".event-stream-head")) {
-          const title = document.createElement("span");
-          title.className = "panel-title";
-          while (sum.firstChild) title.appendChild(sum.firstChild);
-          sum.appendChild(title);
-        }
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "wide-btn";
-        b.textContent = "⟷";
-        b.title = "Expand to full row";
-        b.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          toggleWide(el);
-        });
-        sum.appendChild(b);
-      });
-      // wire wide buttons from admin HTML templates
-      document.querySelectorAll("details.panel > summary .wide-btn").forEach((btn) => {
-        if (btn.dataset.bound === "1") return;
-        btn.dataset.bound = "1";
-        btn.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const panel = btn.closest("details.panel");
-          toggleWide(panel);
-        });
-      });
-      applyWideState(root);
-    }
-    function enableCardReorder(container, storageKey) {
-      if (!container || container.dataset.reorderBound === "1") return;
-      container.dataset.reorderBound = "1";
-      let dragEl = null;
-
-      container.addEventListener("dragstart", (e) => {
-        const handle = e.target.closest(".drag-handle");
-        if (!handle || !container.contains(handle)) return;
-        const panel = handle.closest("details.panel");
-        if (!panel || panel.parentElement !== container) return;
-        dragEl = panel;
-        panel.classList.add("is-dragging");
-        try {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", panel.id || "panel");
-        } catch (_) {}
-      });
-
-      container.addEventListener("dragend", () => {
-        if (dragEl) dragEl.classList.remove("is-dragging");
-        container.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
-        dragEl = null;
-        saveLayoutOrder(container, storageKey);
-        scheduleMasonry();
-      });
-
-      container.addEventListener("dragover", (e) => {
-        if (!dragEl) return;
-        e.preventDefault();
-        try { e.dataTransfer.dropEffect = "move"; } catch (_) {}
-        const over = e.target.closest("details.panel");
-        if (!over || over === dragEl || over.parentElement !== container) return;
-        container.querySelectorAll(".drag-over").forEach((el) => {
-          if (el !== over) el.classList.remove("drag-over");
-        });
-        over.classList.add("drag-over");
-        const rect = over.getBoundingClientRect();
-        const before = e.clientY < rect.top + rect.height / 2;
-        if (before) container.insertBefore(dragEl, over);
-        else container.insertBefore(dragEl, over.nextSibling);
-      });
-
-      container.addEventListener("drop", (e) => {
-        e.preventDefault();
-        container.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
-        if (dragEl) {
-          saveLayoutOrder(container, storageKey);
-          scheduleMasonry();
-        }
-      });
-    }
-    function setupReorderableLayouts() {
-      const overview = document.querySelector(".overview");
-      const admin = $("adminMount");
-      ensurePanelChrome(document);
-      applyLayoutOrder(overview, KEYS.layoutOverview);
-      applyLayoutOrder(admin, KEYS.layoutAdmin);
-      enableCardReorder(overview, KEYS.layoutOverview);
-      enableCardReorder(admin, KEYS.layoutAdmin);
-      scheduleMasonry();
-    }
-    window.__SC5_setupReorder = setupReorderableLayouts;
-
-    function fmtUptime(sec) {
-      sec = Math.floor(Number(sec) || 0);
-      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
-      if (h > 0) return `${h}h ${m}m`;
-      if (m > 0) return `${m}m`;
-      return `${sec}s`;
-    }
-    function shortId(id) {
-      return id && id.length > 14 ? id.slice(0, 12) + "…" : (id || "—");
-    }
-    function hostFromUrl(url) {
-      try { return new URL(url).host; } catch { return url || "—"; }
-    }
-    function can(scope) {
-      return isAdmin || scopes.has(scope) || scopes.has("admin");
-    }
-
-    async function api(method, path, body) {
-      const c = cfg();
-      const base = apiBase();
-      if (!base) throw new Error("Set Server URL (or open this page from the SquidC5 /ops URL)");
-      if (!c.token) throw new Error("Set API token");
-      const opts = {
-        method,
-        headers: { Authorization: "Bearer " + c.token, Accept: "application/json" },
-        mode: "cors",
-        credentials: "omit",
-        cache: "no-store",
-      };
-      if (body !== undefined) {
-        opts.headers["Content-Type"] = "application/json";
-        opts.body = JSON.stringify(body);
-      }
-      let res;
-      try {
-        res = await fetch(base + path, opts);
-      } catch (e) {
-        throw new Error(
-          "Failed to reach SquidC5 at " + base + path + " (" + (e.message || e) + "). " +
-          "Open http://YOUR_HOST:8443/ops directly (same host), check token, and hard-refresh."
-        );
-      }
-      if (!res.ok) {
-        let detail = res.statusText;
-        try { const j = await res.json(); detail = j.detail || JSON.stringify(j); } catch (_) {}
-        throw new Error(res.status + " " + detail);
-      }
-      if (res.status === 204) return null;
-      const ct = res.headers.get("content-type") || "";
-      if (ct.includes("application/json")) return res.json();
-      return res.text();
-    }
-
-    /** Load ops console after auth — panels self-gate by token scopes (not in public HTML). */
-    async function ensureConsoleUi() {
-      if (state.adminLoaded) return true;
-      if (!cfg().token) {
-        $("adminMount").innerHTML = "";
-        delete $("adminMount").dataset.reorderBound;
-        return false;
-      }
-      try {
-        const c = cfg();
-        const res = await fetch(apiBase() + "/api/v1/ops/console.js", {
-          headers: { Authorization: "Bearer " + c.token, Accept: "application/javascript" },
-          mode: "cors",
-          credentials: "omit",
-          cache: "no-store",
-        });
-        if (res.status === 403 || res.status === 401) {
-          $("adminMount").innerHTML = "";
-          delete $("adminMount").dataset.reorderBound;
-          return false;
-        }
-        if (!res.ok) {
-          showError("Ops console load failed (" + res.status + ") — status view still works");
-          return false;
-        }
-        const code = await res.text();
-        window.__SC5_API__ = api;
-        window.__SC5_$ = $;
-        window.__SC5_showError = showError;
-        window.__SC5_showOk = showOk;
-        window.__SC5_showOutput = showOutput;
-        window.__SC5_can = can;
-        window.__SC5_refresh = refresh;
-        window.__SC5_STATE__ = state;
-        const s = document.createElement("script");
-        s.textContent = code;
-        document.body.appendChild(s);
-        state.adminLoaded = true;
-        applyPanelDefaults();
-        setupReorderableLayouts();
-        scheduleMasonry();
-        return true;
-      } catch (e) {
-        showError("Ops console unavailable: " + (e.message || e));
-        return false;
-      }
-    }
-
-    function renderShells(rows) {
-      const box = $("shellsBox");
-      if (!rows || !rows.length) {
-        box.innerHTML = '<div class="empty">No verified reverse shells</div>';
-        $("nVerified").textContent = "0";
-        if (window.__SC5_renderAdminShells) window.__SC5_renderAdminShells([]);
-        return;
-      }
-      $("nVerified").textContent = String(rows.length);
-      let html = "<table><tr><th>Session</th><th>Remote</th></tr>";
-      for (const s of rows) {
-        html += `<tr>
-          <td class="mono">${esc(shortId(s.id))} <span class="pill ok">verified</span></td>
-          <td class="mono">${esc(s.remote_addr || "—")}</td>
-        </tr>`;
-      }
-      html += "</table>";
-      box.innerHTML = html;
-      if (window.__SC5_renderAdminShells) window.__SC5_renderAdminShells(rows);
-    }
-
-    function renderListeners(rows) {
-      const up = (rows || []).filter((l) => l.status === "running");
-      $("nListeners").textContent = String(up.length);
-      const box = $("listenersBox");
-      if (!rows || !rows.length) { box.innerHTML = '<div class="empty">No listeners</div>'; return; }
-      let html = "<table><tr><th>Name</th><th>Port</th><th>Kind</th><th>Status</th></tr>";
-      for (const l of rows) {
-        const st = l.status || "—";
-        html += `<tr>
-          <td>${esc(l.name || shortId(l.id))}</td>
-          <td class="mono">${esc(l.port)}</td>
-          <td>${esc(l.kind)}</td>
-          <td><span class="pill ${st === "running" ? "ok" : "bad"}">${esc(st)}</span></td>
-        </tr>`;
-      }
-      html += "</table>";
-      box.innerHTML = html;
-      if (window.__SC5_renderAdminListeners) window.__SC5_renderAdminListeners(rows);
-    }
-
-    function eventTone(type) {
-      const t = String(type || "").toLowerCase();
-      if (/reject|false_positive|error|fail|drop|denied|close/.test(t)) return "bad";
-      if (/verify|connected|start|ok|create|stabiliz|running/.test(t)) return "ok";
-      if (/warn|reap|orphan|timeout/.test(t)) return "warn";
-      return "";
-    }
-    function eventDetail(e) {
-      const p = e.payload || e.data || {};
-      if (typeof p === "string") return p;
-      const parts = [];
-      for (const k of ["session_id", "id", "remote", "remote_addr", "name", "kind", "reason", "status", "port", "command", "actor"]) {
-        if (p[k] != null && p[k] !== "") parts.push(`${k}=${p[k]}`);
-      }
-      if (!parts.length) {
-        try {
-          const s = JSON.stringify(p);
-          if (s && s !== "{}") return s.length > 120 ? s.slice(0, 117) + "…" : s;
-        } catch (_) {}
-        return "—";
-      }
-      const s = parts.join(" · ");
-      return s.length > 140 ? s.slice(0, 137) + "…" : s;
-    }
-    function eventTime(e) {
-      const ts = e.ts || e.timestamp || e.time || e.created_at;
-      if (ts == null) return "";
-      try {
-        const n = Number(ts);
-        const d = n > 1e12 ? new Date(n) : n > 1e9 ? new Date(n * 1000) : new Date(ts);
-        if (Number.isNaN(d.getTime())) return String(ts).slice(0, 12);
-        return d.toLocaleTimeString();
-      } catch (_) {
-        return "";
-      }
-    }
-    function escapeHtml(s) {
-      return String(s)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-    }
-    function renderEvents(snap) {
-      const events = (snap && snap.recent_events) || [];
-      const box = $("eventsBox");
-      const countEl = $("eventCount");
-      const list = events.slice().reverse().slice(0, 40);
-      if (countEl) countEl.textContent = list.length + (list.length === 1 ? " event" : " events");
-      if (!list.length) {
-        box.innerHTML = '<div class="empty">No recent events yet</div>';
-        return;
-      }
-      box.innerHTML = list.map((e) => {
-        const type = e.type || e.event || "event";
-        const tone = eventTone(type);
-        return `<div class="event-item ${tone}">
-          <span class="etype">${escapeHtml(type)}</span>
-          <span class="edetail">${escapeHtml(eventDetail(e))}</span>
-          <span class="etime">${escapeHtml(eventTime(e))}</span>
-        </div>`;
-      }).join("");
-    }
-
-    function renderChips(metrics) {
-      const m = metrics || {};
-      const keys = [
-        "shell.stabilized", "shell.false_positive", "sessions.orphaned_closed",
-        "shell.unverified_drop", "http.hits", "ai.admin.calls", "ai.admin.llm_ok",
-      ];
-      const parts = keys.filter((k) => m[k] != null)
-        .map((k) => `<span class="chip"><b>${m[k]}</b> ${k.replace(/^(shell|sessions|ai)\./, "")}</span>`);
-      $("chips").innerHTML = parts.length ? parts.join("") : '<span class="chip">no counters</span>';
-    }
-
-    async function refresh() {
-      try {
-        const c = cfg();
-        try { await api("POST", "/api/v1/sessions/reap", { probe: false }); } catch (_) {}
-
-        const who = await api("GET", "/api/v1/meta");
-        scopes = new Set(who.scopes || []);
-        isAdmin = scopes.has("admin") || who.actor_type === "admin";
-        $("roleBadge").classList.toggle("hidden", false);
-        $("roleBadge").textContent = isAdmin ? "admin" : (who.actor_type || "operator");
-
-        // Scope-gated console (must load after scopes are known so can() works)
-        try { await ensureConsoleUi(); } catch (_) {}
-
-        const soft = async (fn) => { try { return await fn(); } catch (_) { return null; } };
-        const [health, metrics, shellRows, allSessions, tasks, lis, aiSt] = await Promise.all([
-          soft(() => api("GET", "/api/v1/health")),
-          soft(() => api("GET", "/api/v1/metrics")),
-          soft(() => api("GET", "/api/v1/sessions?status=active&live_only=true&kind=reverse_shell,tcp")),
-          soft(() => api("GET", "/api/v1/sessions?status=active")),
-          soft(() => api("GET", "/api/v1/tasks")),
-          soft(() => api("GET", "/api/v1/listeners")),
-          soft(() => api("GET", "/api/v1/ai/status")),
-        ]);
-
-        showError("");
-        $("statusBadge").textContent = "online";
-        $("statusBadge").className = "badge ok";
-        $("hostLine").textContent = hostFromUrl(c.url) + (who.actor ? ` · ${who.actor}` : "");
-        $("nUptime").textContent = fmtUptime((metrics && metrics.uptime_seconds) || 0);
-        $("healthLine").textContent = health
-          ? `${health.app || "SquidC5"} v${health.version || "?"} · ${health.status}`
-          : "connected";
-
-        const verified = (shellRows || []).filter((s) => s.kind === "reverse_shell" || s.kind === "tcp");
-        const m = (metrics && metrics.metrics) || {};
-        const setStat = (id, val) => { if ($(id)) $(id).textContent = val == null || val === "" ? "—" : String(val); };
-        setStat("nSessions", Array.isArray(allSessions) ? allSessions.length : "—");
-        const taskList = Array.isArray(tasks) ? tasks : (tasks && tasks.tasks) || [];
-        const openTasks = (taskList || []).filter((t) => {
-          const st = String((t && t.status) || "").toLowerCase();
-          return !st || st === "pending" || st === "queued" || st === "running" || st === "in_progress";
-        });
-        setStat("nTasks", Array.isArray(taskList) ? openTasks.length : "—");
-        setStat("nBeacons", m["http.hits"] != null ? m["http.hits"] : (m["implant.beacon"] != null ? m["implant.beacon"] : 0));
-        setStat("nStabilized", m["shell.stabilized"] != null ? m["shell.stabilized"] : 0);
-        setStat("nFalsePos", m["shell.false_positive"] != null ? m["shell.false_positive"] : 0);
-        setStat("nAi", m["ai.admin.calls"] != null ? m["ai.admin.calls"] : 0);
-
-        renderShells(verified);
-        renderListeners(lis || []);
-        if (metrics) {
-          renderEvents(metrics);
-          renderChips(m);
-        }
-        if (aiSt && window.__SC5_renderAi) window.__SC5_renderAi(aiSt);
-
-        $("footer").textContent =
-          `Updated ${new Date().toLocaleTimeString()} · ${verified.length} verified · refresh ${c.refresh}s`;
-        scheduleMasonry();
-      } catch (e) {
-        $("statusBadge").textContent = "error";
-        $("statusBadge").className = "badge bad";
-        showError(String(e.message || e));
-      }
-    }
-
-    function schedule() {
+    try {
+      const meta = await api("GET", "/api/v1/meta");
+      state.meta = meta;
+      state.scopes = meta.scopes || [];
+      state.actor = meta.actor || meta.name || "operator";
+      $("statusBadge").textContent = "online";
+      $("statusBadge").className = "pill ok";
+      $("hostLine").textContent = apiBase();
+      $("roleBadge").textContent = state.scopes.indexOf("admin") >= 0 ? "admin" : (state.actor || "op");
+      $("roleBadge").classList.remove("hidden");
+      $("navAdmin").classList.toggle("hidden", !can("admin"));
+      $("dashEmpty").classList.add("hidden");
+      $("dashContent").classList.remove("hidden");
+      await loadAdminModule();
+      await refresh();
       if (timer) clearInterval(timer);
-      timer = setInterval(refresh, cfg().refresh * 1000);
+      timer = setInterval(() => refresh().catch(() => {}), c.refresh * 1000);
+      showOk("Connected as " + state.actor);
+    } catch (e) {
+      $("statusBadge").textContent = "error";
+      $("statusBadge").className = "pill bad";
+      showError(String(e.message || e));
+      openModal();
     }
+  }
 
-    function buildShareUrl() {
-      saveSettings();
-      const c = cfg();
-      if (!c.url || !c.token) throw new Error("Save URL and token first");
-      let pageBase = c.url.replace(/\/$/, "") + "/ops";
-      try {
-        if (location.pathname.indexOf("/ops") === 0) pageBase = location.origin.replace(/\/$/, "") + "/ops";
-      } catch (_) {}
-      return pageBase + "#sc5=" + b64urlEncode({ url: c.url, token: c.token, refresh: c.refresh, v: 1 });
+  async function loadAdminModule() {
+    if (window.__SC5_ADMIN_LOADED__) {
+      if (window.__SC5_boot) window.__SC5_boot();
+      return;
     }
-    function showQr() {
-      try {
-        const share = buildShareUrl();
-        lastShare = share;
-        $("shareUrl").textContent = share.length > 120 ? share.slice(0, 100) + "…" : share;
-        const box = $("qrCanvas");
-        box.innerHTML = "";
-        if (typeof qrcode === "undefined") throw new Error("QR library missing");
-        const qr = qrcode(0, "M");
-        qr.addData(share);
-        qr.make();
-        box.innerHTML = qr.createImgTag(4, 2);
-        const img = box.querySelector("img");
-        if (img) { img.style.width = "220px"; img.style.height = "220px"; }
-        $("qrModal").classList.add("show");
-      } catch (e) { showError(String(e.message || e)); }
-    }
+    window.__SC5_API__ = api;
+    window.__SC5_$ = $;
+    window.__SC5_showError = showError;
+    window.__SC5_showOk = showOk;
+    window.__SC5_showOutput = showOutput;
+    window.__SC5_can = can;
+    window.__SC5_refresh = refresh;
+    window.__SC5_STATE__ = state;
+    window.__SC5_API_BASE__ = apiBase();
+    window.__SC5_setView = setView;
+    window.__SC5_esc = esc;
+    // Prefer admin.js when admin; console.js sets role flag
+    const path = can("admin") ? "/api/v1/ops/admin.js" : "/api/v1/ops/console.js";
+    const base = apiBase();
+    const r = await fetch(base + path, { headers: { Authorization: "Bearer " + cfg().token } });
+    if (!r.ok) throw new Error("Failed to load ops module (" + r.status + ")");
+    const code = await r.text();
+    const s = document.createElement("script");
+    s.text = code;
+    document.body.appendChild(s);
+  }
 
-    $("saveBtn").onclick = () => {
-      saveSettings();
-      state.adminLoaded = false;
-      $("adminMount").innerHTML = "";
-      delete $("adminMount").dataset.reorderBound;
-      $("settingsPanel").open = !(($("token").value || "").trim());
-      schedule();
-      refresh();
-    };
-    $("refreshBtn").onclick = () => refresh();
-    $("shareBtn").onclick = () => showQr();
-    $("closeQrBtn").onclick = () => $("qrModal").classList.remove("show");
-    $("qrModal").onclick = (e) => { if (e.target === $("qrModal")) $("qrModal").classList.remove("show"); };
-    $("copyShareBtn").onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(lastShare || buildShareUrl());
-        $("copyShareBtn").textContent = "Copied!";
-        setTimeout(() => { $("copyShareBtn").textContent = "Copy link"; }, 1200);
-      } catch (_) { showError("Copy failed"); }
-    };
-    $("toggleToken").onclick = () => {
-      tokenVisible = !tokenVisible;
-      $("token").type = tokenVisible ? "text" : "password";
-      $("toggleToken").textContent = tokenVisible ? "Hide token" : "Show token";
-    };
+  async function refresh() {
+    if (!cfg().token) return;
+    const [sessions, listeners, metrics, health] = await Promise.all([
+      api("GET", "/api/v1/sessions?status=active").catch(() => []),
+      api("GET", "/api/v1/listeners").catch(() => []),
+      api("GET", "/api/v1/metrics").catch(() => ({})),
+      api("GET", "/api/v1/health").catch(() => ({})),
+    ]);
+    const ses = Array.isArray(sessions) ? sessions : (sessions.sessions || []);
+    const lis = Array.isArray(listeners) ? listeners : (listeners.listeners || []);
+    state.sessions = ses;
+    state.listeners = lis;
+    const verified = ses.filter((s) => s.verified || s.kind === "beacon");
+    const running = lis.filter((l) => l.status === "running");
+    $("navNSes").textContent = String(ses.length);
+    $("navNLis").textContent = String(running.length);
 
-    // file:// opens break CORS (Origin: null) and logo paths — force hosted /ops
-    if (location.protocol === "file:") {
-      document.body.innerHTML = `
-        <div style="max-width:520px;margin:40px auto;padding:20px;font-family:system-ui;background:#111;color:#fff;border:1px solid #ff00aa;border-radius:12px">
-          <h1 style="color:#ff00aa;margin-top:0">Do not open this file locally</h1>
-          <p>You opened <code>phone-dashboard.html</code> via <code>file://</code>. Browsers block API calls from that origin.</p>
-          <p><strong>Open the hosted console instead:</strong></p>
-          <p class="mono" style="color:#00ff9d">http://YOUR_HOST:8443/ops</p>
-          <p style="color:#aaa;font-size:0.9rem">Use your C2 public host/IP. Paste your admin token there → Save &amp; Connect.</p>
-        </div>`;
-    } else {
-      loadSettings();
-      setupReorderableLayouts();
-      if (cfg().url && cfg().token) { schedule(); refresh(); }
-      else showError("Enter Server URL + token, then Save & Connect.");
+    // Dashboard stats
+    const m = metrics.metrics || metrics || {};
+    const stats = [
+      { n: verified.filter((s) => s.kind === "reverse_shell" || s.verified).length, l: "Shells", c: "ok" },
+      { n: running.length, l: "Listeners", c: "pink" },
+      { n: ses.length, l: "Sessions", c: "cyan" },
+      { n: m["tasks.created"] || m["tasks.pending"] || "—", l: "Tasks", c: "purple" },
+      { n: m["implant.beacon"] || m["http.beacon"] || "—", l: "Beacons", c: "ok" },
+      { n: formatUptime(metrics.uptime_seconds), l: "Uptime", c: "cyan" },
+    ];
+    $("dashStats").innerHTML = stats.map((s) =>
+      `<div class="stat ${s.c}"><div class="n">${esc(s.n)}</div><div class="l">${esc(s.l)}</div></div>`
+    ).join("");
+
+    // Recent sessions table
+    $("dashSes").innerHTML = ses.length
+      ? `<table class="data"><thead><tr><th>ID</th><th>Kind</th><th>Host</th><th>Claim</th></tr></thead><tbody>` +
+        ses.slice(0, 12).map((s) => {
+          const meta = s.metadata || {};
+          return `<tr data-sid="${esc(s.id)}">
+            <td class="mono">${esc((s.id || "").slice(0, 12))}…</td>
+            <td>${esc(s.kind || "")}</td>
+            <td>${esc(s.hostname || s.remote_addr || "—")}</td>
+            <td class="mono">${esc(meta.claimed_by || "—")}</td>
+          </tr>`;
+        }).join("") + `</tbody></table>`
+      : `<div class="empty-state"><strong>No active sessions</strong>Start a listener and land an implant.</div>`;
+    $("dashSes").querySelectorAll("tr[data-sid]").forEach((tr) => {
+      tr.onclick = () => {
+        state.selectedId = tr.getAttribute("data-sid");
+        setView("sessions");
+        if (window.__SC5_selectSession) window.__SC5_selectSession(state.selectedId);
+      };
+    });
+
+    $("dashQuick").innerHTML = `
+      <p class="muted" style="margin:0 0 8px;font-size:0.85rem">Common next steps</p>
+      <div class="row">
+        <button type="button" class="primary" id="dqSes">Open Sessions</button>
+        <button type="button" id="dqLis">Open Listeners</button>
+        <button type="button" id="dqPay">Generate payload</button>
+        ${can("admin") ? '<button type="button" id="dqAdm">Admin</button>' : ""}
+      </div>
+      <p class="muted" style="margin-top:12px;font-size:0.8rem">Health: ${esc(health.status || "ok")} · Actor: ${esc(state.actor || "—")}</p>
+    `;
+    if ($("dqSes")) $("dqSes").onclick = () => setView("sessions");
+    if ($("dqLis")) $("dqLis").onclick = () => setView("listeners");
+    if ($("dqPay")) $("dqPay").onclick = () => setView("payloads");
+    if ($("dqAdm")) $("dqAdm").onclick = () => setView("admin");
+
+    // Events
+    const ev = (metrics.recent_events || []).slice(-40).reverse();
+    $("eventCount").textContent = String(ev.length);
+    $("eventsBox").textContent = ev.length
+      ? ev.map((e) => {
+          const t = new Date((e.ts || 0) * 1000).toISOString().slice(11, 19);
+          const p = e.payload ? JSON.stringify(e.payload).slice(0, 100) : "";
+          return `${t}  ${e.type || "?"}  ${p}`;
+        }).join("\n")
+      : "No recent events";
+
+    $("sideFoot").textContent = (state.actor || "op") + " · " + (ses.length) + " sessions";
+    if (window.__SC5_onRefresh) window.__SC5_onRefresh({ sessions: ses, listeners: lis, metrics });
+  }
+
+  function formatUptime(sec) {
+    if (sec == null || sec === "—") return "—";
+    const s = Math.floor(Number(sec));
+    if (!Number.isFinite(s)) return "—";
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return h + "h " + m + "m";
+  }
+
+  // Hash import for phone QR
+  try {
+    if (location.hash && location.hash.indexOf("sc5=") >= 0) {
+      const raw = location.hash.replace(/^#/, "").replace(/^sc5=/, "");
+      const json = JSON.parse(decodeURIComponent(escape(atob(raw.replace(/-/g, "+").replace(/_/g, "/")))));
+      if (json.url) localStorage.setItem(KEYS.url, String(json.url).replace(/\/$/, ""));
+      if (json.token) localStorage.setItem(KEYS.token, json.token);
+      history.replaceState(null, "", location.pathname + location.search);
     }
+  } catch (_) {}
+
+  loadForm();
+  const savedView = (() => { try { return localStorage.getItem("sc5_ops_view"); } catch (_) { return null; } })();
+  if (cfg().token) {
+    connect().then(() => {
+      if (savedView && VIEWS[savedView]) setView(savedView);
+    }).catch(() => openModal());
+  } else {
+    openModal();
+  }
+
+  // Expose for ops-admin
+  window.__SC5_api = api;
+  window.__SC5_setView = setView;
+})();
   </script>
 </body>
 </html>

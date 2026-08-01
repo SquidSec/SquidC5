@@ -51,7 +51,12 @@ async def test_public_ops_html_does_not_include_admin_module(client):
     # admin/console module must be fetched after auth, not inlined
     assert "mintTokBtn" not in html
     assert "saveFeaturesBtn" not in html
-    assert "/api/v1/ops/console.js" in html or "ensureConsoleUi" in html or "ops/admin.js" in html
+    assert (
+        "/api/v1/ops/console.js" in html
+        or "/api/v1/ops/admin.js" in html
+        or "loadAdminModule" in html
+        or "ops/admin.js" in html
+    )
 
 
 @pytest.mark.asyncio

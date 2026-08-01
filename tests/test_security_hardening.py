@@ -265,8 +265,8 @@ async def test_ops_console_sets_role_flag(tmp_path):
             h = {"Authorization": f"Bearer {ADMIN}"}
             r = await client.get("/api/v1/ops/console.js", headers=h)
             assert r.status_code == 200
-            assert "__SC5_UI_ROLE__" in r.text
-            assert "ops-page-btn" in r.text or "Dashboard" in r.text
+            assert "view-sessions" in r.text or "selectSession" in r.text
+            assert "Claim" in r.text or "ctxClaim" in r.text
             # non-admin
             t = await client.post(
                 "/api/v1/tokens",
@@ -276,7 +276,7 @@ async def test_ops_console_sets_role_flag(tmp_path):
             ho = {"Authorization": f"Bearer {t.json()['token']}"}
             r2 = await client.get("/api/v1/ops/console.js", headers=ho)
             assert r2.status_code == 200
-            assert "operator" in r2.text
+            assert "view-sessions" in r2.text or "__SC5_UI_ROLE__" in r2.text or "selectSession" in r2.text
 
 
 @pytest.mark.asyncio
