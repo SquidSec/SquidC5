@@ -5,7 +5,8 @@
 ```bash
 docker compose up --build -d
 docker exec squidc5 cat /data/admin_token.txt   # once; store securely
-curl -s http://127.0.0.1:8443/api/v1/health
+# TLS on by default (self-signed) — use -k for lab probes
+curl -sk https://127.0.0.1:8443/api/v1/health
 ```
 
 ### Host networking (default in compose)

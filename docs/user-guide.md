@@ -144,7 +144,7 @@ Operators need a phone-friendly and desktop console without shipping secrets bac
 ### Example
 
 ```text
-http://127.0.0.1:8443/ops
+https://127.0.0.1:8443/ops
 Token: sc5_… (from data/admin_token.txt)
 ```
 
@@ -171,7 +171,7 @@ The UI is a pure client. Without a token, only public shell HTML loads; admin pa
 ### Example (CLI equivalent)
 
 ```bash
-sc5 login --url http://HOST:8443 --token sc5_...
+sc5 login --url https://HOST:8443 --insecure --token sc5_...
 sc5 config
 ```
 
@@ -733,7 +733,7 @@ Incident response: disable a capability without redeploying. Defaults stay secur
 
 ```bash
 # API (admin)
-curl -H "Authorization: Bearer $TOK" http://HOST:8443/api/v1/features
+curl -sk -H "Authorization: Bearer $TOK" https://HOST:8443/api/v1/features
 ```
 
 UI: flip toggles → **Save features**.
