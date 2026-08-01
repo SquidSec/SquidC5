@@ -29,6 +29,9 @@ class HttpProfile:
     jitter_pct: float = 20.0  # 0-100
     decoy_enabled: bool = False
     decoy_paths: list[str] = field(default_factory=lambda: ["/favicon.ico", "/robots.txt", "/health"])
+    # Ordered encode pipeline (implant applies encode; server reverse-decodes)
+    # e.g. [{"name":"base64"},{"name":"prepend","value":"data="}]
+    transforms: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass

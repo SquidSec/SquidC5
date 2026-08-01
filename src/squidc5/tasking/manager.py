@@ -14,6 +14,9 @@ class TaskManager:
         self.db = db
         self.metrics = metrics
 
+    # Structured file-op commands (C05) — implants execute when recognized
+    FILE_OPS = frozenset({"file:list", "file:read", "file:write", "file:delete"})
+
     async def create(
         self,
         session_id: str,
@@ -26,7 +29,18 @@ class TaskManager:
             raise KeyError("session not found")
         if session["status"] != "active":
             raise ValueError("session not active")
-        tid = await self.db.create_task(session_id, command, args, created_by)
+        args = dict(args or {})
+        cmd = (command or "").strip()
+        # Normalize file ops into args schema
+        if cmd.startswith("file:"):
+            if cmd not in self.FILE_OPS:
+                raise ValueError(f"unknown file op: {cmd}")
+            args.setdefault("op", cmd.split(":", 1)[1])
+            if cmd in ("file:read", "file:write", "file:delete") and not args.get("path"):
+                raise ValueError("path required for file op")
+            if cmd == "file:write" and "content" not in args and "content_b64" not in args:
+                raise ValueError("content or content_b64 required for file:write")
+        tid = await self.db.create_task(session_id, cmd, args, created_by)
         await self.metrics.incr("tasks.created")
         await self.metrics.emit(
             "task.created",

