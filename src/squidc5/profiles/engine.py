@@ -236,6 +236,9 @@ class ProfileEngine:
     @staticmethod
     def _looks_like_beacon(obj: dict[str, Any]) -> bool:
         keys = set(obj.keys())
+        # AEAD implant envelope (v1)
+        if obj.get("v") == 1 and {"n", "c", "alg"}.issubset(keys):
+            return True
         return bool(
             keys
             & {

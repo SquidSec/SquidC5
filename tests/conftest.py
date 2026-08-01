@@ -26,6 +26,8 @@ async def app(tmp_path):
         cors_origins=[],
         admin_token_bootstrap=ADMIN_BOOTSTRAP,
         plugin_signing_secret="test-plugin-signing-secret-for-ci",
+        implant_require_auth=False,
+        implant_psk="test-implant-psk-for-ci",
     )
     application = create_app(settings)
     async with application.router.lifespan_context(application):
@@ -49,6 +51,8 @@ async def app_with_public_host(tmp_path):
         cors_origins=[],
         admin_token_bootstrap=ADMIN_BOOTSTRAP,
         plugin_signing_secret="test-plugin-signing-secret-for-ci",
+        implant_require_auth=False,
+        implant_psk="test-implant-psk-for-ci",
     )
     application = create_app(settings)
     async with application.router.lifespan_context(application):

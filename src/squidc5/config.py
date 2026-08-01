@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     plugin_signing_secret: str | None = None
     # Master key for at-rest encryption (LLM API keys). Or data_dir/secrets.key.
     secrets_key: str | None = None
+    # Implant beacon AEAD (ChaCha20-Poly1305). PSK auto-generated under data/implant_psk.txt
+    implant_psk: str | None = None
+    implant_require_auth: bool = True
     # Reverse-shell auto-stabilization (stage-2 reconnect agents)
     shell_auto_stabilize: bool = True
     # Host/IP implants should call back to (defaults to request/local bind if empty)

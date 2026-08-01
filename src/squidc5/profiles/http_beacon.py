@@ -5,6 +5,31 @@ from __future__ import annotations
 from typing import Any
 
 from squidc5.core.state import AppState
+from squidc5.implants.crypto import is_envelope, open_envelope, seal
+
+
+def _unwrap_payload(state: AppState, payload: dict[str, Any]) -> dict[str, Any]:
+    """Decrypt AEAD envelope when present / required."""
+    require = bool(getattr(state.settings, "implant_require_auth", True))
+    psk = getattr(state, "implant_psk", "") or ""
+    if is_envelope(payload):
+        if not psk:
+            raise PermissionError("Implant PSK not configured")
+        try:
+            return open_envelope(psk, payload)
+        except Exception as e:
+            raise PermissionError("Invalid implant authentication") from e
+    if require:
+        raise PermissionError("Authenticated implant envelope required")
+    return payload
+
+
+def _wrap_response(state: AppState, result: dict[str, Any]) -> dict[str, Any]:
+    require = bool(getattr(state.settings, "implant_require_auth", True))
+    psk = getattr(state, "implant_psk", "") or ""
+    if require and psk:
+        return seal(psk, result)
+    return result
 
 
 async def process_beacon_checkin(
@@ -18,6 +43,8 @@ async def process_beacon_checkin(
     """Register/heartbeat beacon session and return next task."""
     if not await state.features.enabled("implant_beacon"):
         raise PermissionError("Implant beacon is disabled by feature flag")
+
+    payload = _unwrap_payload(state, payload)
 
     session_id = payload.get("session_id")
     hostname = payload.get("hostname")
@@ -61,10 +88,11 @@ async def process_beacon_checkin(
         )
     task = await state.tasks.poll(sid)
     await state.metrics.incr("implant.beacon")
-    return {"session_id": sid, "task": task}
+    return _wrap_response(state, {"session_id": sid, "task": task})
 
 
 async def process_beacon_result(state: AppState, payload: dict[str, Any]) -> dict[str, str]:
+    payload = _unwrap_payload(state, payload)
     task_id = payload.get("task_id")
     if not task_id:
         raise ValueError("task_id required")
@@ -73,4 +101,4 @@ async def process_beacon_result(state: AppState, payload: dict[str, Any]) -> dic
         result = ""
     status = payload.get("status") or "completed"
     await state.tasks.complete(str(task_id), str(result), str(status))
-    return {"status": "ok"}
+    return _wrap_response(state, {"status": "ok"})  # type: ignore[return-value]
