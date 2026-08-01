@@ -44,10 +44,14 @@ Security-first, AI-native C5 teamserver for **authorized** red team and penetrat
 - **Listeners** - HTTP beacons, TCP, reverse shells, DNS/SMTP OAST (any port)
 - **Sessions and tasking** - beacons and shells as first-class objects
 - **Policy engine** - risk scores + **server-side HITL** approval queue
+- **Implant AEAD** - ChaCha20-Poly1305 sealed beacons (PSK under `data/implant_psk.txt`)
+- **Malleable transforms** - base64 / prepend / append / xor / netbios pipelines
+- **File ops + SOCKS** - structured tasks and local SOCKS pivot broker
+- **Native beacons** - Linux Go agent + Windows PowerShell generator
 - **Secure defaults** - TLS on, empty CORS, no public OpenAPI, MCP off
 - **Ops console** - `/ops` UI (admin JS server-gated)
 - **Operator CLI** - `sc5` / `squidc5-cli`
-- **Binary releases** - Linux/Windows teamserver + CLI from CI
+- **Binary releases** - Linux/Windows teamserver + CLI from CI (+ SBOM)
 
 ## Quick Start (Docker lab)
 
