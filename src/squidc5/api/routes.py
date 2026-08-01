@@ -106,6 +106,7 @@ class SocksStart(BaseModel):
     session_id: str
     listen_host: str = "127.0.0.1"
     listen_port: int = 0
+    mode: str = "implant"  # implant (reverse-dial) | direct (C2 dials target)
 
 
 class BeaconIn(BaseModel):
@@ -767,14 +768,18 @@ def build_api_router() -> APIRouter:
         if not decision.allowed:
             raise _policy_http_error(decision)
         pivot = await state.socks.start(
-            body.session_id, listen_host=body.listen_host, listen_port=body.listen_port
+            body.session_id,
+            listen_host=body.listen_host,
+            listen_port=body.listen_port,
+            mode=body.mode or "implant",
         )
-        # Queue implant task
+        # Queue implant task for reverse-dial mode
         try:
             await state.tasks.create(
                 session_id=body.session_id,
                 command="socks:start",
-                args={"pivot_id": pivot["id"], "port": pivot["listen_port"]},
+                args=pivot.get("task_hint", {}).get("args")
+                or {"pivot_id": pivot["id"], "port": pivot["listen_port"]},
                 created_by=auth.name,
             )
         except Exception:

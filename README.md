@@ -9,193 +9,185 @@
 <p align="center">
   <strong>A SquidSec Open Source Project</strong><br>
   <a href="https://squidoffense.com/">SquidOffense.com</a> ·
-  <a href="https://github.com/SquidSec/SquidC5">GitHub</a>
+  <a href="https://github.com/SquidSec/SquidC5">GitHub</a> ·
+  <a href="docs/README.md">Docs</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml"><img src="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml/badge.svg?branch=master" alt="CI"></a>
-  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/squidgate.yml"><img src="https://img.shields.io/badge/SquidGate-enabled-red" alt="SquidGate"></a>
-  <a href="https://github.com/SquidSec/SquidC5/releases/latest"><img src="https://img.shields.io/github/v/release/SquidSec/SquidC5?include_prereleases&sort=date&label=latest%20release&color=blue" alt="Latest release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/squidgate.yml"><img src="https://github.com/SquidSec/SquidC5/actions/workflows/squidgate.yml/badge.svg?branch=master" alt="SquidGate"></a>
+  <a href="https://github.com/SquidSec/SquidC5/releases/latest"><img src="https://img.shields.io/github/v/release/SquidSec/SquidC5?include_prereleases&sort=date&label=release" alt="Release"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
+  <a href="docs/roadmap-five-star.md"><img src="https://img.shields.io/badge/goal-5%20star%20C5-purple.svg" alt="Five star"></a>
 </p>
 
 **Command · Control · Cognitive · Collaborative · Coordination**
 
-Security-first, AI-native C5 teamserver for **authorized** red team and penetration testing operations. Built and maintained by **[SquidSec](https://squidoffense.com/)**.
+Security-first, AI-native C5 teamserver for **authorized** red team and penetration testing. Built by **[SquidSec](https://squidoffense.com/)**.
 
-> **Authorized use only.** Unauthorized access to systems is illegal. Operators must have explicit permission.
+> **Authorized use only.** Unauthorized access is illegal.
 
 ### What C5 means
 
-| Pillar | Role in SquidC5 |
-|--------|-----------------|
-| **Command** | Operator tasking of shells, beacons, and implants |
-| **Control** | Scoped tokens, policy, feature flags, listeners |
-| **Cognitive** | Sandboxed Admin AI + restricted external MCP tools |
-| **Collaborative** | Multi-operator handoff, chat, shared sessions |
-| **Coordination** | Profiles, task queues, timelines, audit, reports |
+| Pillar | Role |
+|--------|------|
+| **Command** | Tasking shells, beacons, native implants |
+| **Control** | Scoped tokens, policy, HITL, feature flags |
+| **Cognitive** | Sandboxed Admin AI + restricted MCP |
+| **Collaborative** | Teams, handoff, per-operator audit |
+| **Coordination** | Profiles, OAST, timeline, reports |
 
 ## Features
 
-- **Scoped API tokens** with full audit trail
-- **Dual AI model**
-  - External AI via restricted MCP tools (allow-listed, off by default)
-  - Server-side Admin AI (BYO LLM, sandboxed, prompt-injection shielded)
-- **Listeners** - HTTP beacons, TCP, reverse shells, DNS/SMTP OAST (any port)
-- **Sessions and tasking** - beacons and shells as first-class objects
-- **Policy engine** - risk scores + **server-side HITL** approval queue
-- **Implant AEAD** - ChaCha20-Poly1305 sealed beacons (PSK under `data/implant_psk.txt`)
-- **Malleable transforms** - base64 / prepend / append / xor / netbios pipelines
-- **File ops + SOCKS** - structured tasks and local SOCKS pivot broker
-- **Native beacons** - Linux Go agent + Windows PowerShell generator
-- **Secure defaults** - TLS on, empty CORS, no public OpenAPI, MCP off
-- **Ops console** - `/ops` UI (admin JS server-gated)
-- **Operator CLI** - `sc5` / `squidc5-cli`
-- **Binary releases** - Linux/Windows teamserver + CLI from CI (+ SBOM)
+- **Scoped API tokens** + immutable audit hash chain (`sc5 audit-verify`)
+- **Dual AI** — MCP off by default; Admin AI with 15 allow-listed capabilities; optional local Ollama
+- **Native implant** — `agents/sc5beacon` (Go): AEAD, sleep/jitter/kill/hours, files, SOCKS reverse-dial
+- **Implant factory** — `sc5 implants build` / `POST /api/v1/implants/build`
+- **Malleable transforms** — base64, prepend/append, xor, netbios + profile push
+- **SOCKS5 pivot** — operator proxy with **implant reverse-dial duplex** or direct mode
+- **File ops** — `file:list|read|write|delete` (+ chunk offset/length)
+- **Engagement ROE** — banned commands, end time, HITL file-write
+- **OAST** — DNS/HTTP/SMTP collaborator
+- **Secure defaults** — TLS on, empty CORS, no public OpenAPI, admin.js gated
+- **Binary CI** — Linux/Windows server+CLI, native agents, SBOM
 
-## Quick Start (Docker lab)
+## Quick start (Docker lab)
 
 ```bash
 docker compose up --build -d
-# TLS on by default (self-signed under data/tls/)
 curl -sk https://127.0.0.1:8443/api/v1/health
 docker compose exec squidc5 cat /data/admin_token.txt
-# Ops: https://127.0.0.1:8443/ops
+# Ops UI: https://127.0.0.1:8443/ops
 ```
 
-## Quick Start (local)
+## Quick start (local)
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt && pip install -e .
-squidc5   # enables per-instance TLS under data/tls/
+squidc5
 # token: data/admin_token.txt
 ```
 
-## Standalone binaries
+## Binaries
 
-Every successful push to `master`:
+Every push to `master` builds and releases:
 
-1. CI builds Linux + Windows executables  
-2. CI publishes a **GitHub Release** with checksums  
+**https://github.com/SquidSec/SquidC5/releases/latest**
 
-**Download:** https://github.com/SquidSec/SquidC5/releases/latest  
-
-| Asset | Purpose |
-|-------|---------|
-| `sc5-linux-x64` / `sc5-windows-x64.exe` | Operator CLI |
-| `squidc5-linux-x64` / `squidc5-windows-x64.exe` | C2 server (includes `/ops` UI) |
-| `SHA256SUMS.txt` | Checksums |
+| Asset | Role |
+|-------|------|
+| `squidc5-linux-x64` | Teamserver |
+| `sc5-linux-x64` | Operator CLI |
+| `sc5beacon-*` (CI artifact) | Native implant |
+| `SHA256SUMS.txt` / `sbom.cdx.json` | Integrity |
 
 ```bash
 chmod +x squidc5-linux-x64 && ./squidc5-linux-x64
-# token: ./data/admin_token.txt
-# console: https://HOST:8443/ops
-
 ./sc5-linux-x64 login --url https://HOST:8443 --token sc5_... --insecure
-./sc5-linux-x64 sessions list
 ```
 
-**Production deploy:** binary-only from main CI after green merge. See [docs/deployment.md](docs/deployment.md).
+Prod deploy: **binary only** from main CI. See [docs/deployment.md](docs/deployment.md).
 
-## Operator CLI (`sc5`)
+## Operator CLI
 
 ```bash
-pip install -e .
-sc5 login --url https://YOUR_HOST:8443 --token sc5_... --insecure
-sc5 health
+sc5 login --url https://HOST:8443 --token sc5_... --insecure
 sc5 sessions list
-sc5 tasks create <session_id> "whoami"
-sc5 listeners create http-1 9001 --kind http
-sc5 payloads generate http_beacon_python YOUR_HOST 8443 --raw
+sc5 implants build --os linux --arch amd64 C2_HOST 8443
 sc5 policy hitl list
+sc5 audit-verify
 sc5 backup ./backup.db
-sc5 ai recon_assist --data "windows domain"
-sc5 repl
+sc5 ai opsec_review --data "listeners on 443"
 ```
 
-Config: `~/.config/squidc5/config.json` (mode 0600).  
-Overrides: `--url` / `--token`, or `SQUIDC5_URL` / `SQUIDC5_TOKEN`.
+## Native beacon
 
-## API overview
+```bash
+cd agents/sc5beacon && go mod tidy && go build -o sc5beacon .
+export SC5_URL="https://C2:8443/api/v1/implant/beacon"
+export SC5_PSK="$(cat /path/to/data/implant_psk.txt)"
+./sc5beacon   # TLS verifies system CAs (use real cert or lab CA)
+```
+
+Docs: [agents/sc5beacon/README.md](agents/sc5beacon/README.md)
+
+## API (selected)
 
 | Area | Path |
 |------|------|
-| Health | `GET /api/v1/health` (minimal) |
-| Deep health | `GET /api/v1/health/deep` (auth) |
-| Tokens / sessions / tasks / listeners | `/api/v1/...` |
-| HITL queue | `GET/POST /api/v1/policy/hitl...` |
+| Health | `GET /api/v1/health` · `GET /api/v1/health/deep` |
+| Implant build | `POST /api/v1/implants/build` |
+| File ops | `POST /api/v1/files/op` |
+| SOCKS | `POST /api/v1/pivot/socks` |
+| Profile push | `POST /api/v1/profiles/{id}/push` |
+| Engagement | `GET/PUT /api/v1/engagement` |
+| HITL | `GET /api/v1/policy/hitl` |
+| Audit verify | `GET /api/v1/audit/verify` |
 | Admin AI | `POST /api/v1/ai/run` |
-| MCP | `GET /mcp/tools` · `POST /mcp/call` (off by default) |
-| Implant beacon | `POST /api/v1/implant/beacon` |
 
-Auth: `Authorization: Bearer <token>` or `X-API-Token: <token>`
-
-**Docs are GitHub-only** - `/docs`, `/redoc`, `/openapi.json` stay disabled on the server.
+Auth: `Authorization: Bearer <token>`. **No public OpenAPI** on the server.
 
 ## Documentation
 
-| Doc | Purpose |
-|-----|---------|
-| [User guide](docs/user-guide.md) | Features, why/how, examples |
-| [Operator runbook](docs/operator-runbook.md) | Shells, beacons, day-2 ops |
-| [Deployment](docs/deployment.md) | Binary prod + Docker lab |
-| [Threat model](docs/threat-model.md) | Trust boundaries and controls |
-| [Roadmap](docs/roadmap-2026-2027.md) | 2026-2027 priorities |
-| [Vision](docs/squidc5-vision.md) | Architecture |
-| [Prod readiness plan](docs/prod-readiness-plan.md) | Execution checklist |
-| [CONTRIBUTING](CONTRIBUTING.md) | PR / git cycle |
-| [CHANGELOG](CHANGELOG.md) | Releases + OPSEC notes |
-| [AGENTS.md](AGENTS.md) | Agent/operator memory |
+| Doc | Link |
+|-----|------|
+| Docs index | [docs/README.md](docs/README.md) |
+| User guide | [docs/user-guide.md](docs/user-guide.md) |
+| Operator runbook | [docs/operator-runbook.md](docs/operator-runbook.md) |
+| Deployment | [docs/deployment.md](docs/deployment.md) |
+| Threat model | [docs/threat-model.md](docs/threat-model.md) |
+| Five-star roadmap | [docs/roadmap-five-star.md](docs/roadmap-five-star.md) |
+| Prod readiness | [docs/prod-readiness-plan.md](docs/prod-readiness-plan.md) |
+| Vision | [docs/squidc5-vision.md](docs/squidc5-vision.md) |
+| Changelog | [CHANGELOG.md](CHANGELOG.md) |
+| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Security | [SECURITY.md](SECURITY.md) |
+| Agents | [AGENTS.md](AGENTS.md) |
 
-## Configuration (selected)
+## Configuration
 
-Prefix `SQUIDC5_`. See [.env.example](.env.example).
+See [.env.example](.env.example). Prefix `SQUIDC5_`.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `HOST` / `PORT` | `0.0.0.0` / `8443` | API bind |
-| `DATA_DIR` | `data` | DB, tokens, TLS, secrets |
+| Variable | Default | Notes |
+|----------|---------|--------|
 | `TLS_ENABLED` | `true` | HTTPS |
-| `MCP_ENABLED` | `false` | External MCP |
-| `AI_ENABLED` | `true` | Admin AI |
-| `PUBLIC_HOST` | empty | Stage-2 / implant callback host |
-| `RATE_LIMIT_PER_MINUTE` | `60` | API rate limit |
-| `LOG_JSON` | `false` | Structured logs |
-| `SECRETS_KEY` | auto file | At-rest LLM key encryption |
-| `PLUGIN_SIGNING_SECRET` | auto file | Plugin HMAC secret |
+| `MCP_ENABLED` | `false` | External AI tools |
+| `IMPLANT_REQUIRE_AUTH` | `true` | AEAD beacons |
+| `LOCAL_LLM_ENABLED` | `false` | Opt-in Ollama path |
+| `LOCAL_LLM_BASE_URL` | `http://127.0.0.1:11434/v1` | Ollama-compatible |
+| `LOCAL_LLM_MODEL` | `llama3.2` | Model id when enabled |
+| `RATE_LIMIT_PER_MINUTE` | `60` | Raise for ops UI (e.g. 600) |
+| `PUBLIC_HOST` | empty | Stage-2 / SOCKS data host |
 
-## Security model (summary)
+## Security model
 
-1. **External AI** - MCP off by default; per-token tool allow-list  
-2. **Admin AI** - capability allow-list + `sanitize_untrusted`  
-3. **Policy + HITL** - server-side approval queue (client flags ignored)  
-4. **Audit** - significant actions logged  
-5. **Admin UI** - `/api/v1/ops/admin.js` requires admin scope  
-6. **SquidGate** - PR security gate on this repo  
-
-Report vulnerabilities via [GitHub Security Advisories](https://github.com/SquidSec/SquidC5/security). See [SECURITY.md](SECURITY.md).
+1. Deny by default · scoped tokens · server-side HITL  
+2. Admin AI capability allow-list + `sanitize_untrusted`  
+3. Implant AEAD · no skip-verify in native agent  
+4. Audit chain + verify · engagement ROE  
+5. [SquidGate](https://github.com/SquidSec/SquidGate) on PRs  
 
 ## Development
 
 ```bash
 pytest -q
 ruff check src tests
+# optional: cd agents/sc5beacon && go build .
 ```
 
-Git cycle: feature branch → tests first → PR → green CI → merge. Never push straight to `master`. Details: [CONTRIBUTING.md](CONTRIBUTING.md).
+Git cycle: feature branch → tests → PR → green CI → merge `master`. Never push straight to master.
 
 ## About SquidSec
 
-SquidC5 is created and managed by **[SquidSec](https://squidoffense.com/)** - U.S. veteran-owned security company.
-
-- Website: [https://squidoffense.com/](https://squidoffense.com/)  
-- Sister project: [SquidGate](https://github.com/SquidSec/SquidGate) (PR security gate)
+**[SquidSec](https://squidoffense.com/)** — U.S. veteran-owned security.  
+Sister project: [SquidGate](https://github.com/SquidSec/SquidGate).
 
 ## License
 
-MIT - see [LICENSE](LICENSE).
+MIT — [LICENSE](LICENSE).
 
 ## Disclaimer
 
-Provided for authorized security testing and education. Authors are not responsible for misuse.
+For authorized security testing and education only. Authors are not responsible for misuse.

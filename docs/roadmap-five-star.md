@@ -1,7 +1,31 @@
 # Five-star C5 program
 
-Track: Pack A (implant) → B (traffic) → C (UX/post-ex) → D (AI) → E (proof).
+Goal: ★★★★★ across implants, traffic, post-ex, multi-player, AI, governance, CI.
 
-Each item: feature branch → tests → PR → green CI/SquidGate → merge master → prod binary.
+**Process:** feature branch → unit tests → PR → CI + SquidGate green → merge `master` → deploy **Release binary** to prod → repeat.
 
-See also `docs/prod-readiness-plan.md`.
+## Pack status (living)
+
+| Pack | Focus | Status |
+|------|--------|--------|
+| **A** | Native agent, factory, lifecycle, BOF scaffold | **Landed** (sc5beacon v2, build API, CI artifacts) |
+| **B** | Traffic, profile push, transforms, SOCKS duplex | **In progress** (transforms + push done; SOCKS reverse-dial duplex this PR) |
+| **C** | File chunks, engagement ROE, multi-op | **Landed** (API); ops UI polish ongoing |
+| **D** | AI capability pack + local Ollama path | **Landed** (15 caps; local LLM URL/model) |
+| **E** | CI proof, SBOM, audit verify, benchmarks | **Landed** (verify, cov, mypy, SBOM, agent CI) |
+
+## Still climbing to full ★★★★★
+
+- Process injection + sleep mask  
+- Windows COFF/BOF **loader host**  
+- P2P / SMB / named pipe  
+- Ops UI file browser / pivot graph  
+- Lab victim matrix soak numbers  
+- External security audit  
+
+## Links
+
+- [User guide](user-guide.md)  
+- [Deployment](deployment.md)  
+- [Native beacon](../agents/sc5beacon/README.md)  
+- [README](../README.md)  
