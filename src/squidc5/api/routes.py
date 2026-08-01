@@ -725,12 +725,17 @@ def build_api_router() -> APIRouter:
         )
         if not decision.allowed:
             raise _policy_http_error(decision)
+        if op == "write" and body.hitl_request_id:
+            args["hitl_request_id"] = body.hitl_request_id
+            args["hitl_approved_server"] = True
+        if op == "write" and auth.has_scope("admin"):
+            args["hitl_approved_server"] = True
         try:
             return await state.tasks.create(
                 session_id=body.session_id,
                 command=cmd,
                 args=args,
-                created_by=auth.name,
+                created_by=auth.name if not auth.has_scope("admin") else "admin",
             )
         except KeyError as e:
             raise HTTPException(404, str(e)) from e
