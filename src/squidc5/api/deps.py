@@ -34,10 +34,6 @@ async def get_auth(
 
 
 def require_scope(*scopes: str) -> Callable:
-    async def _dep(auth: AuthContext = None) -> AuthContext:  # type: ignore[assignment]
-        # FastAPI will inject via nested Depends — use proper pattern below
-        raise NotImplementedError
-
     async def dependency(
         request: Request,
         authorization: str | None = Header(default=None),
