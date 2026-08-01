@@ -14,12 +14,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml"><img src="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml/badge.svg?branch=master" alt="CI"></a>
-  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/squidgate.yml"><img src="https://github.com/SquidSec/SquidC5/actions/workflows/squidgate.yml/badge.svg?branch=master" alt="SquidGate"></a>
+  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/SquidSec/SquidC5/ci.yml?branch=master&label=CI" alt="CI"></a>
+  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/squidgate.yml"><img src="https://img.shields.io/github/actions/workflow/status/SquidSec/SquidC5/squidgate.yml?branch=master&label=SquidGate" alt="SquidGate"></a>
   <a href="https://github.com/SquidSec/SquidC5/releases/latest"><img src="https://img.shields.io/github/v/release/SquidSec/SquidC5?include_prereleases&sort=date&label=release" alt="Release"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
-  <a href="docs/roadmap-five-star.md"><img src="https://img.shields.io/badge/goal-5%20star%20C5-purple.svg" alt="Five star"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+  <a href="docs/roadmap-five-star.md"><img src="https://img.shields.io/badge/goal-5%20star%20C5-purple" alt="Five star"></a>
 </p>
 
 **Command · Control · Cognitive · Collaborative · Coordination**
