@@ -47,6 +47,14 @@ class TaskManager:
                 raise ValueError("path required for file op")
             if cmd == "file:write" and "content" not in args and "content_b64" not in args:
                 raise ValueError("content or content_b64 required for file:write")
+            # Chunked transfer metadata (implant honors offset/length when present)
+            if "offset" in args:
+                args["offset"] = int(args["offset"])
+            if "length" in args:
+                args["length"] = int(args["length"])
+        if cmd == "profile:switch":
+            if not args.get("profile_id"):
+                raise ValueError("profile_id required for profile:switch")
             # Engagement ROE: file writes may require HITL approval id on task args
             if (
                 cmd == "file:write"

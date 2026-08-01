@@ -571,6 +571,10 @@ def cmd_audit(args: argparse.Namespace, client: Client) -> None:
     pp(client.get("/api/v1/audit", params={"limit": args.limit, "offset": args.offset}))
 
 
+def cmd_audit_verify(args: argparse.Namespace, client: Client) -> None:
+    pp(client.get("/api/v1/audit/verify", params={"limit": args.limit}))
+
+
 def cmd_events(args: argparse.Namespace, client: Client) -> None:
     headers = {"Accept": "text/event-stream"}
     if client.token:
@@ -1122,6 +1126,10 @@ def build_parser() -> argparse.ArgumentParser:
     out.set_defaults(func=cmd_output, needs_client=True)
 
     # audit / events
+    av = sub.add_parser("audit-verify", help="Verify audit hash chain")
+    av.add_argument("--limit", type=int, default=500)
+    av.set_defaults(func=cmd_audit_verify, needs_client=True)
+
     aud = sub.add_parser("audit", help="Audit log")
     aud.add_argument("--limit", type=int, default=50)
     aud.add_argument("--offset", type=int, default=0)

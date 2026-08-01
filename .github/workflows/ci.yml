@@ -39,6 +39,27 @@ jobs:
       - name: Tests
         run: pytest -q --cov=squidc5 --cov-report=term-missing --cov-fail-under=65
 
+  native-agent:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Build sc5beacon linux/windows
+        working-directory: agents/sc5beacon
+        run: |
+          go mod tidy
+          go build -ldflags='-s -w' -o ../../dist/sc5beacon-linux-amd64 .
+          GOOS=windows GOARCH=amd64 go build -ldflags='-s -w' -o ../../dist/sc5beacon-windows-amd64.exe .
+          ls -la ../../dist/sc5beacon*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sc5beacon-native
+          path: dist/sc5beacon*
+          retention-days: 14
+
   docker:
     runs-on: ubuntu-latest
     needs: test

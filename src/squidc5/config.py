@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # MCP off by default — enable explicitly when external AI is required
     mcp_enabled: bool = False
     ai_enabled: bool = True
+    # Local LLM (Ollama-compatible) — used when no cloud LLM configured
+    local_llm_base_url: str = "http://127.0.0.1:11434/v1"
+    local_llm_model: str = "llama3.2"
     audit_retention_days: int = 90
     rate_limit_per_minute: int = 60
     # Stricter per-IP cap on failed authentications (credential stuffing)
