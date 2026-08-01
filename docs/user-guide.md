@@ -114,7 +114,7 @@ cat data/admin_token.txt   # local
 # docker exec squidc5 cat /data/admin_token.txt
 
 # Default: HTTPS with unique self-signed cert (data/tls/)
-sc5 login --url https://HOST:8443 --token sc5_...
+sc5 login --url https://HOST:8443 --token sc5_... --insecure
 sc5 whoami
 ```
 
@@ -164,7 +164,7 @@ The UI is a pure client. Without a token, only public shell HTML loads; admin pa
 
 | Field | Meaning |
 |-------|---------|
-| Server URL | Base URL, e.g. `http://159.x.x.x:8443` |
+| Server URL | Base URL, e.g. `https://159.x.x.x:8443` |
 | API token | `sc5_…` Bearer token |
 | Refresh | Poll interval for sessions/metrics/events |
 
