@@ -24,6 +24,7 @@ from squidc5.db.store import Database
 from squidc5.features import FeatureFlags
 from squidc5.implants.registry import ImplantRegistry
 from squidc5.listeners.manager import ListenerManager
+from squidc5.logging_setup import configure_logging
 from squidc5.mcp.server import build_mcp_router
 from squidc5.metrics.collector import MetricsCollector
 from squidc5.oast.store import OastService
@@ -36,10 +37,7 @@ from squidc5.profiles.engine import ProfileEngine
 from squidc5.sessions.manager import SessionManager
 from squidc5.tasking.manager import TaskManager
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-)
+configure_logging(json_logs=False, debug=False)
 log = logging.getLogger("squidc5")
 
 
@@ -153,6 +151,7 @@ async def build_state(settings: Settings) -> AppState:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    configure_logging(json_logs=settings.log_json, debug=settings.debug)
     for w in settings.validate_runtime():
         log.warning("config: %s", w)
 
@@ -411,6 +410,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 def cli() -> None:
     settings = get_settings()
+    configure_logging(json_logs=settings.log_json, debug=settings.debug)
     try:
         for w in settings.validate_runtime():
             log.warning("config: %s", w)
