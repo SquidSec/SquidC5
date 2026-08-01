@@ -562,29 +562,29 @@ For **each** Change ID:
 | A03 | A | done | merged |
 | A04 | A | done | merged |
 | A05 | A | done | merged |
-| A06 | A | pending | |
+| A06 | A | done | merged |
 | A07 | A | done | merged |
 | A08 | A | done | merged |
 | A09 | A | done | merged |
-| A10 | A | pending | |
+| A10 | A | done | merged |
 | A11 | A | pending | |
 | A11b | A | pending/optional | |
-| B01 | B | pending | |
-| B02 | B | pending | |
+| B01 | B | done | merged |
+| B02 | B | done | merged |
 | B03 | B | pending | |
-| B04 | B | pending | |
-| B05 | B | pending | |
-| B06 | B | pending | |
+| B04 | B | done | merged |
+| B05 | B | done | merged |
+| B06 | B | done | merged |
 | B07 | B | pending | |
-| B08 | B | pending | |
-| B09 | B | pending | |
+| B08 | B | done | merged |
+| B09 | B | done | merged |
 | B10 | B | pending | |
 | B11 | B | pending | |
 | B12 | B | pending | |
 | B13 | B | pending | |
 | B14 | B | pending | |
-| B15 | B | in_progress | |
-| B16 | B | pending | |
+| B15 | B | done | merged |
+| B16 | B | done | merged |
 | C01 | C | pending | |
 | C02 | C | pending | |
 | C03 | C | pending | |
