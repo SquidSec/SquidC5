@@ -16,10 +16,10 @@ Goal: ★★★★★ across implants, traffic, post-ex, multi-player, AI, gover
 
 ## Still climbing to full ★★★★★
 
-- Process injection + sleep mask  
-- Windows COFF/BOF **loader host**  
+- Process injection + sleep mask — **lab stubs + catalog + agent gates** (this pack)  
+- Windows COFF/BOF **loader host** — metadata plan + gated agent stub (full COFF exec research)  
+- Ops UI file / SOCKS / HITL / engagement / modules panels — **landed**  
 - P2P / SMB / named pipe  
-- Ops UI file browser / pivot graph  
 - Lab victim matrix soak numbers  
 - External security audit  
 

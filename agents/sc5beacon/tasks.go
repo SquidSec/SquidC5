@@ -27,6 +27,12 @@ func runTask(cmd string, args map[string]any) string {
 		}
 		return "profile_switch_ack"
 	}
+	if strings.HasPrefix(cmd, "inject:") || cmd == "inject" {
+		return handleInject(cmd, args)
+	}
+	if cmd == "bof:run" {
+		return handleBofRun(args)
+	}
 	if cmd == "sysinfo" {
 		return fmt.Sprintf("os=%s arch=%s hostname=%s", runtime.GOOS, runtime.GOARCH, hostName())
 	}
