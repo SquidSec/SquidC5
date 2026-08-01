@@ -13,6 +13,8 @@ permissions:
 jobs:
   squidgate:
     runs-on: ubuntu-latest
+    env:
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,13 +22,13 @@ jobs:
 
       # Skip cleanly until Settings → Secrets → Actions → LLM_API_KEY is set.
       - name: SquidGate
-        if: ${{ secrets.LLM_API_KEY != '' }}
+        if: env.LLM_API_KEY != ''
         uses: SquidSec/SquidGate@v1.0.0-build.4
         with:
-          llm-api-key: ${{ secrets.LLM_API_KEY }}
+          llm-api-key: ${{ env.LLM_API_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: SquidGate not configured
-        if: ${{ secrets.LLM_API_KEY == '' }}
+        if: env.LLM_API_KEY == ''
         run: |
           echo "::notice title=SquidGate::Add repository secret LLM_API_KEY to enable the PR security gate (SquidSec/SquidGate@v1.0.0-build.4)."
