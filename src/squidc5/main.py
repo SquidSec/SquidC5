@@ -166,11 +166,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
+    from squidc5.api.rate_limit import (
+        ApiRateLimitState,
+        client_key_from_request,
+        path_is_rate_limit_exempt,
+    )
+
+    rate_limit_state = ApiRateLimitState(
+        limit_per_minute=settings.rate_limit_per_minute,
+        auth_fail_limit_per_minute=settings.auth_fail_limit_per_minute,
+    )
+    app.state.rate_limit = rate_limit_state
+
     # Secure CORS: no wildcard. Allow:
     #  - explicit SQUIDC5_CORS_ORIGINS
     #  - same-host origins (so /ops on this server can use Authorization)
     from urllib.parse import urlparse
 
+    from starlette.responses import JSONResponse
     from starlette.responses import Response as StarletteResponse
 
     def _cors_origin_allowed(origin: str | None, host_header: str | None) -> str | None:
@@ -229,7 +242,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 resp.headers["X-Frame-Options"] = "DENY"
             return resp
 
+        path = request.url.path
+        ckey = client_key_from_request(request)
+        rl: ApiRateLimitState = request.app.state.rate_limit
+        if not path_is_rate_limit_exempt(path):
+            ok, retry_after = rl.check_request(ckey)
+            if not ok:
+                resp = JSONResponse(
+                    status_code=429,
+                    content={"detail": "Rate limit exceeded"},
+                    headers={"Retry-After": str(retry_after or 60)},
+                )
+                if allow_origin:
+                    resp.headers["Access-Control-Allow-Origin"] = allow_origin
+                    resp.headers["Vary"] = "Origin"
+                if settings.security_headers:
+                    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+                    resp.headers.setdefault("X-Frame-Options", "DENY")
+                    resp.headers.setdefault("Cache-Control", "no-store")
+                return resp
+
         response = await call_next(request)
+        if response.status_code == 401 and not path_is_rate_limit_exempt(path):
+            rl.record_auth_failure(ckey)
         if allow_origin:
             response.headers["Access-Control-Allow-Origin"] = allow_origin
             response.headers["Vary"] = "Origin"
