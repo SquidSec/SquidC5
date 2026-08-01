@@ -10,7 +10,7 @@ Goal: ★★★★★ across implants, traffic, post-ex, multi-player, AI, gover
 |------|--------|--------|
 | **A** | Native agent, factory, lifecycle, BOF scaffold | **Landed** (sc5beacon v2, build API, CI artifacts) |
 | **B** | Traffic, profile push, transforms, SOCKS duplex | **In progress** (transforms + push done; SOCKS reverse-dial duplex this PR) |
-| **C** | File chunks, engagement ROE, multi-op | **Landed** (API); ops UI polish ongoing |
+| **C** | File chunks, engagement ROE, multi-op | **Landed** (claim/handoff/spectator/presence/UI) |
 | **D** | AI capability pack + local Ollama path | **Landed** (15 caps; local LLM URL/model) |
 | **E** | CI proof, SBOM, audit verify, benchmarks | **Landed** (verify, cov, mypy, SBOM, agent CI) |
 
@@ -25,10 +25,30 @@ Goal: ★★★★★ across implants, traffic, post-ex, multi-player, AI, gover
 | **I5** | Sleep/string OPSEC | **Landed** (mask + wipe) |
 | **I6** | Lab soak CI matrix | **Landed** (go test + multi-arch + smoke) |
 
+## Multi-op + ops UI (M/U packs)
+
+| Pack | Status |
+|------|--------|
+| M1 claim/lock | **Landed** |
+| M2 handoff pack | **Landed** |
+| M3 spectator | **Landed** |
+| M4 presence | **Landed** |
+| M5 team chat | **Landed** |
+| M6 per-op audit | **Landed** |
+| U1 workbench | **Landed** |
+| U2 events rail | **Landed** |
+| U3 teams panel | **Landed** |
+| U4 layout presets | **Landed** |
+| U5 file crumbs | **Landed** |
+| U6 pivot map | **Landed** |
+| U7 mobile targets | **Landed** |
+| U8 toasts | existing showOk/showError |
+
 ## Still climbing to full ★★★★★
 
 - Full Windows COFF **mapped execute** (research build)  
 - P2P / SMB / named pipe  
+- True SSE EventSource auth (today: metrics poll rail)  
 - Multi-host lab soak numbers (overnight)  
 - External security audit  
 

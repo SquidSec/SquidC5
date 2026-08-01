@@ -249,9 +249,33 @@
     #socksPanel > .panel-body,
     #modulesPanel > .panel-body,
     #hitlPanel > .panel-body,
-    #engagementPanel > .panel-body {
+    #engagementPanel > .panel-body,
+    #workbenchPanel > .panel-body,
+    #eventsRailPanel > .panel-body,
+    #teamsPanel > .panel-body,
+    #auditMePanel > .panel-body,
+    #pivotMapPanel > .panel-body {
       padding-bottom: 40px;
     }
+    /* U7 mobile: larger hit targets */
+    @media (max-width: 767px) {
+      button.touch-lg, .touch-lg {
+        min-height: 44px;
+        font-size: 1rem;
+        padding: 10px 14px;
+      }
+      input.touch-lg, textarea.touch-lg, select.touch-lg {
+        min-height: 44px;
+        font-size: 1rem;
+      }
+      details.panel summary {
+        min-height: 48px;
+      }
+    }
+    #eventsRail .mono { word-break: break-all; }
+    #fileTable table { width: 100%; font-size: 0.75rem; }
+    #fileCrumbs .chip { cursor: pointer; }
+
     details.panel > .panel-body.scroll-focus {
       outline: 1px solid rgba(233,30,140,0.25);
       outline-offset: -1px;

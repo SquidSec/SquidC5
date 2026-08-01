@@ -211,6 +211,33 @@ sc5 audit-verify --limit 500
 sc5 teams create red-cell
 sc5 teams members <team_id>
 sc5 teams add-member <team_id> operator-b --role operator
+
+# Claim / release (REST)
+curl -sk -H "Authorization: Bearer $TOK" -X POST \
+  "$URL/api/v1/sessions/$SID/claim"
+curl -sk -H "Authorization: Bearer $TOK" -X POST \
+  "$URL/api/v1/sessions/$SID/release"
+
+# Handoff pack (transfers claim)
+curl -sk -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
+  -d '{"to":"operator-b","note":"your turn","include_pack":true}' \
+  -X POST "$URL/api/v1/sessions/$SID/handoff"
+
+# Spectator (read-only)
+curl -sk -H "Authorization: Bearer $TOK" \
+  "$URL/api/v1/sessions/$SID/spectator"
+
+# Presence + team chat
+curl -sk -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
+  -d '{"status":"online","viewing_session":"'"$SID"'"}' \
+  -X POST "$URL/api/v1/collab/presence"
+curl -sk -H "Authorization: Bearer $TOK" "$URL/api/v1/collab/presence"
+curl -sk -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
+  -d '{"message":"standing by","team_id":"'"$TEAM"'"}' \
+  -X POST "$URL/api/v1/collab/chat"
+
+# My actions
+curl -sk -H "Authorization: Bearer $TOK" "$URL/api/v1/audit/me?limit=50"
 ```
 
 ## AI chains

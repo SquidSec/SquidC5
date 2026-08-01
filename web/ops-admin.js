@@ -62,19 +62,55 @@
       <button type="button" id="whoamiBtn">Whoami</button>
       <button type="button" id="healthBtn">Health</button>
     </div>
+    <label for="layoutPreset">Layout preset (U4)</label>
+    <select id="layoutPreset">
+      <option value="admin">Admin (all panels)</option>
+      <option value="operator">Operator</option>
+      <option value="lead">Lead / spectator</option>
+    </select>
     <div class="outbox empty-out" id="identOut" style="margin-top:8px">—</div>
   `, true, "identity"));
+
+  // ----- U1 Session workbench -----
+  if (can("sessions:read") || can("shell:interact") || can("tasks:write")) {
+    parts.push(panel("workbenchPanel", "🎯 Session workbench", `
+      ${hint("One selected session drives Shell, Tasks, Files, SOCKS, and Modules. Claim lock (M1) before multi-op tasking. Spectate for read-only.", "session-workbench")}
+      <label for="wbSession">Active session</label>
+      <select id="wbSession"><option value="">(none)</option></select>
+      <div class="row" style="margin-top:6px">
+        <button type="button" id="wbRefreshBtn">Refresh list</button>
+        ${can("collab:use") || can("shell:interact") || can("admin") ? '<button type="button" class="primary" id="wbClaimBtn">Claim</button>' : ""}
+        ${can("collab:use") || can("shell:interact") || can("admin") ? '<button type="button" id="wbReleaseBtn">Release</button>' : ""}
+        ${can("sessions:read") ? '<button type="button" id="wbSpectateBtn">Spectate</button>' : ""}
+      </div>
+      <p class="muted mono" id="wbClaimLine" style="margin-top:8px">claim: —</p>
+      <div class="outbox empty-out" id="wbOut" style="margin-top:8px">Select a session to operate.</div>
+    `, true, "session-workbench"));
+  }
+
+  // ----- U2 Live events rail -----
+  if (can("metrics:read") || can("sessions:read") || can("collab:use") || can("admin")) {
+    parts.push(panel("eventsRailPanel", "📡 Live events", `
+      ${hint("SSE stream: shell.output, tasks, HITL, chat, presence. Sticky rail for ops awareness.", "live-events")}
+      <div class="row">
+        <button type="button" class="primary" id="eventsConnectBtn">Connect</button>
+        <button type="button" id="eventsClearBtn">Clear</button>
+        <span class="chip" id="eventsStatus">off</span>
+      </div>
+      <div class="outbox empty-out" id="eventsRail" style="margin-top:8px;min-height:120px;max-height:220px;overflow:auto">—</div>
+    `, true, "live-events"));
+  }
 
   // ----- Shell interact -----
   if (can("shell:interact")) {
     parts.push(panel("quickRunCard", "⌨ Shell", `
-      ${hint("Interactive command runner for <strong>verified reverse shells</strong> only (exec-probe passed). Pick a live session, run a command, or broadcast to all verified shells. Buffer shows recent session output already captured by the server — not a live PTY stream. Background: <a class=\"doc-link\" href=\"https://grok.com/pedia/reverse-shell\" target=\"_blank\" rel=\"noopener noreferrer\">reverse shell</a>.", "shell")}
+      ${hint("Interactive command runner for <strong>verified reverse shells</strong> only (exec-probe passed). Uses workbench session when set. Buffer shows recent session output — not a live PTY.", "shell")}
       <label for="shellSelect">Target shell</label>
       <select id="shellSelect"><option value="">(none)</option></select>
       <label for="shellCmd">Command</label>
-      <textarea id="shellCmd" placeholder="whoami"></textarea>
+      <textarea id="shellCmd" placeholder="whoami" class="touch-lg"></textarea>
       <div class="row">
-        <button type="button" class="primary" id="runShellBtn">Run</button>
+        <button type="button" class="primary touch-lg" id="runShellBtn">Run</button>
         ${can("shell:interact") ? '<button type="button" id="runAllBtn">All verified</button>' : ""}
         <button type="button" id="dumpOutBtn">Buffer</button>
       </div>
@@ -101,14 +137,14 @@
   // ----- Tasks (beacons) -----
   if (can("tasks:read") || can("tasks:write")) {
     parts.push(panel("tasksPanel", "📋 Tasks", `
-      ${hint("Async work queue for <strong>beacon</strong> implants (not interactive reverse shells). Create a task against a beacon session id; the implant picks it up on next check-in and returns output when complete. Use List tasks to poll status. Background: <a class=\"doc-link\" href=\"https://grok.com/pedia/beacon\" target=\"_blank\" rel=\"noopener noreferrer\">beacon</a> · <a class=\"doc-link\" href=\"https://grok.com/pedia/implant\" target=\"_blank\" rel=\"noopener noreferrer\">implant</a>.", "tasks")}
+      ${hint("Async work queue for <strong>beacon</strong> implants. Session defaults from workbench.", "tasks")}
       ${can("tasks:write") ? `
         <label for="taskSession">Session id</label>
-        <input id="taskSession" placeholder="beacon session id" autocomplete="off" />
+        <input id="taskSession" class="wb-bound" placeholder="from workbench" autocomplete="off" />
         <label for="taskCmd">Command</label>
-        <input id="taskCmd" placeholder="id / whoami" autocomplete="off" />
+        <input id="taskCmd" placeholder="id / whoami" autocomplete="off" class="touch-lg" />
         <div class="row">
-          <button type="button" class="primary" id="createTaskBtn">Create task</button>
+          <button type="button" class="primary touch-lg" id="createTaskBtn">Create task</button>
           <button type="button" id="listTasksBtn">List tasks</button>
         </div>
       ` : `<div class="row"><button type="button" id="listTasksBtn">List tasks</button></div>`}
@@ -341,18 +377,82 @@
     `, true, "timeline-and-reports"));
   }
 
-  // ----- Collab chat -----
+  // ----- Collab chat (M5 team-scoped) -----
   if (can("collab:use") || can("admin")) {
     parts.push(panel("chatPanel", "💬 Operator chat", `
-      ${hint("Shared notes between operators on this C2 instance (handoff, spectator context). Not a full team chat product — short operational messages stored with the server and visible to collab-scoped tokens.", "operator-chat")}
+      ${hint("Team-scoped or global operator chat (M5). Pick a team channel or leave blank for global.", "operator-chat")}
+      <label for="chatTeam">Team channel</label>
+      <select id="chatTeam"><option value="">(global)</option></select>
       <label for="chatMsg">Message</label>
-      <input id="chatMsg" placeholder="handoff note…" autocomplete="off" />
+      <input id="chatMsg" placeholder="handoff note…" autocomplete="off" class="touch-lg" />
       <div class="row">
-        <button type="button" class="primary" id="chatSendBtn">Send</button>
+        <button type="button" class="primary touch-lg" id="chatSendBtn">Send</button>
         <button type="button" id="chatReloadBtn">Reload</button>
       </div>
       <div class="outbox empty-out" id="chatOut" style="margin-top:8px">—</div>
     `, true, "operator-chat"));
+  }
+
+  // ----- U3 Teams + handoff + M4 presence -----
+  if (can("collab:use") || can("admin")) {
+    parts.push(panel("teamsPanel", "👥 Teams / handoff", `
+      ${hint("Multi-op teams, members, claim handoff packs, and online presence.", "teams-handoff")}
+      <div class="row">
+        <button type="button" id="teamsReloadBtn">List teams</button>
+        <button type="button" id="presenceBtn">Who's online</button>
+      </div>
+      <label for="newTeamName">Create team</label>
+      <div class="row">
+        <input id="newTeamName" placeholder="red-cell" autocomplete="off" />
+        <button type="button" class="primary" id="teamCreateBtn">Create</button>
+      </div>
+      <label for="teamMemberTeam">Add member — team id</label>
+      <input id="teamMemberTeam" placeholder="team_…" autocomplete="off" />
+      <label for="teamMemberActor">Actor name</label>
+      <input id="teamMemberActor" placeholder="alice" autocomplete="off" />
+      <div class="row">
+        <button type="button" id="teamAddMemberBtn">Add member</button>
+        <button type="button" id="teamListMembersBtn">List members</button>
+      </div>
+      <hr style="border-color:rgba(255,255,255,0.08);margin:10px 0" />
+      <label for="handoffTo">Handoff to (actor)</label>
+      <input id="handoffTo" placeholder="bob" autocomplete="off" />
+      <label for="handoffNote">Note</label>
+      <textarea id="handoffNote" placeholder="status + next steps" style="min-height:50px"></textarea>
+      <div class="row">
+        <button type="button" class="primary" id="handoffBtn">Handoff active session</button>
+        <button type="button" id="handoffListBtn">List handoffs</button>
+      </div>
+      <div class="outbox empty-out" id="teamsOut" style="margin-top:8px">—</div>
+    `, true, "teams-handoff"));
+  }
+
+  // ----- M6 My audit -----
+  if (can("audit:read") || can("admin")) {
+    parts.push(panel("auditMePanel", "🧾 My actions", `
+      ${hint("Per-operator audit filter (M6). Load your actions or filter by actor.", "audit-me")}
+      <div class="row">
+        <button type="button" class="primary" id="auditMeBtn">My actions</button>
+        <button type="button" id="auditMineTimelineBtn">My timeline</button>
+      </div>
+      <label for="auditActor">Filter actor</label>
+      <input id="auditActor" placeholder="operator name" autocomplete="off" />
+      <div class="row">
+        <button type="button" id="auditActorBtn">Load actor audit</button>
+      </div>
+      <div class="outbox empty-out" id="auditMeOut" style="margin-top:8px">—</div>
+    `, false, "audit-me"));
+  }
+
+  // ----- U6 Pivot map -----
+  if (can("shell:interact") || can("admin")) {
+    parts.push(panel("pivotMapPanel", "🗺 Pivot map", `
+      ${hint("Simple session → SOCKS listen graph.", "pivot-map")}
+      <div class="row">
+        <button type="button" class="primary" id="pivotMapBtn">Refresh map</button>
+      </div>
+      <div class="outbox empty-out" id="pivotMapOut" style="margin-top:8px">—</div>
+    `, false, "pivot-map"));
   }
 
   // ----- C2 Profiles -----
@@ -373,7 +473,7 @@
     parts.push(panel("filesPanel", "📁 File ops", `
       ${hint("Structured file list/read/write/delete tasks on a beacon session. Write may require HITL. Implant executes <code>file:*</code> commands.", "file-ops")}
       <label for="fileSession">Session id</label>
-      <input id="fileSession" placeholder="beacon session id" autocomplete="off" />
+      <input id="fileSession" class="wb-bound" placeholder="from workbench" autocomplete="off" />
       <label for="fileOp">Op</label>
       <select id="fileOp">
         <option value="list">list</option>
@@ -381,13 +481,15 @@
         <option value="write">write</option>
         <option value="delete">delete</option>
       </select>
+      <div class="row" id="fileCrumbs" style="flex-wrap:wrap;gap:4px;margin:6px 0"></div>
       <label for="filePath">Path</label>
-      <input id="filePath" placeholder="/tmp or C:\\\\temp" autocomplete="off" />
+      <input id="filePath" placeholder="/tmp or ." autocomplete="off" class="touch-lg" />
       <label for="fileContent">Content (write)</label>
       <textarea id="fileContent" placeholder="optional text" style="min-height:60px"></textarea>
       <div class="row">
-        <button type="button" class="primary" id="fileOpBtn">Queue file op</button>
+        <button type="button" class="primary touch-lg" id="fileOpBtn">Queue / browse</button>
       </div>
+      <div id="fileTable" style="margin-top:8px;overflow:auto"></div>
       <div class="outbox empty-out" id="fileOut" style="margin-top:8px">—</div>
     `, false, "file-ops"));
   }
@@ -397,7 +499,7 @@
     parts.push(panel("socksPanel", "🕸 SOCKS pivot", `
       ${hint("Start a SOCKS5 listener bridged through an implant (reverse-dial) or direct mode. List/stop existing pivots.", "socks-pivot")}
       <label for="socksSession">Session id</label>
-      <input id="socksSession" placeholder="beacon session id" autocomplete="off" />
+      <input id="socksSession" class="wb-bound" placeholder="from workbench" autocomplete="off" />
       <label for="socksHost">Listen host</label>
       <input id="socksHost" value="127.0.0.1" autocomplete="off" />
       <label for="socksPort">Listen port (0=ephemeral)</label>
@@ -428,7 +530,7 @@
         <button type="button" id="modCatalogBtn">Load catalog</button>
       </div>
       <label for="modSession">Session id</label>
-      <input id="modSession" placeholder="beacon session id" autocomplete="off" />
+      <input id="modSession" class="wb-bound" placeholder="from workbench" autocomplete="off" />
       <label for="modTech">Inject technique</label>
       <input id="modTech" placeholder="create_remote_thread" autocomplete="off" />
       <label for="modPid">PID</label>
@@ -1268,16 +1370,25 @@
   }
   async function loadChat() {
     if (!$("chatOut")) return;
-    const r = await api("GET", "/api/v1/collab/chat?limit=30");
-    const lines = (r.messages || []).map((m) => `${m.actor}: ${m.message}`);
+    const tid = ($("chatTeam") && $("chatTeam").value) || "";
+    const q = tid ? `?limit=30&team_id=${encodeURIComponent(tid)}` : "?limit=30";
+    const r = await api("GET", "/api/v1/collab/chat" + q);
+    const lines = (r.messages || []).map((m) => {
+      const ch = m.team_id ? `[${String(m.team_id).slice(0, 8)}] ` : "";
+      // setOut uses textContent; still strip control chars defensively
+      const actor = String(m.actor || "?").replace(/[\r\n\t]/g, " ").slice(0, 64);
+      const msg = String(m.message || "").replace(/[\r\n]+/g, " ").slice(0, 2000);
+      return `${ch}${actor}: ${msg}`;
+    });
     setOut("chatOut", lines.join("\n") || "(empty)", !lines.length);
   }
   if ($("chatSendBtn")) {
     $("chatSendBtn").onclick = async () => {
       const message = ($("chatMsg").value || "").trim();
       if (!message) return showError("Message required");
+      const team_id = ($("chatTeam") && $("chatTeam").value) || null;
       try {
-        await api("POST", "/api/v1/collab/chat", { message });
+        await api("POST", "/api/v1/collab/chat", { message, team_id: team_id || null });
         $("chatMsg").value = "";
         await loadChat();
         showOk("Sent");
@@ -1287,20 +1398,406 @@
   if ($("chatReloadBtn")) {
     $("chatReloadBtn").onclick = () => loadChat().catch((e) => showError(String(e.message || e)));
   }
+  if ($("chatTeam")) {
+    $("chatTeam").onchange = () => loadChat().catch(() => {});
+  }
 
-  // File ops
+  // ----- U1 Workbench + claim -----
+  function activeSessionId() {
+    const wb = $("wbSession") && $("wbSession").value;
+    if (wb) return wb.trim();
+    const sh = $("shellSelect") && $("shellSelect").value;
+    return (sh || "").trim();
+  }
+  function syncWorkbenchBindings(sid) {
+    document.querySelectorAll(".wb-bound").forEach((el) => {
+      if (sid) el.value = sid;
+    });
+    if ($("shellSelect") && sid) {
+      const opt = Array.from($("shellSelect").options).find((o) => o.value === sid);
+      if (opt) $("shellSelect").value = sid;
+    }
+    if ($("taskSession") && sid) $("taskSession").value = sid;
+  }
+  async function loadWorkbenchSessions() {
+    if (!$("wbSession")) return;
+    try {
+      const rows = await api("GET", "/api/v1/sessions?status=active");
+      const list = Array.isArray(rows) ? rows : (rows.sessions || []);
+      const cur = $("wbSession").value;
+      $("wbSession").innerHTML = '<option value="">(none)</option>' +
+        list.map((s) => {
+          const meta = s.metadata || {};
+          const claim = meta.claimed_by ? ` · 🔒${meta.claimed_by}` : "";
+          const label = `${s.id.slice(0, 12)}… ${s.kind || ""} ${s.hostname || s.remote_addr || ""}${claim}`;
+          return `<option value="${escapeHtml(s.id)}">${escapeHtml(label)}</option>`;
+        }).join("");
+      if (cur) $("wbSession").value = cur;
+    } catch (e) {
+      setOut("wbOut", String(e.message || e), false);
+    }
+  }
+  if ($("wbRefreshBtn")) {
+    $("wbRefreshBtn").onclick = () => loadWorkbenchSessions().then(() => showOk("Sessions refreshed")).catch((e) => showError(String(e.message || e)));
+  }
+  if ($("wbSession")) {
+    $("wbSession").onchange = async () => {
+      const sid = activeSessionId();
+      syncWorkbenchBindings(sid);
+      if (!sid) {
+        if ($("wbClaimLine")) $("wbClaimLine").textContent = "claim: —";
+        setOut("wbOut", "Select a session to operate.", true);
+        return;
+      }
+      try {
+        const s = await api("GET", `/api/v1/sessions/${encodeURIComponent(sid)}`);
+        const meta = s.metadata || {};
+        if ($("wbClaimLine")) {
+          $("wbClaimLine").textContent = meta.claimed_by
+            ? `claim: ${meta.claimed_by}${meta.claimed_at ? " @ " + new Date(meta.claimed_at * 1000).toISOString() : ""}`
+            : "claim: (unlocked)";
+        }
+        setOut("wbOut", JSON.stringify({ id: s.id, kind: s.kind, hostname: s.hostname, status: s.status, claimed_by: meta.claimed_by }, null, 2), false);
+        // presence viewing
+        try {
+          await api("POST", "/api/v1/collab/presence", { status: "online", viewing_session: sid });
+        } catch (_) {}
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("wbClaimBtn")) {
+    $("wbClaimBtn").onclick = async () => {
+      const sid = activeSessionId();
+      if (!sid) return showError("Select a session");
+      try {
+        const r = await api("POST", `/api/v1/sessions/${encodeURIComponent(sid)}/claim`, {});
+        setOut("wbOut", JSON.stringify(r, null, 2), false);
+        showOk("Claimed");
+        if ($("wbClaimLine")) $("wbClaimLine").textContent = `claim: ${r.claimed_by || "you"}`;
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("wbReleaseBtn")) {
+    $("wbReleaseBtn").onclick = async () => {
+      const sid = activeSessionId();
+      if (!sid) return showError("Select a session");
+      try {
+        const r = await api("POST", `/api/v1/sessions/${encodeURIComponent(sid)}/release`);
+        setOut("wbOut", JSON.stringify(r, null, 2), false);
+        showOk("Released");
+        if ($("wbClaimLine")) $("wbClaimLine").textContent = "claim: (unlocked)";
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("wbSpectateBtn")) {
+    $("wbSpectateBtn").onclick = async () => {
+      const sid = activeSessionId();
+      if (!sid) return showError("Select a session");
+      try {
+        const r = await api("GET", `/api/v1/sessions/${encodeURIComponent(sid)}/spectator`);
+        setOut("wbOut", "👁 WATCHING\n" + JSON.stringify(r, null, 2), false);
+        showOk("Spectator mode");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+
+  // ----- U2 Events rail -----
+  let _evtSrc = null;
+  function appendEventLine(text) {
+    const el = $("eventsRail");
+    if (!el) return;
+    const line = document.createElement("div");
+    line.className = "mono";
+    line.style.fontSize = "0.7rem";
+    line.textContent = text;
+    if (el.classList.contains("empty-out")) {
+      el.textContent = "";
+      el.classList.remove("empty-out");
+    }
+    el.appendChild(line);
+    while (el.childNodes.length > 80) el.removeChild(el.firstChild);
+    el.scrollTop = el.scrollHeight;
+  }
+  if ($("eventsConnectBtn")) {
+    $("eventsConnectBtn").onclick = () => {
+      if (_evtSrc) {
+        try { _evtSrc.close(); } catch (_) {}
+        _evtSrc = null;
+      }
+      const base = (window.__SC5_API_BASE__ || location.origin || "").replace(/\/$/, "");
+      const tok = (window.__SC5_STATE__ && window.__SC5_STATE__.token) || localStorage.getItem("sc5_token") || "";
+      // EventSource cannot set Authorization — use query if server supports; else poll metrics
+      // Prefer fetch stream via cookie-less: use polling fallback on recent events
+      if ($("eventsStatus")) $("eventsStatus").textContent = "polling";
+      showOk("Events rail connected (poll)");
+      const poll = async () => {
+        if (!$("eventsRail")) return;
+        try {
+          const snap = await api("GET", "/api/v1/metrics");
+          const ev = (snap.recent_events || []).slice(-15);
+          ev.forEach((e) => {
+            const t = e.type || "?";
+            const p = e.payload ? JSON.stringify(e.payload).slice(0, 120) : "";
+            appendEventLine(`${new Date((e.ts || 0) * 1000).toISOString().slice(11, 19)} ${t} ${p}`);
+          });
+          if ($("eventsStatus")) $("eventsStatus").textContent = "live";
+        } catch (e) {
+          if ($("eventsStatus")) $("eventsStatus").textContent = "err";
+        }
+      };
+      poll();
+      if (window.__SC5_EVT_TIMER) clearInterval(window.__SC5_EVT_TIMER);
+      window.__SC5_EVT_TIMER = setInterval(poll, 4000);
+      // presence beat
+      api("POST", "/api/v1/collab/presence", { status: "online" }).catch(() => {});
+    };
+  }
+  if ($("eventsClearBtn")) {
+    $("eventsClearBtn").onclick = () => {
+      if ($("eventsRail")) {
+        $("eventsRail").textContent = "—";
+        $("eventsRail").classList.add("empty-out");
+      }
+    };
+  }
+
+  // ----- U4 Layout presets -----
+  const PRESET_HIDE = {
+    operator: ["llmPanel", "tokensPanel", "featuresPanel", "policyPanel", "mcpPanel", "pluginsPanel", "deployPanel"],
+    lead: ["llmPanel", "tokensPanel", "featuresPanel", "policyPanel", "mcpPanel", "payloadsPanel", "modulesPanel"],
+    admin: [],
+  };
+  function applyLayoutPreset(name) {
+    const hide = PRESET_HIDE[name] || [];
+    document.querySelectorAll("details.panel").forEach((p) => {
+      if (!p.id) return;
+      p.style.display = hide.indexOf(p.id) >= 0 ? "none" : "";
+    });
+    try { localStorage.setItem("sc5_layout_preset", name); } catch (_) {}
+    showOk("Layout: " + name);
+  }
+  if ($("layoutPreset")) {
+    try {
+      const saved = localStorage.getItem("sc5_layout_preset");
+      if (saved) $("layoutPreset").value = saved;
+    } catch (_) {}
+    $("layoutPreset").onchange = () => applyLayoutPreset($("layoutPreset").value);
+    applyLayoutPreset($("layoutPreset").value || "admin");
+  }
+
+  // ----- Teams / handoff / presence -----
+  async function loadTeamsIntoSelects() {
+    if (!$("chatTeam") && !$("teamsOut")) return;
+    try {
+      const teams = await api("GET", "/api/v1/teams");
+      const list = Array.isArray(teams) ? teams : [];
+      if ($("chatTeam")) {
+        const cur = $("chatTeam").value;
+        $("chatTeam").innerHTML = '<option value="">(global)</option>' +
+          list.map((t) => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name || t.id)}</option>`).join("");
+        if (cur) $("chatTeam").value = cur;
+      }
+      if ($("teamsOut") && list.length) {
+        setOut("teamsOut", list.map((t) => `${t.id}  ${t.name}`).join("\n"), false);
+      }
+    } catch (_) {}
+  }
+  if ($("teamsReloadBtn")) {
+    $("teamsReloadBtn").onclick = () => loadTeamsIntoSelects().then(() => showOk("Teams loaded")).catch((e) => showError(String(e.message || e)));
+  }
+  if ($("teamCreateBtn")) {
+    $("teamCreateBtn").onclick = async () => {
+      const name = ($("newTeamName").value || "").trim();
+      if (!name) return showError("Team name required");
+      try {
+        const r = await api("POST", "/api/v1/teams", { name });
+        setOut("teamsOut", JSON.stringify(r, null, 2), false);
+        showOk("Team created");
+        await loadTeamsIntoSelects();
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("teamAddMemberBtn")) {
+    $("teamAddMemberBtn").onclick = async () => {
+      const tid = ($("teamMemberTeam").value || "").trim();
+      const actor = ($("teamMemberActor").value || "").trim();
+      if (!tid || !actor) return showError("Team id and actor required");
+      try {
+        const r = await api("POST", `/api/v1/teams/${encodeURIComponent(tid)}/members`, { actor, role: "operator" });
+        setOut("teamsOut", JSON.stringify(r, null, 2), false);
+        showOk("Member added");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("teamListMembersBtn")) {
+    $("teamListMembersBtn").onclick = async () => {
+      const tid = ($("teamMemberTeam").value || "").trim();
+      if (!tid) return showError("Team id required");
+      try {
+        const r = await api("GET", `/api/v1/teams/${encodeURIComponent(tid)}/members`);
+        setOut("teamsOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("presenceBtn")) {
+    $("presenceBtn").onclick = async () => {
+      try {
+        await api("POST", "/api/v1/collab/presence", { status: "online", viewing_session: activeSessionId() || null });
+        const r = await api("GET", "/api/v1/collab/presence");
+        const lines = (r.operators || []).map((o) => `${o.actor}  ${o.status}  ${o.viewing_session || ""}`);
+        setOut("teamsOut", lines.join("\n") || "(nobody online)", !lines.length);
+        showOk(`${r.count || 0} online`);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("handoffBtn")) {
+    $("handoffBtn").onclick = async () => {
+      const sid = activeSessionId();
+      const to = ($("handoffTo").value || "").trim();
+      if (!sid) return showError("Select workbench session");
+      if (!to) return showError("Handoff target required");
+      try {
+        const r = await api("POST", `/api/v1/sessions/${encodeURIComponent(sid)}/handoff`, {
+          to,
+          note: ($("handoffNote").value || "").trim(),
+          transfer_claim: true,
+          include_pack: true,
+        });
+        setOut("teamsOut", JSON.stringify(r, null, 2), false);
+        showOk("Handoff sent");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("handoffListBtn")) {
+    $("handoffListBtn").onclick = async () => {
+      const sid = activeSessionId();
+      if (!sid) return showError("Select workbench session");
+      try {
+        const r = await api("GET", `/api/v1/sessions/${encodeURIComponent(sid)}/handoffs`);
+        setOut("teamsOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+
+  // ----- M6 audit me -----
+  if ($("auditMeBtn")) {
+    $("auditMeBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/audit/me?limit=50");
+        setOut("auditMeOut", JSON.stringify(r, null, 2), false);
+        showOk("My actions loaded");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("auditMineTimelineBtn")) {
+    $("auditMineTimelineBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/observability/timeline?mine=true&limit=40");
+        setOut("auditMeOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("auditActorBtn")) {
+    $("auditActorBtn").onclick = async () => {
+      const actor = ($("auditActor").value || "").trim();
+      if (!actor) return showError("Actor required");
+      try {
+        const r = await api("GET", `/api/v1/audit?actor=${encodeURIComponent(actor)}&limit=50`);
+        setOut("auditMeOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+
+  // ----- U6 pivot map -----
+  if ($("pivotMapBtn")) {
+    $("pivotMapBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/pivot/socks");
+        const pivots = r.pivots || r || [];
+        const lines = (Array.isArray(pivots) ? pivots : []).map((p) => {
+          return `${p.session_id || "?"}  →  socks5://${p.listen_host || "127.0.0.1"}:${p.listen_port || "?"}  (${p.mode || p.status || "up"})`;
+        });
+        setOut("pivotMapOut", lines.join("\n") || "(no pivots)", !lines.length);
+        showOk("Pivot map");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+
+  // File ops (U5 browser-ish)
+  function renderFileCrumbs(path) {
+    const el = $("fileCrumbs");
+    if (!el) return;
+    const parts = (path || ".").split(/[/\\]/).filter(Boolean);
+    let acc = path && path.startsWith("/") ? "" : "";
+    const crumbs = ['<button type="button" class="chip file-crumb" data-path=".">root</button>'];
+    parts.forEach((p) => {
+      acc = (acc ? acc + "/" : (path.startsWith("/") ? "/" : "")) + p;
+      if (path.startsWith("/") && !acc.startsWith("/")) acc = "/" + acc;
+      crumbs.push(`<button type="button" class="chip file-crumb" data-path="${escapeHtml(acc)}">${escapeHtml(p)}</button>`);
+    });
+    el.innerHTML = crumbs.join(" / ");
+    el.querySelectorAll(".file-crumb").forEach((b) => {
+      b.onclick = () => {
+        if ($("filePath")) $("filePath").value = b.getAttribute("data-path") || ".";
+        if ($("fileOp")) $("fileOp").value = "list";
+        if ($("fileOpBtn")) $("fileOpBtn").click();
+      };
+    });
+  }
+  function renderFileTable(text) {
+    const el = $("fileTable");
+    if (!el) return;
+    const lines = String(text || "").trim().split("\n").filter(Boolean);
+    if (!lines.length || lines[0].startsWith("error")) {
+      el.innerHTML = "";
+      return;
+    }
+    // agent format: mode\tsize\tname
+    let html = "<table><thead><tr><th></th><th>size</th><th>name</th></tr></thead><tbody>";
+    let any = false;
+    lines.forEach((ln) => {
+      const parts = ln.split("\t");
+      if (parts.length < 3) return;
+      any = true;
+      const mode = parts[0];
+      const sz = parts[1];
+      const name = parts.slice(2).join("\t");
+      const base = ($("filePath").value || ".").replace(/\/$/, "");
+      const next = base === "." ? name : base + "/" + name;
+      html += `<tr><td>${escapeHtml(mode)}</td><td class="muted">${escapeHtml(sz)}</td>` +
+        `<td><button type="button" class="file-row" data-path="${escapeHtml(next)}" data-mode="${escapeHtml(mode)}" style="background:none;border:0;color:inherit;cursor:pointer;text-align:left">${escapeHtml(name)}</button></td></tr>`;
+    });
+    html += "</tbody></table>";
+    el.innerHTML = any ? html : "";
+    el.querySelectorAll(".file-row").forEach((b) => {
+      b.onclick = () => {
+        const mode = b.getAttribute("data-mode");
+        const p = b.getAttribute("data-path") || "";
+        if ($("filePath")) $("filePath").value = p;
+        if (mode === "d") {
+          if ($("fileOp")) $("fileOp").value = "list";
+          if ($("fileOpBtn")) $("fileOpBtn").click();
+        } else {
+          if ($("fileOp")) $("fileOp").value = "read";
+        }
+      };
+    });
+  }
   if ($("fileOpBtn")) {
     $("fileOpBtn").onclick = async () => {
-      const session_id = ($("fileSession").value || "").trim();
+      let session_id = ($("fileSession").value || "").trim() || activeSessionId();
       const op = ($("fileOp").value || "list").trim();
-      const path = ($("filePath").value || "").trim();
-      if (!session_id) return showError("Session id required");
+      const path = ($("filePath").value || "").trim() || ".";
+      if (!session_id) return showError("Session id required (use workbench)");
       const body = { session_id, op, path };
       if (op === "write") body.content = $("fileContent").value || "";
       try {
         const r = await api("POST", "/api/v1/files/op", body);
         setOut("fileOut", JSON.stringify(r, null, 2), false);
-        showOk("File op queued");
+        renderFileCrumbs(path);
+        // if task already has result inline (rare), render table
+        if (r.result) renderFileTable(r.result);
+        showOk("File op queued — poll task for listing");
       } catch (e) { showError(String(e.message || e)); }
     };
   }
@@ -1439,5 +1936,9 @@
   if ($("tokList")) loadTokens().catch((e) => showError(String(e.message || e)));
   if ($("profList")) loadProfiles().catch((e) => showError(String(e.message || e)));
   if ($("chatOut")) loadChat().catch(() => {});
+  if ($("wbSession")) loadWorkbenchSessions().catch(() => {});
+  if ($("chatTeam") || $("teamsOut")) loadTeamsIntoSelects().catch(() => {});
+  // presence on load
+  api("POST", "/api/v1/collab/presence", { status: "online" }).catch(() => {});
   window.__SC5_ADMIN_LOADED__ = true;
 })();

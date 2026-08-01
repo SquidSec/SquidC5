@@ -32,8 +32,15 @@ class AuditTrail:
             allowed=allowed,
         )
 
-    async def list(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
-        return await self.db.list_audit(limit=limit, offset=offset)
+    async def list(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        *,
+        actor: str | None = None,
+        action: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return await self.db.list_audit(limit=limit, offset=offset, actor=actor, action=action)
 
     async def purge_older_than_days(self, days: int) -> int:
         """Enforce retention: delete rows older than N days."""

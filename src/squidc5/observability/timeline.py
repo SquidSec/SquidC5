@@ -35,8 +35,14 @@ class TimelineService:
                 return list(techs)
         return []
 
-    async def timeline(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
-        rows = await self.db.list_audit(limit=limit, offset=offset)
+    async def timeline(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        *,
+        actor: str | None = None,
+    ) -> list[dict[str, Any]]:
+        rows = await self.db.list_audit(limit=limit, offset=offset, actor=actor)
         out = []
         for r in rows:
             action = r.get("action") or ""

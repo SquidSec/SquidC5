@@ -661,19 +661,33 @@ Ops panel buttons call observability endpoints (metrics/audit scoped). Export fo
 
 ---
 
-## Operator chat
+## Multi-operator collab
 
 ### What
 
-Short shared notes between operators on this instance.
+Teams, **session claim/lock**, handoff packs, spectator snapshots, operator presence, team-scoped chat, and per-operator audit filters.
 
 ### Why
 
-Handoff without external chat leaking engagement context.
+Two operators must not stomp the same shell; shift changes need context; leads need read-only watch.
 
 ### How
 
-Send message → stored server-side → visible to `collab:use` / admin tokens.
+| Action | API / UI |
+|--------|----------|
+| Claim session | `POST /api/v1/sessions/{id}/claim` · Workbench → Claim |
+| Release | `POST /api/v1/sessions/{id}/release` |
+| Handoff pack | `POST /api/v1/sessions/{id}/handoff` `{to, note}` · Teams panel |
+| Spectate | `GET /api/v1/sessions/{id}/spectator` (needs `sessions:read`, not shell write) |
+| Presence | `POST/GET /api/v1/collab/presence` |
+| Team chat | `POST /api/v1/collab/chat` with optional `team_id` |
+| My audit | `GET /api/v1/audit/me` or `?mine=true` |
+
+Claim lock is enforced on shell, tasks, and file ops (admins bypass). Feature flag: `collab_teams`.
+
+### Ops UI workbench
+
+Session workbench drives Shell / Tasks / Files / SOCKS / Modules. Live events rail polls metrics. Layout presets: Operator / Lead / Admin.
 
 ---
 
