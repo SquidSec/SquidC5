@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from squidc5.ai.admin_ai import AdminAI
     from squidc5.audit.trail import AuditTrail
     from squidc5.auth.tokens import TokenService
+    from squidc5.collab.presence import PresenceService
     from squidc5.collab.teams import TeamService
     from squidc5.config import Settings
     from squidc5.db.store import Database
@@ -47,6 +48,7 @@ class AppState:
     timeline: TimelineService
     oast: OastService | None = None
     ai_chain: Any = None
+    presence: PresenceService | None = None
     admin_token_once: str = ""
     implant_psk: str = ""
     socks: Any = None

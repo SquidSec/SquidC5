@@ -404,10 +404,27 @@ class Database:
                 ),
             )
 
-    async def list_audit(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+    async def list_audit(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        *,
+        actor: str | None = None,
+        action: str | None = None,
+    ) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if actor:
+            clauses.append("actor = ?")
+            params.append(actor)
+        if action:
+            clauses.append("action LIKE ?")
+            params.append(f"{action}%")
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.extend([limit, offset])
         return await self.fetchall(
-            "SELECT * FROM audit_log ORDER BY ts DESC LIMIT ? OFFSET ?",
-            (limit, offset),
+            f"SELECT * FROM audit_log {where} ORDER BY ts DESC LIMIT ? OFFSET ?",
+            tuple(params),
         )
 
     async def purge_audit_before(self, cutoff_ts: float) -> int:

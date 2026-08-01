@@ -74,6 +74,9 @@ async def build_state(settings: Settings) -> AppState:
     await profiles.load()
     implants = ImplantRegistry()
     teams = TeamService(db)
+    from squidc5.collab.presence import PresenceService
+
+    presence = PresenceService(ttl_sec=90.0)
     from squidc5.plugins.registry import resolve_plugin_signing_secret
 
     plugin_secret = resolve_plugin_signing_secret(
@@ -171,6 +174,7 @@ async def build_state(settings: Settings) -> AppState:
         timeline=timeline,
         oast=oast,
         ai_chain=ai_chain,
+        presence=presence,
         admin_token_once=admin_once,
         implant_psk=implant_psk,
         socks=socks,

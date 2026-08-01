@@ -165,6 +165,17 @@ class TeamCreate(BaseModel):
 class HandoffRequest(BaseModel):
     to: str
     note: str = ""
+    transfer_claim: bool = True
+    include_pack: bool = True
+
+
+class ClaimRequest(BaseModel):
+    force: bool = False
+
+
+class PresenceHeartbeat(BaseModel):
+    status: str = "online"
+    viewing_session: str | None = None
 
 
 class PluginRegister(BaseModel):
@@ -544,6 +555,14 @@ def build_api_router() -> APIRouter:
         if not decision.allowed:
             raise _policy_http_error(decision)
         try:
+            await state.teams.assert_write_access(
+                body.session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        try:
             return await state.tasks.create(
                 session_id=body.session_id,
                 command=body.command,
@@ -734,6 +753,14 @@ def build_api_router() -> APIRouter:
             args["content"] = body.content
         if body.content_b64 is not None:
             args["content_b64"] = body.content_b64
+        try:
+            await state.teams.assert_write_access(
+                body.session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
         decision = await state.policy.check_and_audit(
             auth,
             "files.upload" if op == "write" else "files.download",
@@ -980,17 +1007,15 @@ def build_api_router() -> APIRouter:
         )
         if not decision.allowed:
             raise _policy_http_error(decision)
-        # Team RBAC: if session is owned by a team, actor must be member (admins bypass)
-        if not auth.has_scope("admin"):
-            sess = await state.sessions.get(body.session_id)
-            if sess:
-                meta = sess.get("metadata") if isinstance(sess.get("metadata"), dict) else {}
-                team_id = meta.get("team_id")
-                if team_id:
-                    members = await state.db.list_team_members(str(team_id))
-                    names = {m.get("actor") for m in members}
-                    if auth.name not in names:
-                        raise HTTPException(403, "Not a member of session team")
+        # M1 claim lock + team RBAC
+        try:
+            await state.teams.assert_write_access(
+                body.session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
         if not state.listeners.is_live(body.session_id):
             # Stale DB row looking "active" but TCP is gone
             await state.sessions.close(body.session_id)
@@ -1100,9 +1125,29 @@ def build_api_router() -> APIRouter:
         request: Request,
         limit: int = 100,
         offset: int = 0,
+        actor: str | None = None,
+        action: str | None = None,
+        mine: bool = False,
         auth: AuthContext = Depends(require_scope("audit:read", "admin")),
     ) -> list[dict[str, Any]]:
-        return await get_state(request).audit.list(limit=limit, offset=offset)
+        """M6: filter by actor / action; mine=true → current operator only."""
+        who = auth.name if mine else actor
+        return await get_state(request).audit.list(
+            limit=min(max(int(limit), 1), 500),
+            offset=max(int(offset), 0),
+            actor=who,
+            action=action,
+        )
+
+    @api.get("/audit/me")
+    async def audit_me(
+        request: Request,
+        limit: int = 100,
+        auth: AuthContext = Depends(require_scope("audit:read", "admin")),
+    ) -> dict[str, Any]:
+        """M6: my actions report."""
+        rows = await get_state(request).audit.list(limit=min(limit, 500), actor=auth.name)
+        return {"actor": auth.name, "count": len(rows), "entries": rows}
 
     @api.get("/audit/verify")
     async def audit_verify(
@@ -1163,20 +1208,31 @@ def build_api_router() -> APIRouter:
     @api.get("/events/stream")
     async def events_stream(
         request: Request,
-        auth: AuthContext = Depends(require_scope("metrics:read", "admin")),
+        auth: AuthContext = Depends(
+            require_scope("metrics:read", "sessions:read", "collab:use", "admin")
+        ),
     ) -> StreamingResponse:
+        """U2/M3: SSE event rail — spectators with sessions:read get read-only events."""
         state = get_state(request)
         queue = state.metrics.subscribe()
+        # auto presence heartbeat on stream open
+        if state.presence:
+            state.presence.heartbeat(auth.name, status="watching", token_id=auth.token_id)
+            await state.metrics.emit(
+                "operator.presence",
+                {"actor": auth.name, "status": "watching"},
+            )
 
         async def gen():
             try:
-                yield f"data: {json.dumps({'type': 'connected'})}\n\n"
+                yield f"data: {json.dumps({'type': 'connected', 'actor': auth.name})}\n\n"
                 while True:
                     if await request.is_disconnected():
                         break
                     try:
                         event = await asyncio.wait_for(queue.get(), timeout=15.0)
-                        yield f"data: {json.dumps(event)}\n\n"
+                        # spectators without shell:interact still receive events
+                        yield f"data: {json.dumps(event, default=str)}\n\n"
                     except TimeoutError:
                         yield f"data: {json.dumps({'type': 'ping'})}\n\n"
             finally:
@@ -1726,6 +1782,55 @@ def build_api_router() -> APIRouter:
         ok = await get_state(request).db.remove_team_member(team_id, actor)
         return {"removed": ok}
 
+    @api.post("/sessions/{session_id}/claim")
+    async def session_claim(
+        session_id: str,
+        request: Request,
+        body: ClaimRequest | None = None,
+        auth: AuthContext = Depends(require_scope("collab:use", "sessions:write", "shell:interact", "admin")),
+    ) -> dict[str, Any]:
+        """M1: claim session lock (only claim holder or admin may task)."""
+        state = get_state(request)
+        force = bool(body and body.force)
+        try:
+            result = await state.teams.claim(
+                session_id,
+                auth.name,
+                force=force,
+                is_admin=auth.has_scope("admin"),
+            )
+        except KeyError:
+            raise HTTPException(404, "session not found") from None
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        await state.metrics.emit(
+            "session.claim",
+            {"session_id": session_id, "actor": auth.name, "force": force},
+        )
+        return result
+
+    @api.post("/sessions/{session_id}/release")
+    async def session_release(
+        session_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "sessions:write", "shell:interact", "admin")),
+    ) -> dict[str, Any]:
+        """M1: release session claim."""
+        state = get_state(request)
+        try:
+            result = await state.teams.release(
+                session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
+        except KeyError:
+            raise HTTPException(404, "session not found") from None
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        await state.metrics.emit(
+            "session.release",
+            {"session_id": session_id, "actor": auth.name},
+        )
+        return result
+
     @api.post("/sessions/{session_id}/handoff")
     async def session_handoff(
         session_id: str,
@@ -1733,15 +1838,38 @@ def build_api_router() -> APIRouter:
         request: Request,
         auth: AuthContext = Depends(require_scope("collab:use", "sessions:write", "admin")),
     ) -> dict[str, Any]:
+        """M2: handoff pack + optional claim transfer."""
         state = get_state(request)
         if not body.to:
             raise HTTPException(400, "to required")
         try:
-            return await state.teams.handoff(
-                session_id, auth.name, body.to, note=body.note or ""
+            entry = await state.teams.handoff(
+                session_id,
+                auth.name,
+                body.to,
+                note=body.note or "",
+                transfer_claim=body.transfer_claim,
+                include_pack=body.include_pack,
+                state=state,
             )
+        except KeyError:
+            raise HTTPException(404, "session not found") from None
         except Exception as e:
             raise HTTPException(400, str(e)) from e
+        await state.metrics.emit(
+            "session.handoff",
+            {"session_id": session_id, "from": auth.name, "to": body.to},
+        )
+        return entry
+
+    @api.get("/sessions/{session_id}/handoffs")
+    async def list_session_handoffs(
+        session_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("sessions:read", "collab:use", "admin")),
+    ) -> dict[str, Any]:
+        notes = await get_state(request).teams.session_notes(session_id)
+        return {"session_id": session_id, "handoffs": notes}
 
     @api.get("/sessions/{session_id}/spectator")
     async def session_spectator(
@@ -1749,10 +1877,23 @@ def build_api_router() -> APIRouter:
         request: Request,
         auth: AuthContext = Depends(require_scope("sessions:read", "collab:use", "admin")),
     ) -> dict[str, Any]:
+        """M3: read-only spectator snapshot (no shell:interact required)."""
+        state = get_state(request)
         try:
-            return await get_state(request).teams.spectator_view(session_id)
+            view = await state.teams.spectator_view(session_id, state=state)
         except KeyError:
             raise HTTPException(404, "session not found") from None
+        view["spectator"] = auth.name
+        view["watching_badge"] = True
+        if state.presence:
+            state.presence.heartbeat(
+                auth.name, status="watching", viewing_session=session_id, token_id=auth.token_id
+            )
+        await state.metrics.emit(
+            "session.spectate",
+            {"session_id": session_id, "actor": auth.name},
+        )
+        return view
 
     # ----- Plugins -----
 
@@ -1864,12 +2005,20 @@ def build_api_router() -> APIRouter:
         request: Request,
         limit: int = 100,
         offset: int = 0,
+        actor: str | None = None,
+        mine: bool = False,
         auth: AuthContext = Depends(require_scope("audit:read", "metrics:read", "admin")),
     ) -> dict[str, Any]:
         state = get_state(request)
         if not await state.features.enabled("observability_timeline"):
             raise HTTPException(403, "Observability timeline disabled")
-        return {"events": await state.timeline.timeline(limit=min(limit, 500), offset=offset)}
+        who = auth.name if mine else actor
+        return {
+            "events": await state.timeline.timeline(
+                limit=min(limit, 500), offset=offset, actor=who
+            ),
+            "actor_filter": who,
+        }
 
     @api.get("/observability/heatmap")
     async def obs_heatmap(
@@ -1960,7 +2109,12 @@ def build_api_router() -> APIRouter:
             raise HTTPException(403, "Collab disabled")
         if not body.message.strip():
             raise HTTPException(400, "message required")
-        return await state.db.add_chat(auth.name, body.message.strip(), body.team_id)
+        msg = await state.db.add_chat(auth.name, body.message.strip(), body.team_id)
+        await state.metrics.emit(
+            "collab.chat",
+            {"actor": auth.name, "team_id": body.team_id, "len": len(body.message)},
+        )
+        return msg
 
     @api.get("/collab/chat")
     async def collab_chat_list(
@@ -1969,9 +2123,49 @@ def build_api_router() -> APIRouter:
         team_id: str | None = None,
         auth: AuthContext = Depends(require_scope("collab:use", "admin")),
     ) -> dict[str, Any]:
+        """M5: team-scoped chat when team_id set; else global."""
         state = get_state(request)
         rows = await state.db.list_chat(limit=min(limit, 200), team_id=team_id)
-        return {"messages": list(reversed(rows))}
+        return {"messages": list(reversed(rows)), "team_id": team_id}
+
+    @api.post("/collab/presence")
+    async def collab_presence_beat(
+        body: PresenceHeartbeat,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "sessions:read", "admin")),
+    ) -> dict[str, Any]:
+        """M4: operator heartbeat."""
+        state = get_state(request)
+        if not state.presence:
+            raise HTTPException(503, "presence unavailable")
+        entry = state.presence.heartbeat(
+            auth.name,
+            status=body.status or "online",
+            viewing_session=body.viewing_session,
+            token_id=auth.token_id,
+        )
+        await state.metrics.emit("operator.presence", entry)
+        return entry
+
+    @api.get("/collab/presence")
+    async def collab_presence_list(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "sessions:read", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        online = state.presence.list_online() if state.presence else []
+        return {"operators": online, "count": len(online)}
+
+    @api.delete("/collab/presence")
+    async def collab_presence_off(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("collab:use", "sessions:read", "admin")),
+    ) -> dict[str, bool]:
+        state = get_state(request)
+        ok = state.presence.offline(auth.name) if state.presence else False
+        if ok:
+            await state.metrics.emit("operator.presence", {"actor": auth.name, "status": "offline"})
+        return {"offline": ok}
 
     @api.get("/collab/chat/stream")
     async def collab_chat_stream(
@@ -2007,11 +2201,19 @@ def build_api_router() -> APIRouter:
         request: Request,
         auth: AuthContext = Depends(require_scope("collab:use", "sessions:write", "admin")),
     ) -> dict[str, str]:
+        """Legacy owner set — prefer /claim. Admin or claim-holder only."""
         state = get_state(request)
+        if not body.owner:
+            raise HTTPException(400, "owner required")
         try:
+            await state.teams.assert_write_access(
+                session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
             await state.teams.set_owner(session_id, body.owner)
         except KeyError:
             raise HTTPException(404, "session not found") from None
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
         return {"session_id": session_id, "owner": body.owner}
 
     @api.post("/deploy/redirector")
