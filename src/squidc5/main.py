@@ -153,6 +153,8 @@ async def build_state(settings: Settings) -> AppState:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    for w in settings.validate_runtime():
+        log.warning("config: %s", w)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -409,6 +411,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 def cli() -> None:
     settings = get_settings()
+    try:
+        for w in settings.validate_runtime():
+            log.warning("config: %s", w)
+    except ValueError as e:
+        raise SystemExit(f"Invalid configuration: {e}") from e
     ssl_kwargs: dict = {}
     if settings.tls_enabled:
         from squidc5.tls.certs import ensure_instance_tls
