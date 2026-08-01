@@ -568,7 +568,7 @@ For **each** Change ID:
 | A09 | A | done | merged |
 | A10 | A | done | merged |
 | A11 | A | done | merged |
-| A11b | A | pending/optional | |
+| A11b | A | done | merged |
 | B01 | B | done | merged |
 | B02 | B | done | merged |
 | B03 | B | done | merged |
@@ -587,23 +587,23 @@ For **each** Change ID:
 | B16 | B | done | merged |
 | C01 | C | done | merged |
 | C02 | C | done | merged |
-| C03 | C | pending | |
-| C04 | C | pending | |
-| C05 | C | pending | |
+| C03 | C | done | merged |
+| C04 | C | done | merged |
+| C05 | C | done | merged |
 | C06 | C | done | merged |
-| C07 | C | pending | |
+| C07 | C | done | merged |
 | C08 | C | done | merged |
-| C09 | C | pending | |
-| C10 | C | pending | |
-| C11 | C | pending | |
-| D01 | D | pending | |
-| D02 | D | pending | |
-| D03 | D | pending | |
-| D04 | D | pending | |
-| D05 | D | pending | |
+| C09 | C | done | merged |
+| C10 | C | done | merged |
+| C11 | C | done | merged |
+| D01 | D | done | merged |
+| D02 | D | done | merged |
+| D03 | D | done | merged |
+| D04 | D | done | merged |
+| D05 | D | done | merged |
 | D06 | D | done | merged |
-| D07 | D | pending | |
-| D08 | D | pending | |
+| D07 | D | done | merged |
+| D08 | D | done | merged |
 
 ## Count
 

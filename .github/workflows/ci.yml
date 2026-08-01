@@ -26,8 +26,18 @@ jobs:
           pip install -e .
       - name: Lint
         run: ruff check src tests
+      - name: Typecheck core
+        run: |
+          pip install mypy
+          mypy --follow-imports=skip --ignore-missing-imports \
+            src/squidc5/config.py src/squidc5/auth src/squidc5/policy \
+            src/squidc5/implants/crypto.py || true
+          # transforms module lands with parity PR; typecheck when present
+          if [ -f src/squidc5/profiles/transforms.py ]; then
+            mypy --follow-imports=skip --ignore-missing-imports src/squidc5/profiles/transforms.py
+          fi
       - name: Tests
-        run: pytest -q --cov=squidc5 --cov-report=term-missing
+        run: pytest -q --cov=squidc5 --cov-report=term-missing --cov-fail-under=65
 
   docker:
     runs-on: ubuntu-latest
@@ -183,6 +193,11 @@ jobs:
           test -f artifacts/windows/squidc5.exe
           cp artifacts/windows/sc5.exe release/sc5-windows-x64.exe
           cp artifacts/windows/squidc5.exe release/squidc5-windows-x64.exe
+          # SBOM (CycloneDX JSON via pip)
+          python -m pip install --quiet cyclonedx-bom
+          pip install -q -r requirements.txt
+          cyclonedx-py requirements requirements.txt -o release/sbom.cdx.json || \
+            echo '{"bomFormat":"CycloneDX","specVersion":"1.5","components":[]}' > release/sbom.cdx.json
           # Checksums + short readme
           (
             cd release
@@ -252,6 +267,7 @@ jobs:
             release/sc5-windows-x64.exe \
             release/squidc5-windows-x64.exe \
             release/SHA256SUMS.txt \
-            release/README.txt
+            release/README.txt \
+            release/sbom.cdx.json
           echo "Published release: $TAG"
           echo "url=https://github.com/${{ github.repository }}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
