@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from squidc5.crypto.secrets import SecretBox
 from squidc5.db.store import Database
 from squidc5.metrics.collector import MetricsCollector
 from squidc5.policy.engine import PolicyEngine
@@ -99,10 +100,12 @@ class AdminAI:
         db: Database,
         metrics: MetricsCollector,
         policy: PolicyEngine,
+        secrets: SecretBox | None = None,
     ) -> None:
         self.db = db
         self.metrics = metrics
         self.policy = policy
+        self.secrets = secrets
         self._busy = False
         self._last: dict[str, Any] = {
             "status": "idle",
@@ -183,13 +186,15 @@ class AdminAI:
         llm_id: str | None = None,
     ) -> str:
         caps = [c for c in (capabilities or list(ALLOWED_CAPABILITIES)) if c in ALLOWED_CAPABILITIES]
-        # Store key as-is in DB for MVP; production should encrypt at rest
+        stored_key = api_key
+        if api_key and self.secrets is not None:
+            stored_key = self.secrets.encrypt(api_key)
         return await self.db.upsert_llm(
             name=name,
             provider=provider,
             model=model,
             base_url=base_url,
-            api_key_enc=api_key,
+            api_key_enc=stored_key,
             capabilities=caps,
             llm_id=llm_id,
         )
@@ -352,7 +357,26 @@ class AdminAI:
         )
         base = (llm.get("base_url") or "https://api.openai.com/v1").rstrip("/")
         model = llm["model"]
-        api_key = llm.get("api_key_enc") or ""
+        raw_key = llm.get("api_key_enc") or ""
+        if self.secrets is not None and raw_key:
+            api_key = self.secrets.decrypt(raw_key) or ""
+            # Re-encrypt legacy plaintext on use
+            if raw_key and not self.secrets.is_encrypted(raw_key) and api_key:
+                try:
+                    enc = self.secrets.encrypt(api_key)
+                    await self.db.upsert_llm(
+                        name=llm["name"],
+                        provider=llm["provider"],
+                        model=llm["model"],
+                        base_url=llm.get("base_url"),
+                        api_key_enc=enc,
+                        capabilities=list(llm.get("capabilities") or []),
+                        llm_id=llm["id"],
+                    )
+                except Exception:
+                    pass
+        else:
+            api_key = raw_key
 
         headers = {"Content-Type": "application/json"}
         if api_key:
