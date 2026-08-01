@@ -1374,8 +1374,11 @@
     const q = tid ? `?limit=30&team_id=${encodeURIComponent(tid)}` : "?limit=30";
     const r = await api("GET", "/api/v1/collab/chat" + q);
     const lines = (r.messages || []).map((m) => {
-      const ch = m.team_id ? `[${m.team_id.slice(0, 8)}] ` : "";
-      return `${ch}${m.actor}: ${m.message}`;
+      const ch = m.team_id ? `[${String(m.team_id).slice(0, 8)}] ` : "";
+      // setOut uses textContent; still strip control chars defensively
+      const actor = String(m.actor || "?").replace(/[\r\n\t]/g, " ").slice(0, 64);
+      const msg = String(m.message || "").replace(/[\r\n]+/g, " ").slice(0, 2000);
+      return `${ch}${actor}: ${msg}`;
     });
     setOut("chatOut", lines.join("\n") || "(empty)", !lines.length);
   }

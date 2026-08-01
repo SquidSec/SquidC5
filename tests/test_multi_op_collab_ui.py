@@ -108,7 +108,15 @@ async def test_claim_lock_and_handoff_pack(tmp_path):
             )
             assert tok.status_code == 200, tok.text
 
-            # handoff pack to B
+            # B cannot handoff while A holds claim
+            hdeny = await client.post(
+                f"/api/v1/sessions/{sid}/handoff",
+                headers=hb,
+                json={"to": "op-a", "note": "steal"},
+            )
+            assert hdeny.status_code == 403
+
+            # handoff pack to B (A holds claim)
             ho = await client.post(
                 f"/api/v1/sessions/{sid}/handoff",
                 headers=ha,
@@ -145,7 +153,7 @@ async def test_claim_lock_and_handoff_pack(tmp_path):
             assert pl.status_code == 200
             assert pl.json()["count"] >= 1
 
-            # team chat
+            # team chat — creator is lead member; B not member → denied
             team = await client.post("/api/v1/teams", headers=ha, json={"name": "red"})
             assert team.status_code == 200
             tid = team.json()["id"]
@@ -155,6 +163,12 @@ async def test_claim_lock_and_handoff_pack(tmp_path):
                 json={"message": "hello team", "team_id": tid},
             )
             assert ch.status_code == 200
+            deny_ch = await client.post(
+                "/api/v1/collab/chat",
+                headers=hb,
+                json={"message": "intrude", "team_id": tid},
+            )
+            assert deny_ch.status_code == 403
             cl = await client.get(f"/api/v1/collab/chat?team_id={tid}", headers=ha)
             assert cl.status_code == 200
             assert any("hello" in (m.get("message") or "") for m in cl.json()["messages"])

@@ -1838,11 +1838,14 @@ def build_api_router() -> APIRouter:
         request: Request,
         auth: AuthContext = Depends(require_scope("collab:use", "sessions:write", "admin")),
     ) -> dict[str, Any]:
-        """M2: handoff pack + optional claim transfer."""
+        """M2: handoff pack + optional claim transfer (claim holder or admin only)."""
         state = get_state(request)
         if not body.to:
             raise HTTPException(400, "to required")
         try:
+            await state.teams.assert_write_access(
+                session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
             entry = await state.teams.handoff(
                 session_id,
                 auth.name,
@@ -1854,6 +1857,8 @@ def build_api_router() -> APIRouter:
             )
         except KeyError:
             raise HTTPException(404, "session not found") from None
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
         except Exception as e:
             raise HTTPException(400, str(e)) from e
         await state.metrics.emit(
@@ -2098,6 +2103,15 @@ def build_api_router() -> APIRouter:
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
 
+    async def _require_team_member(state: Any, auth: AuthContext, team_id: str | None) -> None:
+        """Admins bypass; team channels require membership."""
+        if not team_id or auth.has_scope("admin"):
+            return
+        members = await state.db.list_team_members(str(team_id))
+        names = {m.get("actor") for m in members}
+        if auth.name not in names:
+            raise HTTPException(403, "Not a member of this team chat channel")
+
     @api.post("/collab/chat")
     async def collab_chat_post(
         body: ChatMessage,
@@ -2109,7 +2123,8 @@ def build_api_router() -> APIRouter:
             raise HTTPException(403, "Collab disabled")
         if not body.message.strip():
             raise HTTPException(400, "message required")
-        msg = await state.db.add_chat(auth.name, body.message.strip(), body.team_id)
+        await _require_team_member(state, auth, body.team_id)
+        msg = await state.db.add_chat(auth.name, body.message.strip()[:4000], body.team_id)
         await state.metrics.emit(
             "collab.chat",
             {"actor": auth.name, "team_id": body.team_id, "len": len(body.message)},
@@ -2123,8 +2138,9 @@ def build_api_router() -> APIRouter:
         team_id: str | None = None,
         auth: AuthContext = Depends(require_scope("collab:use", "admin")),
     ) -> dict[str, Any]:
-        """M5: team-scoped chat when team_id set; else global."""
+        """M5: team-scoped chat when team_id set (members only); else global."""
         state = get_state(request)
+        await _require_team_member(state, auth, team_id)
         rows = await state.db.list_chat(limit=min(limit, 200), team_id=team_id)
         return {"messages": list(reversed(rows)), "team_id": team_id}
 
