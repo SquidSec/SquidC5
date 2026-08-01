@@ -14,12 +14,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/SquidSec/SquidC5/ci.yml?branch=master&label=CI" alt="CI"></a>
-  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/squidgate.yml"><img src="https://img.shields.io/github/actions/workflow/status/SquidSec/SquidC5/squidgate.yml?branch=master&label=SquidGate" alt="SquidGate"></a>
-  <a href="https://github.com/SquidSec/SquidC5/releases/latest"><img src="https://img.shields.io/github/v/release/SquidSec/SquidC5?include_prereleases&sort=date&label=release" alt="Release"></a>
+  <!-- Private repo: GitHub/shields status APIs return "not found" unauthenticated — static link badges only -->
+  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/CI-workflow-2088FF?logo=githubactions&logoColor=white" alt="CI"></a>
+  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/squidgate.yml"><img src="https://img.shields.io/badge/SquidGate-workflow-6f42c1?logo=githubactions&logoColor=white" alt="SquidGate"></a>
+  <a href="https://github.com/SquidSec/SquidC5/releases"><img src="https://img.shields.io/badge/releases-GitHub-181717?logo=github&logoColor=white" alt="Releases"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
-  <a href="docs/roadmap-five-star.md"><img src="https://img.shields.io/badge/goal-5%20star%20C5-purple" alt="Five star"></a>
 </p>
 
 **Command · Control · Cognitive · Collaborative · Coordination**
