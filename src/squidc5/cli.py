@@ -662,6 +662,23 @@ def cmd_policy_get(args: argparse.Namespace, client: Client) -> None:
     pp(client.get("/api/v1/policy"))
 
 
+def cmd_policy_hitl_list(args: argparse.Namespace, client: Client) -> None:
+    params: dict[str, Any] = {}
+    if args.status:
+        params["status"] = args.status
+    if args.limit:
+        params["limit"] = args.limit
+    pp(client.get("/api/v1/policy/hitl", params=params))
+
+
+def cmd_policy_hitl_approve(args: argparse.Namespace, client: Client) -> None:
+    pp(client.post(f"/api/v1/policy/hitl/{args.request_id}/approve"))
+
+
+def cmd_policy_hitl_deny(args: argparse.Namespace, client: Client) -> None:
+    pp(client.post(f"/api/v1/policy/hitl/{args.request_id}/deny"))
+
+
 def cmd_policy_set(args: argparse.Namespace, client: Client) -> None:
     rules = json.loads(Path(args.file).read_text(encoding="utf-8") if args.file else args.json)
     pp(client.put("/api/v1/policy", json={"rules": rules}))
@@ -1149,6 +1166,18 @@ def build_parser() -> argparse.ArgumentParser:
     pol_set.add_argument("--json", dest="json")
     pol_set.add_argument("--file")
     pol_set.set_defaults(func=cmd_policy_set, needs_client=True)
+    pol_hitl = pol_sub.add_parser("hitl", help="HITL approval queue")
+    pol_hitl_sub = pol_hitl.add_subparsers(dest="policy_hitl_cmd", required=True)
+    ph_list = pol_hitl_sub.add_parser("list")
+    ph_list.add_argument("--status", default="pending")
+    ph_list.add_argument("--limit", type=int, default=50)
+    ph_list.set_defaults(func=cmd_policy_hitl_list, needs_client=True)
+    ph_ok = pol_hitl_sub.add_parser("approve")
+    ph_ok.add_argument("request_id")
+    ph_ok.set_defaults(func=cmd_policy_hitl_approve, needs_client=True)
+    ph_no = pol_hitl_sub.add_parser("deny")
+    ph_no.add_argument("request_id")
+    ph_no.set_defaults(func=cmd_policy_hitl_deny, needs_client=True)
 
     # oast collaborator
     oast = sub.add_parser("oast", help="OAST Collaborator (tokens + hits)")

@@ -14,8 +14,16 @@ from pydantic import BaseModel, Field
 from squidc5.api.deps import get_auth, get_state, require_scope
 from squidc5.auth.tokens import ALL_MCP_TOOLS, DEFAULT_MCP_TOOLS, SCOPES, AuthContext
 from squidc5.paths import web_file
+from squidc5.policy.engine import PolicyDecision
 
 # --- Request models ---
+
+
+def _policy_http_error(decision: PolicyDecision) -> HTTPException:
+    detail: dict[str, Any] = {"detail": decision.reason, "require_hitl": decision.require_hitl}
+    if decision.hitl_request_id:
+        detail["hitl_request_id"] = decision.hitl_request_id
+    return HTTPException(status_code=403, detail=detail)
 
 
 class TokenCreate(BaseModel):
@@ -46,7 +54,8 @@ class TaskCreate(BaseModel):
     session_id: str
     command: str
     args: dict[str, Any] = Field(default_factory=dict)
-    hitl_approved: bool = False
+    hitl_approved: bool = False  # ignored; use hitl_request_id
+    hitl_request_id: str | None = None
 
 
 class PayloadRequest(BaseModel):
@@ -78,7 +87,8 @@ class AIRunRequest(BaseModel):
 class ShellCommand(BaseModel):
     session_id: str
     command: str
-    hitl_approved: bool = False
+    hitl_approved: bool = False  # ignored; use hitl_request_id
+    hitl_request_id: str | None = None
     wait_sec: float = 2.5
     idle_sec: float = 0.45
 
@@ -469,10 +479,13 @@ def build_api_router() -> APIRouter:
             auth,
             "tasks.create",
             resource=body.session_id,
-            extra={"hitl_approved": body.hitl_approved, "command": body.command[:100]},
+            extra={
+                "hitl_request_id": body.hitl_request_id,
+                "command": body.command,
+            },
         )
         if not decision.allowed:
-            raise HTTPException(403, decision.reason)
+            raise _policy_http_error(decision)
         try:
             return await state.tasks.create(
                 session_id=body.session_id,
@@ -660,10 +673,13 @@ def build_api_router() -> APIRouter:
             auth,
             "shell.interact",
             resource=body.session_id,
-            extra={"hitl_approved": body.hitl_approved},
+            extra={
+                "hitl_request_id": body.hitl_request_id,
+                "command": body.command,
+            },
         )
         if not decision.allowed:
-            raise HTTPException(403, decision.reason)
+            raise _policy_http_error(decision)
         if not state.listeners.is_live(body.session_id):
             # Stale DB row looking "active" but TCP is gone
             await state.sessions.close(body.session_id)
@@ -698,15 +714,15 @@ def build_api_router() -> APIRouter:
             raise HTTPException(400, "command required")
         wait_sec = float(body.get("wait_sec", 2.5))
         idle_sec = float(body.get("idle_sec", 0.45))
-        hitl = bool(body.get("hitl_approved", False))
+        hitl_rid = body.get("hitl_request_id")
         decision = await state.policy.check_and_audit(
             auth,
             "shell.interact",
             resource="broadcast",
-            extra={"hitl_approved": hitl, "command": command[:100]},
+            extra={"hitl_request_id": hitl_rid, "command": command},
         )
         if not decision.allowed:
-            raise HTTPException(403, decision.reason)
+            raise _policy_http_error(decision)
 
         # Drop TCP-dead + non-executing zombies before broadcast
         await state.sessions.close_orphaned_shells(probe=True)
@@ -819,6 +835,60 @@ def build_api_router() -> APIRouter:
         state = get_state(request)
         await state.policy.update(body.rules, auth.name)
         return await state.policy.get_rules()
+
+    @api.get("/policy/hitl")
+    async def list_hitl(
+        request: Request,
+        status: str | None = "pending",
+        limit: int = 100,
+        auth: AuthContext = Depends(require_scope("policy:manage", "admin")),
+    ) -> dict[str, Any]:
+        rows = await get_state(request).db.list_hitl_requests(status=status, limit=limit)
+        return {"requests": rows}
+
+    @api.post("/policy/hitl/{request_id}/approve")
+    async def approve_hitl(
+        request_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        ok = await state.db.resolve_hitl_request(
+            request_id, status="approved", resolved_by=auth.name
+        )
+        if not ok:
+            raise HTTPException(404, "HITL request not found or not pending")
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="policy.hitl.approve",
+            resource=request_id,
+            risk_score=6,
+        )
+        row = await state.db.get_hitl_request(request_id)
+        return {"ok": True, "request": row}
+
+    @api.post("/policy/hitl/{request_id}/deny")
+    async def deny_hitl(
+        request_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        ok = await state.db.resolve_hitl_request(
+            request_id, status="denied", resolved_by=auth.name
+        )
+        if not ok:
+            raise HTTPException(404, "HITL request not found or not pending")
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="policy.hitl.deny",
+            resource=request_id,
+            risk_score=4,
+        )
+        row = await state.db.get_hitl_request(request_id)
+        return {"ok": True, "request": row}
 
     # ----- Feature flags (admin) -----
 

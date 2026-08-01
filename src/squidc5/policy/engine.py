@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from typing import Any
 
 from squidc5.auth.tokens import AuthContext
 from squidc5.db.store import Database
+
+
+def hitl_binding_hash(
+    action: str,
+    resource: str | None,
+    extra: dict[str, Any] | None,
+) -> str:
+    """Bind approval to action + resource + full command (or other intent fields)."""
+    extra = extra or {}
+    # Full command — do not truncate (truncation enables prefix-collision bypass)
+    intent = {
+        "action": action,
+        "resource": resource or "",
+        "command": str(extra.get("command") or ""),
+        "capability": str(extra.get("capability") or ""),
+    }
+    raw = json.dumps(intent, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(raw).hexdigest()
 
 DEFAULT_POLICY: dict[str, Any] = {
     "version": 1,
@@ -69,6 +89,8 @@ class PolicyDecision:
     reason: str
     risk_score: int
     require_hitl: bool = False
+    hitl_request_id: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 class PolicyEngine:
@@ -109,12 +131,48 @@ class PolicyEngine:
     def score(self, action: str, rules: dict[str, Any]) -> int:
         return int(rules.get("action_risk", {}).get(action, 5))
 
+    async def _server_hitl_approved(
+        self,
+        auth: AuthContext,
+        action: str,
+        resource: str | None,
+        extra: dict[str, Any] | None,
+    ) -> bool:
+        """True only when a server-side approved HITL request is presented."""
+        rid = (extra or {}).get("hitl_request_id")
+        if not rid or not isinstance(rid, str):
+            return False
+        row = await self.db.get_hitl_request(rid)
+        if not row:
+            return False
+        if row.get("status") != "approved":
+            return False
+        exp = row.get("expires_at")
+        if exp is not None and float(exp) < time.time():
+            return False
+        if row.get("action") != action:
+            return False
+        # Same operator (or admin using the grant)
+        if row.get("actor") != auth.name and "admin" not in auth.scopes:
+            return False
+        res = row.get("resource")
+        if res and resource and res != resource:
+            return False
+        # Must match command/intent binding from original request
+        expected = hitl_binding_hash(action, resource, extra)
+        stored = (row.get("binding_hash") or "").strip()
+        if not stored or stored != expected:
+            return False
+        return True
+
     async def evaluate(
         self,
         auth: AuthContext,
         action: str,
         resource: str | None = None,
         extra: dict[str, Any] | None = None,
+        *,
+        create_hitl: bool = True,
     ) -> PolicyDecision:
         rules = await self.get_rules()
         risk = self.score(action, rules)
@@ -144,12 +202,43 @@ class PolicyEngine:
             return PolicyDecision(False, f"Risk score {risk} exceeds deny threshold", risk)
 
         require_hitl = action in hitl_actions or risk >= int(thresholds.get("hitl_min", 7))
-        if require_hitl and "admin" not in auth.scopes and not (extra or {}).get("hitl_approved"):
+        # Admins bypass HITL; client-asserted hitl_approved is IGNORED
+        if require_hitl and "admin" not in auth.scopes:
+            if await self._server_hitl_approved(auth, action, resource, extra):
+                return PolicyDecision(
+                    True,
+                    "allowed (HITL approved)",
+                    risk,
+                    require_hitl=True,
+                    hitl_request_id=str((extra or {}).get("hitl_request_id")),
+                )
+            hid: str | None = None
+            if create_hitl:
+                safe_details = {
+                    k: v
+                    for k, v in (extra or {}).items()
+                    if k not in ("hitl_approved", "api_key", "token", "hitl_request_id")
+                }
+                # Cap stored detail length only (binding uses full command separately)
+                if isinstance(safe_details.get("command"), str) and len(safe_details["command"]) > 2000:
+                    safe_details["command"] = safe_details["command"][:2000] + "…[truncated]"
+                binding = hitl_binding_hash(action, resource, extra)
+                hid = await self.db.create_hitl_request(
+                    action=action,
+                    actor=auth.name,
+                    actor_type=auth.actor_type,
+                    resource=resource,
+                    details=safe_details,
+                    binding_hash=binding,
+                    risk_score=risk,
+                )
             return PolicyDecision(
                 False,
                 f"Human-in-the-loop required for {action}",
                 risk,
                 require_hitl=True,
+                hitl_request_id=hid,
+                details={"hitl_request_id": hid} if hid else {},
             )
 
         return PolicyDecision(True, "allowed", risk, require_hitl=require_hitl)
@@ -161,17 +250,28 @@ class PolicyEngine:
         resource: str | None = None,
         extra: dict[str, Any] | None = None,
     ) -> PolicyDecision:
-        decision = await self.evaluate(auth, action, resource, extra)
+        # Strip spoofable client flag before evaluate
+        clean_extra = dict(extra or {})
+        clean_extra.pop("hitl_approved", None)
+        decision = await self.evaluate(auth, action, resource, clean_extra)
+        audit_details = {
+            "reason": decision.reason,
+            **{k: v for k, v in clean_extra.items() if k != "hitl_approved"},
+        }
+        if decision.hitl_request_id:
+            audit_details["hitl_request_id"] = decision.hitl_request_id
         await self.db.audit(
             actor=auth.name,
             actor_type=auth.actor_type,
             action=action,
             resource=resource,
-            details={"reason": decision.reason, **(extra or {})},
+            details=audit_details,
             risk_score=decision.risk_score,
             allowed=decision.allowed,
         )
         await self.db.incr_metric("policy.checks")
         if not decision.allowed:
             await self.db.incr_metric("policy.denies")
+            if decision.require_hitl:
+                await self.db.incr_metric("policy.hitl_required")
         return decision

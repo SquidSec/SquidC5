@@ -231,6 +231,70 @@ class Database:
         cur = await self.execute("DELETE FROM listeners WHERE id = ?", (listener_id,))
         return cur.rowcount > 0
 
+    # --- HITL approval queue ---
+
+    async def create_hitl_request(
+        self,
+        *,
+        action: str,
+        actor: str,
+        actor_type: str = "operator",
+        resource: str | None = None,
+        details: dict[str, Any] | None = None,
+        binding_hash: str = "",
+        risk_score: int = 0,
+        ttl_sec: float = 900.0,
+    ) -> str:
+        hid = _uid("hitl_")
+        now = _now()
+        await self.execute(
+            """INSERT INTO hitl_requests
+               (id, action, resource, actor, actor_type, details, binding_hash, risk_score, status, created_at, expires_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
+            (
+                hid,
+                action,
+                resource,
+                actor,
+                actor_type,
+                json.dumps(details or {}),
+                binding_hash or "",
+                risk_score,
+                now,
+                now + float(ttl_sec),
+            ),
+        )
+        return hid
+
+    async def get_hitl_request(self, request_id: str) -> dict[str, Any] | None:
+        return await self.fetchone("SELECT * FROM hitl_requests WHERE id = ?", (request_id,))
+
+    async def list_hitl_requests(
+        self, *, status: str | None = "pending", limit: int = 100
+    ) -> list[dict[str, Any]]:
+        lim = min(max(int(limit), 1), 500)
+        if status:
+            return await self.fetchall(
+                "SELECT * FROM hitl_requests WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+                (status, lim),
+            )
+        return await self.fetchall(
+            "SELECT * FROM hitl_requests ORDER BY created_at DESC LIMIT ?",
+            (lim,),
+        )
+
+    async def resolve_hitl_request(
+        self, request_id: str, *, status: str, resolved_by: str
+    ) -> bool:
+        if status not in ("approved", "denied"):
+            raise ValueError("status must be approved or denied")
+        cur = await self.execute(
+            """UPDATE hitl_requests SET status = ?, resolved_at = ?, resolved_by = ?
+               WHERE id = ? AND status = 'pending'""",
+            (status, _now(), resolved_by, request_id),
+        )
+        return cur.rowcount > 0
+
     # --- Tasks ---
 
     async def create_task(
