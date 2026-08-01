@@ -50,4 +50,5 @@ class AppState:
     admin_token_once: str = ""
     implant_psk: str = ""
     socks: Any = None
+    engagement: Any = None
     shell_buffers: dict[str, list[str]] = field(default_factory=dict)

@@ -31,6 +31,13 @@ class TaskManager:
             raise ValueError("session not active")
         args = dict(args or {})
         cmd = (command or "").strip()
+        # Engagement ROE: banned commands
+        eng = getattr(self, "engagement", None)
+        if eng is not None:
+            if eng.expired():
+                raise ValueError("engagement window ended")
+            if eng.command_banned(cmd):
+                raise ValueError("command banned by engagement policy")
         # Normalize file ops into args schema
         if cmd.startswith("file:"):
             if cmd not in self.FILE_OPS:

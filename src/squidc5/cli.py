@@ -395,6 +395,24 @@ def cmd_implants_generate(args: argparse.Namespace, client: Client) -> None:
         pp(data)
 
 
+def cmd_implants_build(args: argparse.Namespace, client: Client) -> None:
+    body = {
+        "os": args.os,
+        "arch": args.arch,
+        "host": args.host,
+        "port": args.port,
+        "scheme": args.scheme,
+        "sleep": args.sleep,
+        "jitter": args.jitter,
+        "tls_skip_verify": args.tls_skip_verify,
+    }
+    if args.kill_date:
+        body["kill_date"] = args.kill_date
+    if args.max_miss:
+        body["max_miss"] = args.max_miss
+    pp(client.post("/api/v1/implants/build", json=body))
+
+
 def cmd_ai_playbooks(args: argparse.Namespace, client: Client) -> None:
     pp(client.get("/api/v1/ai/playbooks"))
 
@@ -1015,6 +1033,18 @@ def build_parser() -> argparse.ArgumentParser:
     im_g.add_argument("--no-evasion", action="store_true")
     im_g.add_argument("--raw", action="store_true")
     im_g.set_defaults(func=cmd_implants_generate, needs_client=True)
+    im_b = imp_sub.add_parser("build", help="Native sc5beacon build plan")
+    im_b.add_argument("--os", default="linux")
+    im_b.add_argument("--arch", default="amd64")
+    im_b.add_argument("host")
+    im_b.add_argument("port", type=int)
+    im_b.add_argument("--scheme", default="https")
+    im_b.add_argument("--sleep", type=float, default=5.0)
+    im_b.add_argument("--jitter", type=float, default=20.0)
+    im_b.add_argument("--kill-date", type=int, default=None)
+    im_b.add_argument("--max-miss", type=int, default=0)
+    im_b.add_argument("--tls-skip-verify", action="store_true")
+    im_b.set_defaults(func=cmd_implants_build, needs_client=True)
 
     # teams
     teams = sub.add_parser("teams", help="Multi-operator teams")

@@ -125,6 +125,7 @@ async def build_state(settings: Settings) -> AppState:
             log.warning("Could not chmod 0600 on %s", token_file)
         log.warning("Bootstrap admin token written to %s — store securely and rotate", token_file)
 
+    from squidc5.engagement.policy import EngagementPolicy
     from squidc5.implants.crypto import resolve_implant_psk
     from squidc5.pivot.socks import SocksBroker
 
@@ -133,6 +134,8 @@ async def build_state(settings: Settings) -> AppState:
         data_dir=settings.data_dir,
     )
     socks = SocksBroker()
+    engagement = EngagementPolicy()
+    tasks.engagement = engagement
 
     return AppState(
         settings=settings,
@@ -157,6 +160,7 @@ async def build_state(settings: Settings) -> AppState:
         admin_token_once=admin_once,
         implant_psk=implant_psk,
         socks=socks,
+        engagement=engagement,
     )
 
 

@@ -202,6 +202,32 @@ class ImplantGenerateRequest(BaseModel):
     profile_id: str | None = None
 
 
+class ImplantBuildRequest(BaseModel):
+    os: str = "linux"
+    arch: str = "amd64"
+    host: str
+    port: int = 8443
+    path: str = "/api/v1/implant/beacon"
+    scheme: str = "https"
+    sleep: float = 5.0
+    jitter: float = 20.0
+    kill_date: int | None = None
+    max_miss: int = 0
+    work_start: int = 0
+    work_end: int = 0
+    tls_skip_verify: bool = False
+
+
+class EngagementUpdate(BaseModel):
+    name: str | None = None
+    cidrs: list[str] | None = None
+    banned_commands: list[str] | None = None
+    end_ts: float | None = None
+    require_hitl_file_write: bool | None = None
+    max_sessions: int | None = None
+    notes: str | None = None
+
+
 class RedirectorRequest(BaseModel):
     listen_port: int = 443
     upstream_host: str = "127.0.0.1"
@@ -939,6 +965,40 @@ def build_api_router() -> APIRouter:
 
         return StreamingResponse(gen(), media_type="text/event-stream")
 
+    # ----- Engagement ROE -----
+
+    @api.get("/engagement")
+    async def get_engagement(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("policy:manage", "admin")),
+    ) -> dict[str, Any]:
+        eng = get_state(request).engagement
+        return eng.to_dict() if eng else {}
+
+    @api.put("/engagement")
+    async def put_engagement(
+        body: EngagementUpdate,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("admin")),
+    ) -> dict[str, Any]:
+        from squidc5.engagement.policy import EngagementPolicy
+
+        state = get_state(request)
+        cur = state.engagement.to_dict() if state.engagement else EngagementPolicy().to_dict()
+        patch = body.model_dump(exclude_unset=True)
+        cur.update({k: v for k, v in patch.items() if v is not None})
+        eng = EngagementPolicy.from_dict(cur)
+        state.engagement = eng
+        state.tasks.engagement = eng
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="engagement.update",
+            details={"keys": list(patch.keys())},
+            risk_score=6,
+        )
+        return eng.to_dict()
+
     # ----- Policy -----
 
     @api.get("/policy")
@@ -1330,6 +1390,48 @@ def build_api_router() -> APIRouter:
             raise HTTPException(400, str(e)) from e
         await state.metrics.incr("implants.generated")
         return out
+
+    @api.post("/implants/build")
+    async def implant_build(
+        body: ImplantBuildRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("payloads:generate", "admin")),
+    ) -> dict[str, Any]:
+        """Native sc5beacon build plan + scripts (operator runs go build)."""
+        from squidc5.implants.factory import agent_source_tree, build_plan
+
+        state = get_state(request)
+        if not await state.features.enabled("payloads_generate"):
+            raise HTTPException(403, "Payload generation disabled")
+        try:
+            plan = build_plan(
+                os_name=body.os,
+                arch=body.arch,
+                host=body.host,
+                port=body.port,
+                path=body.path,
+                scheme=body.scheme,
+                sleep=body.sleep,
+                jitter=body.jitter,
+                kill_date=body.kill_date,
+                max_miss=body.max_miss,
+                work_start=body.work_start,
+                work_end=body.work_end,
+                tls_skip_verify=body.tls_skip_verify,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        plan["agent_files"] = agent_source_tree()
+        plan["psk_hint"] = "Read server data/implant_psk.txt — never commit"
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="implants.build_plan",
+            details={"os": body.os, "arch": body.arch, "host": body.host},
+            risk_score=5,
+        )
+        await state.metrics.incr("implants.build_plans")
+        return plan
 
     # ----- Evasion assist -----
 
