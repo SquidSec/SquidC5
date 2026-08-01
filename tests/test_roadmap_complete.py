@@ -126,7 +126,7 @@ async def test_plugin_persist_and_execute(client, admin_headers):
     # Call through admin by constructing signature matching server default
     from squidc5.plugins.registry import PluginRegistry
 
-    reg = PluginRegistry()  # same default secret as server
+    reg = PluginRegistry(signing_secret=b"test-plugin-signing-secret-for-ci")
     man = {
         "name": "lab_recon",
         "version": "1.0.0",

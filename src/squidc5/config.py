@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 60
     # Stricter per-IP cap on failed authentications (credential stuffing)
     auth_fail_limit_per_minute: int = 20
+    # Plugin HMAC secret (env or data_dir/plugin_signing.secret). Never use the legacy default in prod.
+    plugin_signing_secret: str | None = None
     # Reverse-shell auto-stabilization (stage-2 reconnect agents)
     shell_auto_stabilize: bool = True
     # Host/IP implants should call back to (defaults to request/local bind if empty)

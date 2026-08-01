@@ -5,12 +5,59 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
+import secrets
+from pathlib import Path
 from typing import Any
 
 # db is optional Database-like
 
+log = logging.getLogger("squidc5.plugins")
+
+# Legacy default — refused outside debug (see resolve_plugin_signing_secret).
+LEGACY_DEV_PLUGIN_SECRET = b"sc5-dev-plugin-secret-change-me"
+PLUGIN_SECRET_FILENAME = "plugin_signing.secret"
+
 # Built-in deterministic plugin handlers (allow-listed capabilities only)
 _BUILTIN_HANDLERS: dict[str, Any] = {}
+
+
+def resolve_plugin_signing_secret(
+    *,
+    explicit: str | None,
+    data_dir: Path,
+    debug: bool = False,
+) -> bytes:
+    """Resolve HMAC secret from env/settings, data_dir file, or generate once.
+
+    Refuses the legacy hardcoded default when debug is False.
+    """
+    secret: bytes | None = None
+    if explicit is not None and str(explicit).strip():
+        secret = str(explicit).strip().encode("utf-8")
+    else:
+        path = Path(data_dir) / PLUGIN_SECRET_FILENAME
+        if path.is_file():
+            secret = path.read_bytes().strip()
+        if not secret:
+            Path(data_dir).mkdir(parents=True, exist_ok=True)
+            secret = secrets.token_hex(32).encode("utf-8")
+            path.write_bytes(secret + b"\n")
+            try:
+                path.chmod(0o600)
+            except OSError:
+                log.warning("Could not chmod 0600 on %s", path)
+            log.info("Generated plugin signing secret at %s", path)
+
+    if secret == LEGACY_DEV_PLUGIN_SECRET and not debug:
+        raise RuntimeError(
+            "Refusing legacy default plugin signing secret outside debug mode. "
+            "Set SQUIDC5_PLUGIN_SIGNING_SECRET or remove a stale "
+            f"{PLUGIN_SECRET_FILENAME} containing the default."
+        )
+    if not secret:
+        raise RuntimeError("Plugin signing secret is empty")
+    return secret
 
 
 def _handle_recon_summary(args: dict[str, Any]) -> dict[str, Any]:
@@ -96,7 +143,9 @@ class PluginRegistry:
 
     def __init__(self, signing_secret: bytes | None = None, db: Any = None) -> None:
         self._plugins: dict[str, dict[str, Any]] = {}
-        self._signing_secret = signing_secret or b"sc5-dev-plugin-secret-change-me"
+        # Callers in production must pass resolve_plugin_signing_secret(...).
+        # Unit tests may pass an explicit secret; bare None uses legacy only for isolated unit tests.
+        self._signing_secret = signing_secret if signing_secret is not None else LEGACY_DEV_PLUGIN_SECRET
         self._enabled: set[str] = set()
         self.db = db
 

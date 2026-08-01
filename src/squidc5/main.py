@@ -63,7 +63,14 @@ async def build_state(settings: Settings) -> AppState:
     await profiles.load()
     implants = ImplantRegistry()
     teams = TeamService(db)
-    plugins = PluginRegistry(db=db)
+    from squidc5.plugins.registry import resolve_plugin_signing_secret
+
+    plugin_secret = resolve_plugin_signing_secret(
+        explicit=settings.plugin_signing_secret,
+        data_dir=settings.data_dir,
+        debug=settings.debug,
+    )
+    plugins = PluginRegistry(signing_secret=plugin_secret, db=db)
     await plugins.load_from_db()
     timeline = TimelineService(db)
     oast = OastService(
