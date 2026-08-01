@@ -48,4 +48,5 @@ class AppState:
     oast: OastService | None = None
     ai_chain: Any = None
     admin_token_once: str = ""
+    implant_psk: str = ""
     shell_buffers: dict[str, list[str]] = field(default_factory=dict)

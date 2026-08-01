@@ -125,6 +125,13 @@ async def build_state(settings: Settings) -> AppState:
             log.warning("Could not chmod 0600 on %s", token_file)
         log.warning("Bootstrap admin token written to %s — store securely and rotate", token_file)
 
+    from squidc5.implants.crypto import resolve_implant_psk
+
+    implant_psk = resolve_implant_psk(
+        explicit=settings.implant_psk,
+        data_dir=settings.data_dir,
+    )
+
     return AppState(
         settings=settings,
         db=db,
@@ -146,6 +153,7 @@ async def build_state(settings: Settings) -> AppState:
         oast=oast,
         ai_chain=ai_chain,
         admin_token_once=admin_once,
+        implant_psk=implant_psk,
     )
 
 
