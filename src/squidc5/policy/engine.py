@@ -17,12 +17,13 @@ def hitl_binding_hash(
     resource: str | None,
     extra: dict[str, Any] | None,
 ) -> str:
-    """Bind approval to action + resource + command (or other intent fields)."""
+    """Bind approval to action + resource + full command (or other intent fields)."""
     extra = extra or {}
+    # Full command — do not truncate (truncation enables prefix-collision bypass)
     intent = {
         "action": action,
         "resource": resource or "",
-        "command": str(extra.get("command") or "")[:500],
+        "command": str(extra.get("command") or ""),
         "capability": str(extra.get("capability") or ""),
     }
     raw = json.dumps(intent, sort_keys=True, separators=(",", ":")).encode()
@@ -218,6 +219,9 @@ class PolicyEngine:
                     for k, v in (extra or {}).items()
                     if k not in ("hitl_approved", "api_key", "token", "hitl_request_id")
                 }
+                # Cap stored detail length only (binding uses full command separately)
+                if isinstance(safe_details.get("command"), str) and len(safe_details["command"]) > 2000:
+                    safe_details["command"] = safe_details["command"][:2000] + "…[truncated]"
                 binding = hitl_binding_hash(action, resource, extra)
                 hid = await self.db.create_hitl_request(
                     action=action,

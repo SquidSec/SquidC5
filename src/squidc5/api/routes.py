@@ -481,7 +481,7 @@ def build_api_router() -> APIRouter:
             resource=body.session_id,
             extra={
                 "hitl_request_id": body.hitl_request_id,
-                "command": body.command[:100],
+                "command": body.command,
             },
         )
         if not decision.allowed:
@@ -675,7 +675,7 @@ def build_api_router() -> APIRouter:
             resource=body.session_id,
             extra={
                 "hitl_request_id": body.hitl_request_id,
-                "command": body.command[:100],
+                "command": body.command,
             },
         )
         if not decision.allowed:
@@ -719,7 +719,7 @@ def build_api_router() -> APIRouter:
             auth,
             "shell.interact",
             resource="broadcast",
-            extra={"hitl_request_id": hitl_rid, "command": command[:100]},
+            extra={"hitl_request_id": hitl_rid, "command": command},
         )
         if not decision.allowed:
             raise _policy_http_error(decision)
