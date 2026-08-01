@@ -31,6 +31,13 @@ class TaskManager:
             raise ValueError("session not active")
         args = dict(args or {})
         cmd = (command or "").strip()
+        # Engagement ROE: banned commands
+        eng = getattr(self, "engagement", None)
+        if eng is not None:
+            if eng.expired():
+                raise ValueError("engagement window ended")
+            if eng.command_banned(cmd):
+                raise ValueError("command banned by engagement policy")
         # Normalize file ops into args schema
         if cmd.startswith("file:"):
             if cmd not in self.FILE_OPS:
@@ -40,6 +47,17 @@ class TaskManager:
                 raise ValueError("path required for file op")
             if cmd == "file:write" and "content" not in args and "content_b64" not in args:
                 raise ValueError("content or content_b64 required for file:write")
+            # Engagement ROE: file writes may require HITL approval id on task args
+            if (
+                cmd == "file:write"
+                and eng is not None
+                and getattr(eng, "require_hitl_file_write", False)
+                and not args.get("hitl_request_id")
+                and created_by != "admin"
+            ):
+                # Callers with admin scope pass via API after HITL; non-approved blocked here
+                if not args.get("hitl_approved_server"):
+                    raise ValueError("file:write requires HITL approval under engagement policy")
         tid = await self.db.create_task(session_id, cmd, args, created_by)
         await self.metrics.incr("tasks.created")
         await self.metrics.emit(

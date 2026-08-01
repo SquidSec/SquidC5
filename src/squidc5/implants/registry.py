@@ -9,6 +9,14 @@ class ImplantRegistry:
     """Catalog of implant families beyond basic reverse shells."""
 
     FAMILIES = {
+        "native_sc5beacon": {
+            "platforms": ["linux", "windows", "darwin"],
+            "arches": ["amd64", "arm64", "386"],
+            "stages": ["stage1_native"],
+            "memory_only": False,
+            "description": "Go native sc5beacon (AEAD, sleep/jitter/kill/files)",
+            "factory": True,
+        },
         "http_beacon": {
             "platforms": ["linux", "windows", "macos"],
             "arches": ["x64", "x86", "arm64"],
