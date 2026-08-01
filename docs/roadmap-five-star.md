@@ -14,13 +14,22 @@ Goal: ★★★★★ across implants, traffic, post-ex, multi-player, AI, gover
 | **D** | AI capability pack + local Ollama path | **Landed** (15 caps; local LLM URL/model) |
 | **E** | CI proof, SBOM, audit verify, benchmarks | **Landed** (verify, cov, mypy, SBOM, agent CI) |
 
+## Implant maturity I1–I6
+
+| Pack | Focus | Status |
+|------|--------|--------|
+| **I1** | Jobs + config blob | **Landed** (sc5beacon v3) |
+| **I2** | Native WS channel | **Landed** |
+| **I3** | COFF parse + 5 BOFs | **Landed** (exec still lab/parse; catalog simulate) |
+| **I4** | Stage0 bash/ps1 stagers | **Landed** |
+| **I5** | Sleep/string OPSEC | **Landed** (mask + wipe) |
+| **I6** | Lab soak CI matrix | **Landed** (go test + multi-arch + smoke) |
+
 ## Still climbing to full ★★★★★
 
-- Process injection + sleep mask — **lab stubs + catalog + agent gates** (this pack)  
-- Windows COFF/BOF **loader host** — metadata plan + gated agent stub (full COFF exec research)  
-- Ops UI file / SOCKS / HITL / engagement / modules panels — **landed**  
+- Full Windows COFF **mapped execute** (research build)  
 - P2P / SMB / named pipe  
-- Lab victim matrix soak numbers  
+- Multi-host lab soak numbers (overnight)  
 - External security audit  
 
 ## Links

