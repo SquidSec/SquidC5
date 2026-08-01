@@ -53,11 +53,11 @@
 
   const parts = [];
 
-  // Multi-page nav (competitor-style: Dashboard / Sessions / Listeners / Post-Ex / Collab / Admin)
+  // Multi-page nav (competitor-style workspace tabs)
   const uiRole = window.__SC5_UI_ROLE__ || (can("admin") ? "admin" : "operator");
   parts.push(`
-    <div id="opsNavBar" class="ops-nav" style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 4px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08)">
-      <strong style="margin-right:8px">SquidC5</strong>
+    <div id="opsNavBar" class="ops-nav col-span-all">
+      <strong style="margin-right:4px;font-size:0.8rem;color:var(--pink-hot,#f472b6)">SC5</strong>
       <button type="button" class="ops-page-btn primary" data-page="dashboard">Dashboard</button>
       <button type="button" class="ops-page-btn" data-page="sessions">Sessions</button>
       <button type="button" class="ops-page-btn" data-page="listeners">Listeners</button>
@@ -65,8 +65,8 @@
       <button type="button" class="ops-page-btn" data-page="collab">Collab</button>
       ${can("admin") || uiRole === "admin" ? '<button type="button" class="ops-page-btn" data-page="admin">Admin</button>' : ""}
       <span style="flex:1"></span>
-      <label for="layoutPreset" class="muted" style="font-size:0.75rem">Role layout</label>
-      <select id="layoutPreset" style="max-width:140px">
+      <label for="layoutPreset" class="muted" style="font-size:0.7rem;margin:0">Role</label>
+      <select id="layoutPreset" style="max-width:120px;margin:0;padding:6px 8px">
         <option value="operator">Operator</option>
         <option value="lead">Lead</option>
         ${can("admin") ? '<option value="admin">Admin</option>' : ""}
@@ -1593,19 +1593,26 @@
   let _currentPage = "dashboard";
   function applyPage(page) {
     _currentPage = page || "dashboard";
+    if (_currentPage === "admin" && !can("admin")) _currentPage = "dashboard";
     const show = PAGE_PANELS[_currentPage] || PAGE_PANELS.dashboard;
     const preset = ($("layoutPreset") && $("layoutPreset").value) || "operator";
     const hideExtra = PRESET_HIDE[preset] || [];
-    // Non-admin cannot open admin page
-    if (_currentPage === "admin" && !can("admin")) {
-      _currentPage = "dashboard";
-    }
     document.querySelectorAll("details.panel").forEach((p) => {
-      if (!p.id) return;
+      if (!p.id || p.id === "settingsPanel" || p.id === "heroPanel" || p.id === "eventStream") return;
       const onPage = show.indexOf(p.id) >= 0;
       const roleHide = hideExtra.indexOf(p.id) >= 0;
-      p.style.display = onPage && !roleHide ? "" : "none";
-      if (onPage && !roleHide && isDesktopLayout()) p.open = true;
+      const visible = onPage && !roleHide;
+      p.style.display = visible ? "" : "none";
+      p.classList.toggle("hidden", !visible);
+      // Desktop: open only a few key panels per page (dense, not all expanded)
+      if (visible && isDesktopLayout()) {
+        const preferOpen = (
+          p.id === "workbenchPanel" || p.id === "sessionsPanel" || p.id === "identityCard" ||
+          p.id === "quickRunCard" || p.id === "eventsRailPanel" || p.id === "listenersPanel" ||
+          p.id === "chatPanel" || p.id === "tokensPanel"
+        );
+        p.open = preferOpen;
+      }
     });
     document.querySelectorAll(".ops-page-btn").forEach((b) => {
       b.classList.toggle("primary", b.getAttribute("data-page") === _currentPage);
@@ -1614,6 +1621,8 @@
       localStorage.setItem("sc5_ops_page", _currentPage);
       localStorage.setItem("sc5_layout_preset", preset);
     } catch (_) {}
+    if (typeof window.__SC5_scheduleMasonry === "function") window.__SC5_scheduleMasonry();
+    else if (window.scheduleMasonry) window.scheduleMasonry();
   }
   function applyLayoutPreset(name) {
     if ($("layoutPreset")) $("layoutPreset").value = name;

@@ -36,13 +36,33 @@
     .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
     .brand .brand-text { min-width: 0; }
     .toolbar { margin-bottom: 10px; }
-    .overview { display: flex; flex-direction: column; }
-    .overview > * { min-width: 0; }
-    #adminMount { display: flex; flex-direction: column; }
-    #adminMount > * { margin-bottom: 10px; }
-    #adminMount > *:last-child { margin-bottom: 0; }
+    .overview { display: flex; flex-direction: column; gap: 8px; }
+    .overview > * { min-width: 0; margin: 0 !important; }
+    #adminMount {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #adminMount > * { margin: 0 !important; }
+    #opsNavBar.ops-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      padding: 8px 10px;
+      margin: 0 0 4px !important;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(18,18,22,0.95);
+    }
+    #opsNavBar .ops-page-btn {
+      min-width: 0 !important;
+      flex: 0 0 auto !important;
+      padding: 6px 10px !important;
+      font-size: 0.75rem !important;
+    }
     /* Full-width work surfaces (used by multi-column layouts) */
-    .col-span-all { width: 100%; }
+    .col-span-all { width: 100%; grid-column: 1 / -1; }
 
     .brand img { width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 0 8px rgba(233,30,140,0.35)); }
     .brand h1 { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
@@ -64,7 +84,7 @@
     .badge.admin { color: var(--pink-hot); border-color: rgba(233,30,140,0.35); margin-left: 6px; }
     .hero {
       border: 1px solid rgba(233,30,140,0.28); border-radius: 16px; padding: 12px;
-      margin-bottom: 12px; background: rgba(18,18,22,0.95);
+      margin: 0; background: rgba(18,18,22,0.95);
       position: relative;
     }
     .hero::before {
@@ -96,7 +116,7 @@
     .stat.tone-bad .n { color: var(--bad); text-shadow: none; }
     .card {
       background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 12px; margin-bottom: 10px;
+      padding: 10px 12px; margin: 0;
     }
     .card h2 {
       margin: 0 0 8px; font-size: 0.72rem; letter-spacing: 0.12em;
@@ -137,19 +157,24 @@
     .pill.ok { color: var(--ok); border-color: rgba(0,255,157,0.35); }
     .pill.bad { color: var(--bad); border-color: rgba(251,113,133,0.35); }
     :root {
-      --panel-tile-h: 340px;
-      --panel-tile-h-wide: 400px;
-      --panel-head-h: 40px;
+      --panel-head-h: 36px;
+      --panel-gap: 8px;
+      --panel-body-max: 420px;
     }
     details.panel {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 10px 12px; margin-bottom: 10px;
+      padding: 8px 12px;
+      margin: 0;
       box-sizing: border-box;
+      height: auto;
+      max-height: none;
+      overflow: visible;
+      display: block;
     }
     details.panel summary {
-      cursor: pointer; font-weight: 700; font-size: 0.9rem; list-style: none;
+      cursor: pointer; font-weight: 700; font-size: 0.88rem; list-style: none;
       display: flex; align-items: center; gap: 8px; user-select: none;
       flex-shrink: 0;
       min-height: var(--panel-head-h);
@@ -163,20 +188,13 @@
     details.panel[open] summary::before { transform: rotate(90deg); }
     details.panel[open] summary { margin-bottom: 6px; color: var(--pink-hot); }
     details.panel .panel-title { flex: 1; min-width: 0; }
-    /* Equal-size open tiles; body scrolls when content overflows.
-       Use grid (not flex) — details+flex overflow is unreliable in Chromium. */
+    /* Natural height panels — body scrolls only when content is tall */
     details.panel[open] {
-      height: var(--panel-tile-h);
-      max-height: var(--panel-tile-h);
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
-      overflow: hidden;
+      height: auto;
+      max-height: none;
+      display: block;
+      overflow: visible;
     }
-    details.panel[open].is-wide {
-      height: var(--panel-tile-h-wide);
-      max-height: var(--panel-tile-h-wide);
-    }
-    /* Status overview + Connection: height-fit content, never a scroll tile */
     details.panel.hero[open],
     details.panel#heroPanel[open],
     details.panel#settingsPanel[open] {
@@ -191,7 +209,7 @@
       height: auto !important;
       max-height: none !important;
       overflow: visible !important;
-      padding-bottom: 12px;
+      padding-bottom: 8px;
     }
     /* Connection actions: one full-width horizontal row */
     #settingsPanel .conn-actions {
@@ -214,48 +232,16 @@
     }
     details.panel > .panel-body {
       min-height: 0;
-      max-height: 100%;
+      max-height: var(--panel-body-max);
       overflow-x: hidden;
       overflow-y: auto;
-      /* Do not trap wheel by default — only when focused + actually scrollable (JS). */
-      overscroll-behavior: auto;
+      overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: thin;
       scrollbar-color: rgba(233,30,140,0.35) rgba(0,0,0,0.2);
-      padding-right: 4px;
-      padding-bottom: 28px;
+      padding-right: 2px;
+      padding-bottom: 8px;
       box-sizing: border-box;
-    }
-    /* Extra bottom room for dense admin panels */
-    #identityCard > .panel-body,
-    #quickRunCard > .panel-body,
-    #sessionsPanel > .panel-body,
-    #tasksPanel > .panel-body,
-    #listenersPanel > .panel-body,
-    #payloadsPanel > .panel-body,
-    #pluginsPanel > .panel-body,
-    #deployPanel > .panel-body,
-    #obsPanel > .panel-body,
-    #aiCard > .panel-body,
-    #llmPanel > .panel-body,
-    #tokensPanel > .panel-body,
-    #obsExtraPanel > .panel-body,
-    #chatPanel > .panel-body,
-    #profilesPanel > .panel-body,
-    #featuresPanel > .panel-body,
-    #policyPanel > .panel-body,
-    #mcpPanel > .panel-body,
-    #filesPanel > .panel-body,
-    #socksPanel > .panel-body,
-    #modulesPanel > .panel-body,
-    #hitlPanel > .panel-body,
-    #engagementPanel > .panel-body,
-    #workbenchPanel > .panel-body,
-    #eventsRailPanel > .panel-body,
-    #teamsPanel > .panel-body,
-    #auditMePanel > .panel-body,
-    #pivotMapPanel > .panel-body {
-      padding-bottom: 40px;
     }
     /* U7 mobile: larger hit targets */
     @media (max-width: 767px) {
@@ -451,53 +437,87 @@
     }
     .event-feed .empty { padding: 16px 8px; text-align: center; }
 
-    /* Masonry packing (JS positions children into shortest column) */
+    /* Dense multi-column grid (no absolute masonry — fixes huge desktop gaps) */
     .masonry {
       position: relative;
       width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: var(--panel-gap);
     }
     .masonry > * {
       box-sizing: border-box;
       min-width: 0;
+      position: static !important;
+      left: auto !important;
+      top: auto !important;
+      width: auto !important;
+      transform: none !important;
+      height: auto !important;
+      max-height: none !important;
+    }
+    .masonry.is-packed {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--panel-gap);
+      align-items: start;
+      height: auto !important;
     }
     .masonry.is-packed > * {
-      position: absolute;
+      position: static !important;
       margin: 0 !important;
     }
     .masonry-span, details.panel.is-wide {
-      /* full-width row — set by user toggle / JS */
+      grid-column: 1 / -1;
+    }
+    #opsNavBar.ops-nav {
+      grid-column: 1 / -1;
     }
 
     /* Tablet+ */
     @media (min-width: 768px) {
       body {
-        padding: max(16px, env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+        padding: max(12px, env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
       }
-      .wrap { max-width: 1000px; }
-      .overview { margin-bottom: 4px; }
-      #adminMount { margin-top: 12px; }
-      .event-stream { margin-bottom: 14px; }
-      .event-feed { max-height: 280px; }
-      .outbox { max-height: 380px; }
-      button { min-width: 120px; flex: 0 1 auto; }
-      .stats { gap: 12px; grid-template-columns: repeat(3, 1fr); }
-      .stat .n { font-size: 1.5rem; }
+      .wrap { max-width: 1100px; }
+      .overview { margin-bottom: 0; gap: 8px; }
+      #adminMount { margin-top: 8px; gap: 0; }
+      #adminMount.masonry.is-packed {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .event-stream { margin-bottom: 0; }
+      .event-feed { max-height: 240px; }
+      .outbox { max-height: 280px; }
+      button { min-width: 0; flex: 0 1 auto; }
+      .stats { gap: 8px; grid-template-columns: repeat(3, 1fr); }
+      .stat .n { font-size: 1.35rem; }
       .modal { width: min(100%, 420px); }
+      details.panel { padding: 10px 12px; }
+      details.panel > .panel-body { max-height: 360px; padding-bottom: 8px; }
+      .card { margin-bottom: 0; padding: 10px 12px; }
+      .hero { margin-bottom: 0; padding: 12px; }
+      .row { margin-top: 8px; gap: 6px; }
     }
 
     /* Desktop */
     @media (min-width: 1100px) {
-      .wrap { max-width: 1440px; }
-      .brand h1 { font-size: 1.45rem; }
-      .hero { padding: 16px 18px; margin-bottom: 16px; }
-      .card, details.panel { padding: 14px 16px; }
-      table { font-size: 0.85rem; }
-      .outbox { max-height: 420px; }
-      .event-feed { max-height: 320px; }
+      .wrap { max-width: 1400px; }
+      .brand h1 { font-size: 1.35rem; }
+      .hero { padding: 12px 14px; }
+      .card, details.panel { padding: 10px 12px; }
+      table { font-size: 0.82rem; }
+      .outbox { max-height: 300px; }
+      .event-feed { max-height: 260px; }
       .event-item {
-        grid-template-columns: minmax(120px, auto) minmax(0, 1fr) auto;
+        grid-template-columns: minmax(100px, auto) minmax(0, 1fr) auto;
       }
-      .stats { grid-template-columns: repeat(3, 1fr); }
+      .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      #adminMount.masonry.is-packed {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      details.panel > .panel-body { max-height: 380px; }
     }
   </style>
 </head>
@@ -809,62 +829,32 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         }
       });
     }
-    function tileHeightPx(el) {
-      if (!el || !el.open) return 0;
-      if (isAutoHeightPanel(el)) return 0;
-      const cs = getComputedStyle(document.documentElement);
-      const raw = isFullWidthPanel(el)
-        ? (cs.getPropertyValue("--panel-tile-h-wide") || "400px")
-        : (cs.getPropertyValue("--panel-tile-h") || "340px");
-      const n = parseFloat(raw);
-      return Number.isFinite(n) ? n : (isFullWidthPanel(el) ? 400 : 340);
-    }
     function isAutoHeightPanel(el) {
       return !!(el && (
         el.id === "heroPanel" ||
         el.id === "settingsPanel" ||
-        el.classList.contains("hero")
+        el.id === "opsNavBar" ||
+        el.classList.contains("hero") ||
+        el.classList.contains("ops-nav")
       ));
     }
     function applyTileScroll(el) {
-      const body = el && el.querySelector(":scope > .panel-body");
+      // Dense natural-height layout — clear any legacy fixed-tile inline styles
+      if (!el) return;
+      el.style.height = "";
+      el.style.maxHeight = "";
+      el.style.overflow = "";
+      el.style.position = "";
+      el.style.left = "";
+      el.style.top = "";
+      el.style.width = "";
+      el.style.transform = "";
+      const body = el.querySelector && el.querySelector(":scope > .panel-body");
       if (!body) return;
-      if (!el.open) {
-        body.style.height = "";
-        body.style.maxHeight = "";
-        body.style.overflowY = "";
-        body.classList.remove("scroll-focus", "is-scrollable");
-        el.style.height = "";
-        el.style.maxHeight = "";
-        el.style.overflow = "";
-        return;
-      }
-      // Status overview: natural height, never a fixed scroll tile
-      if (isAutoHeightPanel(el)) {
-        el.style.height = "auto";
-        el.style.maxHeight = "none";
-        el.style.overflow = "visible";
-        body.style.height = "auto";
-        body.style.maxHeight = "none";
-        body.style.overflowY = "visible";
-        body.style.overflowX = "visible";
-        body.classList.remove("scroll-focus", "is-scrollable");
-        return;
-      }
-      const tileH = tileHeightPx(el);
-      el.style.height = tileH + "px";
-      el.style.maxHeight = tileH + "px";
-      el.style.overflow = "hidden";
-      // Reserve summary + padding so body is the only scrollport
-      const sum = el.querySelector(":scope > summary");
-      const sumH = sum ? sum.getBoundingClientRect().height : 40;
-      const pad = 22; // vertical padding inside details
-      const bodyH = Math.max(80, tileH - sumH - pad);
-      body.style.height = bodyH + "px";
-      body.style.maxHeight = bodyH + "px";
-      body.style.overflowY = "auto";
-      body.style.overflowX = "hidden";
-      // Mark whether this body can scroll (for wheel policy)
+      body.style.height = "";
+      body.style.maxHeight = "";
+      body.style.overflowY = "";
+      body.style.overflowX = "";
       requestAnimationFrame(() => {
         const canScroll = body.scrollHeight > body.clientHeight + 1;
         body.classList.toggle("is-scrollable", canScroll);
@@ -924,71 +914,26 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       { passive: false, capture: true }
     );
     function packMasonry(container) {
+      // CSS grid layout only — no absolute positioning (dense desktop, no huge gaps)
       if (!container) return;
       const cols = masonryCols();
-      const gap = masonryGap();
-      if (cols <= 1) {
-        clearMasonry(container);
-        // still enforce tile scroll on single column
-        Array.from(container.children).forEach((el) => {
-          if (el.matches && el.matches("details.panel")) applyTileScroll(el);
-        });
-        return;
-      }
-      const items = Array.from(container.children).filter((el) => el.nodeType === 1 && !el.classList.contains("hidden"));
-      if (!items.length) {
-        clearMasonry(container);
-        return;
-      }
-      const width = container.clientWidth;
-      if (width < 40) return;
-      const colW = (width - gap * (cols - 1)) / cols;
-      container.classList.add("is-packed");
-
-      // Size tiles first (equal height + scrollport), then pack.
-      items.forEach((el) => {
-        const full = isFullWidthPanel(el);
-        el.style.position = "absolute";
-        el.style.left = "0px";
-        el.style.top = "0px";
-        el.style.width = (full ? width : colW) + "px";
+      clearMasonry(container);
+      Array.from(container.children).forEach((el) => {
         if (el.matches && el.matches("details.panel")) applyTileScroll(el);
-        else el.style.height = "";
-      });
-      void container.offsetHeight;
-
-      // Pack in DOM order. Full-width tiles force a hard row break:
-      // all columns advance past that tile so nothing sits beside it.
-      const heights = new Array(cols).fill(0);
-      items.forEach((el) => {
-        const full = isFullWidthPanel(el);
-        const h = el.open ? tileHeightPx(el) : Math.max(el.offsetHeight, 44);
-        if (full) {
-          const y = Math.max.apply(null, heights);
-          el.style.left = "0px";
-          el.style.top = y + "px";
-          el.style.width = width + "px";
-          const next = y + h + gap;
-          for (let i = 0; i < cols; i++) heights[i] = next;
-          return;
+        if (el.id === "opsNavBar" || (el.classList && el.classList.contains("ops-nav"))) {
+          el.classList.add("col-span-all");
         }
-        let col = 0;
-        for (let i = 1; i < cols; i++) if (heights[i] < heights[col]) col = i;
-        const y = heights[col];
-        el.style.left = (col * (colW + gap)) + "px";
-        el.style.top = y + "px";
-        el.style.width = colW + "px";
-        heights[col] = y + h + gap;
+        if (isFullWidthPanel(el)) el.classList.add("col-span-all");
       });
-
-      container.style.height = Math.max.apply(null, heights) + "px";
+      if (cols <= 1) {
+        container.classList.remove("is-packed");
+        return;
+      }
+      container.classList.add("is-packed");
+      container.style.height = "auto";
     }
     function layoutMasonry() {
-      // Non-masonry panels (connection / status / events) still need scrollports
-      document.querySelectorAll("details.panel").forEach((el) => {
-        const inMasonry = el.closest(".masonry");
-        if (!inMasonry) applyTileScroll(el);
-      });
+      document.querySelectorAll("details.panel").forEach((el) => applyTileScroll(el));
       packMasonry(document.querySelector(".overview"));
       packMasonry($("adminMount"));
     }
@@ -997,11 +942,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       masonryTimer = setTimeout(() => {
         requestAnimationFrame(() => {
           layoutMasonry();
-          // second pass after fonts/details open reflow
           requestAnimationFrame(layoutMasonry);
         });
       }, 40);
     }
+    window.__SC5_scheduleMasonry = scheduleMasonry;
     window.addEventListener("resize", scheduleMasonry);
     document.addEventListener("toggle", (e) => {
       if (e.target && e.target.matches && e.target.matches("details.panel")) scheduleMasonry();
