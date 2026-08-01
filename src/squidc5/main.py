@@ -109,6 +109,10 @@ async def build_state(settings: Settings) -> AppState:
     if admin_once:
         token_file = settings.data_dir / "admin_token.txt"
         token_file.write_text(admin_once + "\n", encoding="utf-8")
+        try:
+            token_file.chmod(0o600)
+        except OSError:
+            log.warning("Could not chmod 0600 on %s", token_file)
         log.warning("Bootstrap admin token written to %s — store securely and rotate", token_file)
 
     return AppState(
