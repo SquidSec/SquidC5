@@ -241,6 +241,7 @@ class Database:
         actor_type: str = "operator",
         resource: str | None = None,
         details: dict[str, Any] | None = None,
+        binding_hash: str = "",
         risk_score: int = 0,
         ttl_sec: float = 900.0,
     ) -> str:
@@ -248,8 +249,8 @@ class Database:
         now = _now()
         await self.execute(
             """INSERT INTO hitl_requests
-               (id, action, resource, actor, actor_type, details, risk_score, status, created_at, expires_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
+               (id, action, resource, actor, actor_type, details, binding_hash, risk_score, status, created_at, expires_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
             (
                 hid,
                 action,
@@ -257,6 +258,7 @@ class Database:
                 actor,
                 actor_type,
                 json.dumps(details or {}),
+                binding_hash or "",
                 risk_score,
                 now,
                 now + float(ttl_sec),

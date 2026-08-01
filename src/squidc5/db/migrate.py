@@ -199,6 +199,7 @@ CREATE TABLE IF NOT EXISTS hitl_requests (
     actor TEXT NOT NULL,
     actor_type TEXT NOT NULL DEFAULT 'operator',
     details TEXT NOT NULL DEFAULT '{}',
+    binding_hash TEXT NOT NULL DEFAULT '',
     risk_score INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
     created_at REAL NOT NULL,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from dataclasses import dataclass, field
@@ -9,6 +10,23 @@ from typing import Any
 
 from squidc5.auth.tokens import AuthContext
 from squidc5.db.store import Database
+
+
+def hitl_binding_hash(
+    action: str,
+    resource: str | None,
+    extra: dict[str, Any] | None,
+) -> str:
+    """Bind approval to action + resource + command (or other intent fields)."""
+    extra = extra or {}
+    intent = {
+        "action": action,
+        "resource": resource or "",
+        "command": str(extra.get("command") or "")[:500],
+        "capability": str(extra.get("capability") or ""),
+    }
+    raw = json.dumps(intent, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(raw).hexdigest()
 
 DEFAULT_POLICY: dict[str, Any] = {
     "version": 1,
@@ -139,6 +157,11 @@ class PolicyEngine:
         res = row.get("resource")
         if res and resource and res != resource:
             return False
+        # Must match command/intent binding from original request
+        expected = hitl_binding_hash(action, resource, extra)
+        stored = (row.get("binding_hash") or "").strip()
+        if not stored or stored != expected:
+            return False
         return True
 
     async def evaluate(
@@ -193,14 +216,16 @@ class PolicyEngine:
                 safe_details = {
                     k: v
                     for k, v in (extra or {}).items()
-                    if k not in ("hitl_approved", "api_key", "token")
+                    if k not in ("hitl_approved", "api_key", "token", "hitl_request_id")
                 }
+                binding = hitl_binding_hash(action, resource, extra)
                 hid = await self.db.create_hitl_request(
                     action=action,
                     actor=auth.name,
                     actor_type=auth.actor_type,
                     resource=resource,
                     details=safe_details,
+                    binding_hash=binding,
                     risk_score=risk,
                 )
             return PolicyDecision(

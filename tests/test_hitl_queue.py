@@ -46,7 +46,19 @@ async def test_client_hitl_approved_does_not_bypass(client, admin_headers):
     assert ap.status_code == 200
     assert ap.json()["request"]["status"] == "approved"
 
-    # Retry with server approval id — gets past policy (then 404 no live shell)
+    # Wrong command must not reuse approval
+    r_wrong = await client.post(
+        "/api/v1/shell/command",
+        headers=headers,
+        json={
+            "session_id": "ses_nonexistent",
+            "command": "cat /etc/shadow",
+            "hitl_request_id": rid,
+        },
+    )
+    assert r_wrong.status_code == 403
+
+    # Same command as original — gets past policy (then 404 no live shell)
     r2 = await client.post(
         "/api/v1/shell/command",
         headers=headers,
