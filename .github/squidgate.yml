@@ -1,10 +1,10 @@
-# SquidGate — PR security gate for SquidC5
+# SquidGate — PR security gate
 # https://github.com/SquidSec/SquidGate
 version: 1
 
 llm:
-  provider: openai
-  model: gpt-4o
+  provider: custom
+  model: grok-build-0.1
 
 policy:
   block_on: high
