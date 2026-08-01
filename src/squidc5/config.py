@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     # Hardened defaults
     expose_health_details: bool = False
     security_headers: bool = True
+    log_json: bool = False
     # TLS: unique self-signed cert under data_dir/tls/ (ops UI, API, MCP)
     tls_enabled: bool = True
     tls_cert_file: Path | None = None  # override paths if set (both must be set)
