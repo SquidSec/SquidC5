@@ -63,7 +63,8 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Audit dependencies
-        run: pip-audit -r requirements.txt || true
+        # Fail the job on known vulnerable dependencies (A08)
+        run: pip-audit -r requirements.txt
 
   # Standalone operator CLI + server binaries (no venv required).
   # Runs on pushes to main/master after tests pass.
