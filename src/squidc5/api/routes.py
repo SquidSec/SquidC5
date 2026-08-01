@@ -797,20 +797,44 @@ def build_api_router() -> APIRouter:
         flags = await state.features.set_many(body.features, auth.name)
         return {"features": flags, "catalog": state.features.catalog()}
 
-    # ----- Ops console UI (any authenticated token; panels self-gate by scope) -----
-    # Admin-only controls (feature flags, token mint) still require admin via API.
+    # ----- Ops console UI -----
+    # /ops/admin.js: admin scope only (never ship admin control code to non-admins).
+    # /ops/console.js: any authenticated token (operator shell; API still scope-gated).
+
+    def _ops_js_path() -> Path | None:
+        candidates = [
+            web_file("ops-admin.js"),
+            Path("/app/web/ops-admin.js"),
+        ]
+        return next((p for p in candidates if p.is_file()), None)
 
     @api.get("/ops/admin.js")
+    async def ops_admin_js(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("admin")),
+    ) -> Response:
+        path = _ops_js_path()
+        if path is None:
+            raise HTTPException(404, "ops admin module missing")
+        await get_state(request).db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="ops.admin_ui.load",
+            details={"admin": True},
+            risk_score=2,
+        )
+        return PlainTextResponse(
+            path.read_text(encoding="utf-8"),
+            media_type="application/javascript",
+            headers={"Cache-Control": "no-store"},
+        )
+
     @api.get("/ops/console.js")
     async def ops_console_js(
         request: Request,
         auth: AuthContext = Depends(get_auth),
     ) -> Response:
-        candidates = [
-            web_file("ops-admin.js"),
-            Path("/app/web/ops-admin.js"),
-        ]
-        path = next((p for p in candidates if p.is_file()), None)
+        path = _ops_js_path()
         if path is None:
             raise HTTPException(404, "ops console module missing")
         await get_state(request).db.audit(
