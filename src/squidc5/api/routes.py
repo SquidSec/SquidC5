@@ -217,6 +217,53 @@ def build_api_router() -> APIRouter:
             "version": "0.1.0",
         }
 
+    @api.get("/health/deep")
+    async def health_deep(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("metrics:read", "admin")),
+    ) -> dict[str, Any]:
+        """Authenticated deep health — no secrets/tokens/keys."""
+        from squidc5 import __version__
+
+        state = get_state(request)
+        db_ok = False
+        try:
+            await state.db.fetchone("SELECT 1 AS ok")
+            db_ok = True
+        except Exception:
+            db_ok = False
+
+        data_dir = state.settings.data_dir
+        disk: dict[str, Any] = {"path": str(data_dir), "writable": False}
+        try:
+            data_dir.mkdir(parents=True, exist_ok=True)
+            probe = data_dir / ".health_write_probe"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            disk["writable"] = True
+        except OSError as e:
+            disk["error"] = type(e).__name__
+
+        listeners = await state.listeners.list()
+        running = [x for x in listeners if x.get("status") == "running"]
+        live_binds = sorted(
+            set(state.listeners._servers.keys()) | set(state.listeners._udp.keys())
+        )
+        overall = "ok" if db_ok and disk.get("writable") else "degraded"
+        return {
+            "status": overall,
+            "version": __version__,
+            "db": {"ok": db_ok},
+            "disk": disk,
+            "listeners": {
+                "configured": len(listeners),
+                "running_status": len(running),
+                "live_binds": len(live_binds),
+            },
+            "tls_enabled": bool(state.settings.tls_enabled),
+            "mcp_enabled_setting": bool(state.settings.mcp_enabled),
+        }
+
     @api.get("/meta")
     async def meta(auth: AuthContext = Depends(get_auth)) -> dict[str, Any]:
         return {
