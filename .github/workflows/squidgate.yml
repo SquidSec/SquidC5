@@ -3,7 +3,6 @@ name: SquidGate
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: [main, master]
 
 permissions:
   contents: read
@@ -13,22 +12,15 @@ permissions:
 jobs:
   squidgate:
     runs-on: ubuntu-latest
-    env:
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Skip cleanly until Settings → Secrets → Actions → LLM_API_KEY is set.
       - name: SquidGate
-        if: env.LLM_API_KEY != ''
-        uses: SquidSec/SquidGate@v1.0.0-build.4
+        uses: SquidSec/SquidGate@v1
         with:
-          llm-api-key: ${{ env.LLM_API_KEY }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: SquidGate not configured
-        if: env.LLM_API_KEY == ''
-        run: |
-          echo "::notice title=SquidGate::Add repository secret LLM_API_KEY to enable the PR security gate (SquidSec/SquidGate@v1.0.0-build.4)."
+          llm-api-key: ${{ secrets.LLM_API_KEY }}
+          llm-provider: custom
+          llm-model: grok-build-0.1
+          llm-base-url: https://api.x.ai/v1
