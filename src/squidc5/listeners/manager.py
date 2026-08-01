@@ -56,6 +56,9 @@ class ListenerManager:
         self._writers: dict[str, asyncio.StreamWriter] = {}
         self._rejected: set[str] = set()
         self._verified: set[str] = set()
+        self._restart_counts: dict[str, int] = {}
+        self._max_restarts: int = 5
+        self._supervise: bool = True
         # Optional: async (key) -> bool feature flag checker
         self.feature_check = None
         # OAST Collaborator store (set from main)
@@ -107,6 +110,7 @@ class ListenerManager:
                 self._servers[listener_id] = server
                 task = asyncio.create_task(server.serve_forever(), name=f"listener-http-{listener_id}")
                 self._tasks[listener_id] = task
+                self._attach_supervisor(listener_id, task)
                 await self.db.set_listener_status(listener_id, "running")
                 log.info("Started http listener %s on %s:%s", listener_id, host, port)
             elif kind == "dns":
@@ -156,6 +160,7 @@ class ListenerManager:
                 self._servers[listener_id] = server
                 task = asyncio.create_task(server.serve_forever(), name=f"listener-smtp-{listener_id}")
                 self._tasks[listener_id] = task
+                self._attach_supervisor(listener_id, task)
                 await self.db.set_listener_status(listener_id, "running")
                 log.info("Started smtp listener %s on %s:%s", listener_id, host, port)
             elif kind in ("tcp", "reverse_shell"):
@@ -167,6 +172,7 @@ class ListenerManager:
                 self._servers[listener_id] = server
                 task = asyncio.create_task(server.serve_forever(), name=f"listener-{listener_id}")
                 self._tasks[listener_id] = task
+                self._attach_supervisor(listener_id, task)
                 await self.db.set_listener_status(listener_id, "running")
                 log.info("Started %s listener %s on %s:%s", kind, listener_id, host, port)
             else:
@@ -238,6 +244,67 @@ class ListenerManager:
         if restored:
             log.info("Restored %s listener(s) from DB: %s", len(restored), restored)
         return {"restored": restored, "errors": errors}
+
+    def _attach_supervisor(self, listener_id: str, task: asyncio.Task[None]) -> None:
+        if not self._supervise:
+            return
+
+        def _done(t: asyncio.Task[None]) -> None:
+            if t.cancelled():
+                return
+            exc = t.exception()
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._on_listener_crash(listener_id, exc))
+            except RuntimeError:
+                pass
+
+        task.add_done_callback(_done)
+
+    async def _on_listener_crash(self, listener_id: str, exc: BaseException | None) -> None:
+        """Restart crashed listener tasks with backoff (max_restarts)."""
+        row = await self.db.get_listener(listener_id)
+        if not row or (row.get("status") or "") != "running":
+            return
+        # Clean dead refs
+        async with self._lock:
+            self._tasks.pop(listener_id, None)
+            srv = self._servers.pop(listener_id, None)
+            if srv:
+                try:
+                    srv.close()
+                except Exception:
+                    pass
+        n = self._restart_counts.get(listener_id, 0) + 1
+        self._restart_counts[listener_id] = n
+        if n > self._max_restarts:
+            log.error("Listener %s exceeded max restarts (%s); marking error", listener_id, self._max_restarts)
+            await self.db.set_listener_status(listener_id, "error")
+            await self.metrics.emit(
+                "listener.supervise_give_up",
+                {"id": listener_id, "error": str(exc)[:200] if exc else "exit"},
+            )
+            return
+        delay = min(30.0, 0.5 * (2 ** (n - 1)))
+        log.warning(
+            "Listener %s task ended (%s); restart %s/%s in %.1fs",
+            listener_id,
+            exc or "clean exit",
+            n,
+            self._max_restarts,
+            delay,
+        )
+        await asyncio.sleep(delay)
+        try:
+            await self.start(listener_id)
+            await self.metrics.emit("listener.supervised_restart", {"id": listener_id, "n": n})
+        except Exception as e:
+            log.exception("Supervised restart failed for %s", listener_id)
+            await self.db.set_listener_status(listener_id, "error")
+            await self.metrics.emit(
+                "listener.supervise_failed",
+                {"id": listener_id, "error": str(e)[:200]},
+            )
 
     def _enable_keepalive(self, writer: asyncio.StreamWriter) -> None:
         sock = writer.get_extra_info("socket")

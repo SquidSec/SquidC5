@@ -164,6 +164,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except Exception:
             log.exception("Listener restore failed")
             restore = {"restored": [], "errors": [{"error": "restore crashed"}]}
+        purged = 0
+        try:
+            purged = await state.audit.purge_older_than_days(settings.audit_retention_days)
+            if purged:
+                log.info("Purged %s audit row(s) older than %s days", purged, settings.audit_retention_days)
+        except Exception:
+            log.exception("Audit retention purge failed")
         await state.db.audit(
             actor="system",
             actor_type="system",
@@ -173,6 +180,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "port": settings.port,
                 "listeners_restored": restore.get("restored") or [],
                 "listeners_restore_errors": restore.get("errors") or [],
+                "audit_purged": purged,
             },
         )
         log.info("SquidC5 v%s listening on %s:%s", __version__, settings.host, settings.port)

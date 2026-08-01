@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from squidc5.db.store import Database
@@ -33,3 +34,9 @@ class AuditTrail:
 
     async def list(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         return await self.db.list_audit(limit=limit, offset=offset)
+
+    async def purge_older_than_days(self, days: int) -> int:
+        """Enforce retention: delete rows older than N days."""
+        days = max(1, int(days))
+        cutoff = time.time() - (days * 86400.0)
+        return await self.db.purge_audit_before(cutoff)
