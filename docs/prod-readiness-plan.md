@@ -578,10 +578,10 @@ For **each** Change ID:
 | B07 | B | done | merged |
 | B08 | B | done | merged |
 | B09 | B | done | merged |
-| B10 | B | pending | |
-| B11 | B | pending | |
-| B12 | B | pending | |
-| B13 | B | pending | |
+| B10 | B | done | merged |
+| B11 | B | partial | supervise extracted |
+| B12 | B | partial | migrate+backup split |
+| B13 | B | partial | cli_cmds package |
 | B14 | B | done | merged |
 | B15 | B | done | merged |
 | B16 | B | done | merged |

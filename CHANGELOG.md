@@ -4,6 +4,20 @@ All notable changes to SquidC5 are documented here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).  
 **OPSEC notes** call out changes that affect detection surface or defaults.
 
+## [0.1.115] - 2026-08-01
+
+### Added
+- Malleable transforms (base64/prepend/append/xor/netbios)
+- File ops API `/api/v1/files/op` (file:list/read/write/delete tasks)
+- SOCKS pivot broker `/api/v1/pivot/socks`
+- Caddy redirector generator; Windows PS beacon file ops
+- profile_id/version on beacon check-in (runtime switch signal)
+- Lab e2e + fuzz + beacon load tests; CI cov>=65%, mypy core, SBOM on release
+- Implant router split (api/routers)
+
+### Security / OPSEC
+- Full parity batch toward best-in-class AI-native C5
+
 ## [0.1.107] - 2026-08-01
 
 ### Added
