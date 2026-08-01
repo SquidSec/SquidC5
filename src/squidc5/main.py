@@ -144,6 +144,9 @@ async def build_state(settings: Settings) -> AppState:
         explicit=settings.implant_psk,
         data_dir=settings.data_dir,
     )
+    # C04/C05: HTTP/DNS listeners share AEAD gate with main API
+    listeners.implant_psk = implant_psk
+    listeners.implant_require_auth = bool(settings.implant_require_auth)
     socks = SocksBroker()
     socks.public_host = settings.public_host or settings.public_ip or "127.0.0.1"
     engagement = EngagementPolicy()
@@ -261,33 +264,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def _cors_origin_allowed(origin: str | None, host_header: str | None) -> str | None:
         if not origin:
             return None
-        # Browsers send Origin: null for file:// pages
+        # M02: never allow Origin: null
         if origin == "null":
-            # Allow local HTML testing only when public_host is set (ops still preferred)
-            if (settings.public_host or "").strip():
-                return "null"
             return None
         allowed = list(settings.cors_origins or [])
         if origin in allowed:
             return origin
-        # Same-host / public host: allow ops dashboard preflights (Authorization header)
+        # Same-host: exact Host header match preferred (M03: avoid loose hostname-only)
         try:
             o = urlparse(origin)
             if o.scheme not in ("http", "https") or not o.hostname:
                 return None
             host = (host_header or "").split(",")[0].strip()
-            host_name = host.split(":")[0].lower() if host else ""
+            if host and o.netloc.lower() == host.lower():
+                return origin
+            # Loopback variants (local ops testing) — exact
             origin_host = (o.hostname or "").lower()
-            if host and o.netloc == host:
-                return origin
-            if host_name and origin_host == host_name:
-                return origin
-            pub = (settings.public_host or "").strip().lower()
-            if pub and origin_host == pub:
-                return origin
-            # Loopback variants (local ops testing)
+            host_name = host.split(":")[0].lower() if host else ""
             if origin_host in ("127.0.0.1", "localhost") and host_name in ("127.0.0.1", "localhost"):
                 return origin
+            # public_host only if listed in cors_origins or exact host match already
         except Exception:
             return None
         return None

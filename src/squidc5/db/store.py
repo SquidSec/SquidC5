@@ -295,6 +295,15 @@ class Database:
         )
         return cur.rowcount > 0
 
+    async def consume_hitl_request(self, request_id: str) -> bool:
+        """H01: single-use — approved → consumed after one successful authorization."""
+        cur = await self.execute(
+            """UPDATE hitl_requests SET status = 'consumed', resolved_at = COALESCE(resolved_at, ?)
+               WHERE id = ? AND status = 'approved'""",
+            (_now(), request_id),
+        )
+        return cur.rowcount > 0
+
     # --- Tasks ---
 
     async def create_task(
@@ -323,11 +332,28 @@ class Database:
             )
         return await self.fetchall("SELECT * FROM tasks ORDER BY created_at DESC LIMIT 200")
 
-    async def complete_task(self, task_id: str, result: str, status: str = "completed") -> None:
-        await self.execute(
-            "UPDATE tasks SET status = ?, result = ?, completed_at = ? WHERE id = ?",
-            (status, result, _now(), task_id),
-        )
+    async def complete_task(
+        self,
+        task_id: str,
+        result: str,
+        status: str = "completed",
+        *,
+        session_id: str | None = None,
+    ) -> bool:
+        """C07: optionally bind completion to session; only pending/running tasks."""
+        if session_id:
+            cur = await self.execute(
+                """UPDATE tasks SET status = ?, result = ?, completed_at = ?
+                   WHERE id = ? AND session_id = ? AND status IN ('pending', 'running')""",
+                (status, result, _now(), task_id, session_id),
+            )
+        else:
+            cur = await self.execute(
+                """UPDATE tasks SET status = ?, result = ?, completed_at = ?
+                   WHERE id = ? AND status IN ('pending', 'running')""",
+                (status, result, _now(), task_id),
+            )
+        return cur.rowcount > 0
 
     async def next_pending_task(self, session_id: str) -> dict[str, Any] | None:
         row = await self.fetchone(
@@ -624,8 +650,10 @@ class Database:
                 "WHERE team_id = ? ORDER BY ts DESC LIMIT ?",
                 (team_id, limit),
             )
+        # M06: global channel only (exclude team-scoped rows)
         return await self.fetchall(
-            "SELECT id, team_id, actor, message, ts FROM operator_chat ORDER BY ts DESC LIMIT ?",
+            "SELECT id, team_id, actor, message, ts FROM operator_chat "
+            "WHERE team_id IS NULL OR team_id = '' ORDER BY ts DESC LIMIT ?",
             (limit,),
         )
 

@@ -55,17 +55,16 @@ class TaskManager:
         if cmd == "profile:switch":
             if not args.get("profile_id"):
                 raise ValueError("profile_id required for profile:switch")
-            # Engagement ROE: file writes may require HITL approval id on task args
-            if (
-                cmd == "file:write"
-                and eng is not None
-                and getattr(eng, "require_hitl_file_write", False)
-                and not args.get("hitl_request_id")
-                and created_by != "admin"
-            ):
-                # Callers with admin scope pass via API after HITL; non-approved blocked here
-                if not args.get("hitl_approved_server"):
-                    raise ValueError("file:write requires HITL approval under engagement policy")
+        # H08: Engagement ROE file-write HITL (was dead code nested under profile:switch)
+        if (
+            cmd == "file:write"
+            and eng is not None
+            and getattr(eng, "require_hitl_file_write", False)
+            and not args.get("hitl_request_id")
+            and created_by != "admin"
+        ):
+            if not args.get("hitl_approved_server"):
+                raise ValueError("file:write requires HITL approval under engagement policy")
         tid = await self.db.create_task(session_id, cmd, args, created_by)
         await self.metrics.incr("tasks.created")
         await self.metrics.emit(
@@ -86,8 +85,17 @@ class TaskManager:
         row = await self.db.next_pending_task(session_id)
         return self._norm(row) if row else None
 
-    async def complete(self, task_id: str, result: str, status: str = "completed") -> dict[str, Any]:
-        await self.db.complete_task(task_id, result, status)
+    async def complete(
+        self,
+        task_id: str,
+        result: str,
+        status: str = "completed",
+        *,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        ok = await self.db.complete_task(task_id, result, status, session_id=session_id)
+        if not ok:
+            raise KeyError("task not found, wrong session, or already finalized")
         await self.metrics.incr("tasks.completed")
         await self.metrics.emit("task.completed", {"id": task_id, "status": status})
         row = await self.db.get_task(task_id)

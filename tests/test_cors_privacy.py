@@ -80,7 +80,8 @@ async def test_cors_null_origin_denied_without_public_host(client):
 
 
 @pytest.mark.asyncio
-async def test_cors_null_origin_allowed_with_public_host(client_public_host):
+async def test_cors_null_origin_always_denied(client_public_host):
+    """M02: Origin null never reflected (even with public_host)."""
     r = await client_public_host.options(
         "/api/v1/health",
         headers={
@@ -89,12 +90,12 @@ async def test_cors_null_origin_allowed_with_public_host(client_public_host):
         },
     )
     assert r.status_code == 204
-    assert r.headers.get("access-control-allow-origin") == "null"
+    assert r.headers.get("access-control-allow-origin") is None
 
 
 @pytest.mark.asyncio
-async def test_cors_public_host_origin(client_public_host, admin_headers):
-    # bootstrap token is same string; app_with_public_host has its own bootstrap
+async def test_cors_public_host_alone_not_enough(client_public_host, admin_headers):
+    """M03: public_host hostname match without Host/cors_origins is denied."""
     r = await client_public_host.get(
         "/api/v1/meta",
         headers={
@@ -104,4 +105,4 @@ async def test_cors_public_host_origin(client_public_host, admin_headers):
         },
     )
     assert r.status_code == 200
-    assert r.headers.get("access-control-allow-origin") == "https://c2.example.test"
+    assert r.headers.get("access-control-allow-origin") != "https://c2.example.test"

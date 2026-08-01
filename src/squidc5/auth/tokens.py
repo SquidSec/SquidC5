@@ -126,6 +126,11 @@ class TokenService:
         )
         return raw
 
+    # Scopes only a true admin may grant
+    PRIVILEGED_SCOPES = frozenset(
+        {"admin", "tokens:manage", "policy:manage", "llm:manage", "plugins:manage"}
+    )
+
     async def create(
         self,
         name: str,
@@ -133,10 +138,22 @@ class TokenService:
         mcp_tools: list[str] | None = None,
         created_by: str | None = None,
         expires_at: float | None = None,
+        *,
+        grantor_scopes: list[str] | frozenset[str] | None = None,
+        grantor_is_admin: bool = False,
     ) -> tuple[str, str]:
         invalid = set(scopes) - SCOPES
         if invalid:
             raise ValueError(f"Invalid scopes: {sorted(invalid)}")
+        # C01: cannot mint privileges you lack
+        if not grantor_is_admin:
+            priv = set(scopes) & self.PRIVILEGED_SCOPES
+            if priv:
+                raise ValueError(f"Only admin may grant privileged scopes: {sorted(priv)}")
+            if grantor_scopes is not None:
+                missing = set(scopes) - set(grantor_scopes)
+                if missing:
+                    raise ValueError(f"Cannot grant scopes you lack: {sorted(missing)}")
         tools = list(mcp_tools) if mcp_tools is not None else []
         if "admin" in scopes and not tools:
             tools = list(ALL_MCP_TOOLS)
@@ -145,6 +162,12 @@ class TokenService:
         bad_tools = set(tools) - ALL_MCP_TOOLS
         if bad_tools:
             raise ValueError(f"Invalid MCP tools: {sorted(bad_tools)}")
+        # Non-admin cannot grant dangerous MCP tools beyond their own list
+        if not grantor_is_admin and mcp_tools:
+            # strip interact_shell / listener mutators unless grantor is admin
+            danger = {"interact_shell", "create_listener", "start_listener", "stop_listener"}
+            if set(tools) & danger:
+                raise ValueError(f"Only admin may grant MCP tools: {sorted(set(tools) & danger)}")
         raw = generate_token()
         tid = await self.db.create_token(
             name=name,

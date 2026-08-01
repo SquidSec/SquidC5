@@ -44,10 +44,15 @@ Goal: ★★★★★ across implants, traffic, post-ex, multi-player, AI, gover
 | U7 mobile targets | **Landed** |
 | U8 toasts | existing showOk/showError |
 
+## Security hardening pack (landed)
+
+Token grant subset · policy admin-only · MCP=REST gates · HITL single-use · HTTP/DNS/WS implant AEAD · task session bind · claim on mutators · team lead RBAC · SOCKS loopback · LLM SSRF block · CORS null denied · stage-2 host sanitize · multi-page ops UI
+
 ## Still climbing to full ★★★★★
 
 - Full Windows COFF **mapped execute** (research build)  
 - P2P / SMB / named pipe  
+- Per-implant keys (still global PSK)  
 - True SSE EventSource auth (today: metrics poll rail)  
 - Multi-host lab soak numbers (overnight)  
 - External security audit  

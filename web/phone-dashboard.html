@@ -677,6 +677,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       el.textContent = msg; el.classList.add("show");
       setTimeout(() => el.classList.remove("show"), 3500);
     }
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
     function showOutput(text, meta) {
       const box = $("shellOut");
       if (!box) return;
@@ -1361,8 +1367,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       let html = "<table><tr><th>Session</th><th>Remote</th></tr>";
       for (const s of rows) {
         html += `<tr>
-          <td class="mono">${shortId(s.id)} <span class="pill ok">verified</span></td>
-          <td class="mono">${s.remote_addr || "—"}</td>
+          <td class="mono">${esc(shortId(s.id))} <span class="pill ok">verified</span></td>
+          <td class="mono">${esc(s.remote_addr || "—")}</td>
         </tr>`;
       }
       html += "</table>";
@@ -1379,10 +1385,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       for (const l of rows) {
         const st = l.status || "—";
         html += `<tr>
-          <td>${l.name || shortId(l.id)}</td>
-          <td class="mono">${l.port}</td>
-          <td>${l.kind}</td>
-          <td><span class="pill ${st === "running" ? "ok" : "bad"}">${st}</span></td>
+          <td>${esc(l.name || shortId(l.id))}</td>
+          <td class="mono">${esc(l.port)}</td>
+          <td>${esc(l.kind)}</td>
+          <td><span class="pill ${st === "running" ? "ok" : "bad"}">${esc(st)}</span></td>
         </tr>`;
       }
       html += "</table>";

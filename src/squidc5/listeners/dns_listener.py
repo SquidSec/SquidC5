@@ -256,6 +256,15 @@ class DnsProtocol(asyncio.DatagramProtocol):
             payload = decode_label_payload(labels_l, self.zone_labels) or {}
             mode = payload.pop("_mode", "b")
             try:
+                # C05: require AEAD when implant_require_auth (default)
+                from squidc5.listeners.implant_auth import (
+                    unwrap_implant_payload,
+                    wrap_implant_response,
+                )
+
+                psk = getattr(self.manager, "implant_psk", "") or ""
+                require = bool(getattr(self.manager, "implant_require_auth", True))
+                payload = unwrap_implant_payload(payload, psk=psk, require_auth=require)
                 if mode == "r":
                     result = await self.manager.handle_beacon_result(payload)
                 else:
@@ -265,6 +274,7 @@ class DnsProtocol(asyncio.DatagramProtocol):
                         payload=payload,
                         user_agent="dns-c2",
                     )
+                result = wrap_implant_response(result, psk=psk, require_auth=require)
                 if oast is not None:
                     ctok = None
                     meta = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}

@@ -214,12 +214,16 @@ class PolicyEngine:
         # Admins bypass HITL; client-asserted hitl_approved is IGNORED
         if require_hitl and "admin" not in auth.scopes:
             if await self._server_hitl_approved(auth, action, resource, extra):
+                rid = str((extra or {}).get("hitl_request_id") or "")
+                # H01: single-use grant
+                if rid:
+                    await self.db.consume_hitl_request(rid)
                 return PolicyDecision(
                     True,
                     "allowed (HITL approved)",
                     risk,
                     require_hitl=True,
-                    hitl_request_id=str((extra or {}).get("hitl_request_id")),
+                    hitl_request_id=rid or None,
                 )
             hid: str | None = None
             if create_hitl:

@@ -127,9 +127,21 @@ async def process_beacon_result(state: AppState, payload: dict[str, Any]) -> dic
     task_id = payload.get("task_id")
     if not task_id:
         raise ValueError("task_id required")
+    session_id = payload.get("session_id")
+    if not session_id:
+        # C07: bind result to session — look up task and require match when provided
+        t = await state.tasks.get(str(task_id))
+        if not t:
+            raise PermissionError("Unknown task")
+        session_id = t.get("session_id")
     result = payload.get("result")
     if result is None:
         result = ""
     status = payload.get("status") or "completed"
-    await state.tasks.complete(str(task_id), str(result), str(status))
+    try:
+        await state.tasks.complete(
+            str(task_id), str(result), str(status), session_id=str(session_id) if session_id else None
+        )
+    except KeyError as e:
+        raise PermissionError(str(e)) from e
     return _wrap_response(state, {"status": "ok"})  # type: ignore[return-value]
