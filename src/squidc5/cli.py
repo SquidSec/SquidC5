@@ -127,6 +127,44 @@ class Client:
         return self.request("DELETE", path, **kwargs)
 
 
+def cmd_backup(args: argparse.Namespace) -> None:
+    """Local SQLite backup (no API). Stop writes for best consistency in prod."""
+    from squidc5.config import Settings
+    from squidc5.db.backup import backup_database
+
+    settings = Settings(
+        data_dir=Path(args.data_dir) if args.data_dir else Path("data"),
+        db_path=Path(args.db) if args.db else None,
+    )
+    src = settings.resolve_db_path()
+    dest = Path(args.output)
+    out = backup_database(src, dest)
+    print(json.dumps({"ok": True, "source": str(src), "backup": str(out)}, indent=2))
+
+
+def cmd_restore(args: argparse.Namespace) -> None:
+    """Restore SQLite from backup file. Stop squidc5 before restore."""
+    from squidc5.config import Settings
+    from squidc5.db.backup import restore_database
+
+    settings = Settings(
+        data_dir=Path(args.data_dir) if args.data_dir else Path("data"),
+        db_path=Path(args.db) if args.db else None,
+    )
+    target = settings.resolve_db_path()
+    out = restore_database(Path(args.backup), target)
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "restored_to": str(out),
+                "note": "Restart squidc5 after restore",
+            },
+            indent=2,
+        )
+    )
+
+
 def cmd_login(args: argparse.Namespace) -> None:
     cfg = load_config()
     if args.url:
@@ -766,6 +804,23 @@ def build_parser() -> argparse.ArgumentParser:
     cfg = sub.add_parser("config", help="Show saved config")
     cfg.add_argument("--show-token", action="store_true")
     cfg.set_defaults(func=cmd_config_show, needs_client=False)
+
+    bak = sub.add_parser("backup", help="Backup local SQLite DB (no API)")
+    bak.add_argument(
+        "output",
+        nargs="?",
+        default=".",
+        help="Output file or directory (default: .)",
+    )
+    bak.add_argument("--data-dir", default=None, help="Data dir (default: ./data)")
+    bak.add_argument("--db", default=None, help="Explicit DB path override")
+    bak.set_defaults(func=cmd_backup, needs_client=False)
+
+    rst = sub.add_parser("restore", help="Restore local SQLite DB from backup (stop server first)")
+    rst.add_argument("backup", help="Backup .db file")
+    rst.add_argument("--data-dir", default=None, help="Data dir (default: ./data)")
+    rst.add_argument("--db", default=None, help="Explicit DB path override")
+    rst.set_defaults(func=cmd_restore, needs_client=False)
 
     # simple
     for name, fn, help_ in (
