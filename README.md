@@ -1,14 +1,31 @@
 # SquidC5
 
-**Command • Control • Cognitive • Collaborative • Coordination**
+<p align="center">
+  <a href="https://squidoffense.com/">
+    <img src="assets/squidsec-logo.png" alt="SquidSec logo" width="180">
+  </a>
+</p>
 
-Lightweight, security-first, AI-native C5 platform for authorized red team operations.
+<p align="center">
+  <strong>A SquidSec Open Source Project</strong><br>
+  <a href="https://squidoffense.com/">SquidOffense.com</a> ·
+  <a href="https://github.com/SquidSec/SquidC5">GitHub</a>
+</p>
 
-[![CI](https://github.com/DotNetRussell/SquidC5/actions/workflows/ci.yml/badge.svg)](https://github.com/DotNetRussell/SquidC5/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml"><img src="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml/badge.svg?branch=master" alt="CI"></a>
+  <a href="https://github.com/SquidSec/SquidC5/actions/workflows/squidgate.yml"><img src="https://img.shields.io/badge/SquidGate-enabled-red" alt="SquidGate"></a>
+  <a href="https://github.com/SquidSec/SquidC5/releases/latest"><img src="https://img.shields.io/github/v/release/SquidSec/SquidC5?include_prereleases&sort=date&label=latest%20release&color=blue" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+</p>
 
-> ⚠️ **Authorized use only.** SquidC5 is intended for legitimate penetration testing and red team engagements with explicit permission. Unauthorized access to systems is illegal.
+**Command · Control · Cognitive · Collaborative · Coordination**
 
-### What “C5” means
+Security-first, AI-native C5 teamserver for **authorized** red team and penetration testing operations. Built and maintained by **[SquidSec](https://squidoffense.com/)**.
+
+> **Authorized use only.** Unauthorized access to systems is illegal. Operators must have explicit permission.
+
+### What C5 means
 
 | Pillar | Role in SquidC5 |
 |--------|-----------------|
@@ -20,45 +37,45 @@ Lightweight, security-first, AI-native C5 platform for authorized red team opera
 
 ## Features
 
-- **Scoped API tokens** — server-generated, fine-grained scopes, full audit trail
+- **Scoped API tokens** with full audit trail
 - **Dual AI model**
-  - External AI via restricted MCP tools (allow-listed, deterministic)
+  - External AI via restricted MCP tools (allow-listed, off by default)
   - Server-side Admin AI (BYO LLM, sandboxed, prompt-injection shielded)
-- **Listeners** — HTTP beacons, TCP, reverse shells (any port; no 80/443 requirement)
-- **Sessions & tasking** — beacons and shells as first-class objects
-- **Policy engine** — allow/deny, risk scores, human-in-the-loop
-- **Observability** — metrics, immutable audit log, SSE event stream
-- **Docker-first** — minimal image, low resource usage
+- **Listeners** - HTTP beacons, TCP, reverse shells, DNS/SMTP OAST (any port)
+- **Sessions and tasking** - beacons and shells as first-class objects
+- **Policy engine** - risk scores + **server-side HITL** approval queue
+- **Secure defaults** - TLS on, empty CORS, no public OpenAPI, MCP off
+- **Ops console** - `/ops` UI (admin JS server-gated)
+- **Operator CLI** - `sc5` / `squidc5-cli`
+- **Binary releases** - Linux/Windows teamserver + CLI from CI
 
-## Quick Start (Docker)
+## Quick Start (Docker lab)
 
 ```bash
 docker compose up --build -d
-# TLS is on by default (self-signed under data/tls/)
+# TLS on by default (self-signed under data/tls/)
 curl -sk https://127.0.0.1:8443/api/v1/health
 docker compose exec squidc5 cat /data/admin_token.txt
+# Ops: https://127.0.0.1:8443/ops
 ```
 
-## Quick Start (Local)
+## Quick Start (local)
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt && pip install -e .
-# Prefer package entrypoint (enables per-instance TLS under data/tls/):
-squidc5
-# Admin token: data/admin_token.txt  |  console: https://HOST:8443/ops
-# Plain uvicorn has no TLS unless you pass --ssl-*:
-# uvicorn squidc5.main:create_app --factory --host 0.0.0.0 --port 8443
+squidc5   # enables per-instance TLS under data/tls/
+# token: data/admin_token.txt
 ```
 
-## Standalone binaries (no venv)
+## Standalone binaries
 
-Every successful push to `main`/`master`:
+Every successful push to `master`:
 
 1. CI builds Linux + Windows executables  
-2. CI publishes a **GitHub Release** (tag `v0.1.<run>-<sha>`) with assets  
+2. CI publishes a **GitHub Release** with checksums  
 
-**Download:** https://github.com/DotNetRussell/SquidC5/releases/latest  
+**Download:** https://github.com/SquidSec/SquidC5/releases/latest  
 
 | Asset | Purpose |
 |-------|---------|
@@ -67,119 +84,93 @@ Every successful push to `main`/`master`:
 | `SHA256SUMS.txt` | Checksums |
 
 ```bash
-# Server (Linux release asset)
 chmod +x squidc5-linux-x64 && ./squidc5-linux-x64
-# token: ./data/admin_token.txt   console: https://HOST:8443/ops
+# token: ./data/admin_token.txt
+# console: https://HOST:8443/ops
 
-# Operator CLI (--insecure for lab self-signed certs)
 ./sc5-linux-x64 login --url https://HOST:8443 --token sc5_... --insecure
 ./sc5-linux-x64 sessions list
 ```
 
-CI also uploads workflow Artifacts (30 days). Local build: `./scripts/build_binaries.sh`.
+**Production deploy:** binary-only from main CI after green merge. See [docs/deployment.md](docs/deployment.md).
 
 ## Operator CLI (`sc5`)
 
-Local harness to control a remote SquidC5 instance:
-
 ```bash
 pip install -e .
-# or use the standalone sc5 binary from CI artifacts
 sc5 login --url https://YOUR_HOST:8443 --token sc5_... --insecure
 sc5 health
 sc5 sessions list
 sc5 tasks create <session_id> "whoami"
 sc5 listeners create http-1 9001 --kind http
 sc5 payloads generate http_beacon_python YOUR_HOST 8443 --raw
+sc5 policy hitl list
+sc5 backup ./backup.db
 sc5 ai recon_assist --data "windows domain"
-sc5 repl   # interactive mode
+sc5 repl
 ```
 
-Config is stored at `~/.config/squidc5/config.json` (mode 0600).  
-Overrides: `--url` / `--token`, or env `SQUIDC5_URL` / `SQUIDC5_TOKEN`.
+Config: `~/.config/squidc5/config.json` (mode 0600).  
+Overrides: `--url` / `--token`, or `SQUIDC5_URL` / `SQUIDC5_TOKEN`.
 
-## API Overview
+## API overview
 
 | Area | Path |
 |------|------|
-| Health | `GET /api/v1/health` |
-| Tokens | `POST /api/v1/tokens` |
-| Sessions | `GET /api/v1/sessions` |
-| Tasks | `POST /api/v1/tasks` |
-| Listeners | `POST /api/v1/listeners` |
-| Payloads | `POST /api/v1/payloads/generate` |
-| Metrics | `GET /api/v1/metrics` |
-| Audit | `GET /api/v1/audit` |
-| Events (SSE) | `GET /api/v1/events/stream` |
+| Health | `GET /api/v1/health` (minimal) |
+| Deep health | `GET /api/v1/health/deep` (auth) |
+| Tokens / sessions / tasks / listeners | `/api/v1/...` |
+| HITL queue | `GET/POST /api/v1/policy/hitl...` |
 | Admin AI | `POST /api/v1/ai/run` |
-| MCP tools | `GET /mcp/tools` · `POST /mcp/call` |
+| MCP | `GET /mcp/tools` · `POST /mcp/call` (off by default) |
 | Implant beacon | `POST /api/v1/implant/beacon` |
 
-Auth header: `Authorization: Bearer <token>` or `X-API-Token: <token>`
+Auth: `Authorization: Bearer <token>` or `X-API-Token: <token>`
 
-**Documentation lives on GitHub only** (not on the running server — `/docs` stays disabled):
+**Docs are GitHub-only** - `/docs`, `/redoc`, `/openapi.json` stay disabled on the server.
 
-- **[User guide](docs/user-guide.md)** — features, why/how, examples  
-- **[Docs index](docs/README.md)**
+## Documentation
 
-### Example: create operator token & task a session
+| Doc | Purpose |
+|-----|---------|
+| [User guide](docs/user-guide.md) | Features, why/how, examples |
+| [Operator runbook](docs/operator-runbook.md) | Shells, beacons, day-2 ops |
+| [Deployment](docs/deployment.md) | Binary prod + Docker lab |
+| [Threat model](docs/threat-model.md) | Trust boundaries and controls |
+| [Roadmap](docs/roadmap-2026-2027.md) | 2026-2027 priorities |
+| [Vision](docs/squidc5-vision.md) | Architecture |
+| [Prod readiness plan](docs/prod-readiness-plan.md) | Execution checklist |
+| [CONTRIBUTING](CONTRIBUTING.md) | PR / git cycle |
+| [CHANGELOG](CHANGELOG.md) | Releases + OPSEC notes |
+| [AGENTS.md](AGENTS.md) | Agent/operator memory |
 
-```bash
-ADMIN=$(cat data/admin_token.txt)
+## Configuration (selected)
 
-curl -sk -X POST https://127.0.0.1:8443/api/v1/tokens \
-  -H "Authorization: Bearer $ADMIN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"ops","scopes":["sessions:read","sessions:write","tasks:read","tasks:write","listeners:read","listeners:write","payloads:generate","metrics:read","audit:read"]}'
-```
-
-### Example: restricted external AI (MCP)
-
-```bash
-curl -sk -X POST https://127.0.0.1:8443/api/v1/tokens \
-  -H "Authorization: Bearer $ADMIN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"ext-ai","scopes":["mcp:connect","sessions:read","tasks:read","tasks:write","metrics:read"],"mcp_tools":["list_sessions","get_session","list_tasks","create_task","get_metrics"]}'
-
-# List only allow-listed tools
-curl -sk https://127.0.0.1:8443/mcp/tools -H "Authorization: Bearer $AI_TOKEN"
-```
-
-### Example: Admin AI (offline deterministic mode)
-
-```bash
-curl -sk -X POST https://127.0.0.1:8443/api/v1/ai/run \
-  -H "Authorization: Bearer $ADMIN" \
-  -H "Content-Type: application/json" \
-  -d '{"capability":"shell_classify","user_data":"uid=0(root) gid=0(root)"}'
-```
-
-## Configuration
-
-Environment variables (prefix `SQUIDC5_`):
+Prefix `SQUIDC5_`. See [.env.example](.env.example).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HOST` | `0.0.0.0` | Bind address |
-| `PORT` | `8443` | API port |
-| `DATA_DIR` | `data` | SQLite + token file |
-| `MCP_ENABLED` | `true` | Enable MCP routes |
-| `AI_ENABLED` | `true` | Enable Admin AI |
-| `ADMIN_TOKEN_BOOTSTRAP` | _(empty)_ | Optional fixed bootstrap token |
+| `HOST` / `PORT` | `0.0.0.0` / `8443` | API bind |
+| `DATA_DIR` | `data` | DB, tokens, TLS, secrets |
+| `TLS_ENABLED` | `true` | HTTPS |
+| `MCP_ENABLED` | `false` | External MCP |
+| `AI_ENABLED` | `true` | Admin AI |
+| `PUBLIC_HOST` | empty | Stage-2 / implant callback host |
+| `RATE_LIMIT_PER_MINUTE` | `60` | API rate limit |
+| `LOG_JSON` | `false` | Structured logs |
+| `SECRETS_KEY` | auto file | At-rest LLM key encryption |
+| `PLUGIN_SIGNING_SECRET` | auto file | Plugin HMAC secret |
 
-## Security Model (summary)
+## Security model (summary)
 
-1. **External AI** — only allow-listed MCP tools; chaining limited by policy
-2. **Admin AI** — sandboxed capabilities; untrusted input sanitized; no raw free-form system access
-3. **Policy engine** — risk scores + HITL for sensitive actions
-4. **Audit** — immutable log of all significant actions
+1. **External AI** - MCP off by default; per-token tool allow-list  
+2. **Admin AI** - capability allow-list + `sanitize_untrusted`  
+3. **Policy + HITL** - server-side approval queue (client flags ignored)  
+4. **Audit** - significant actions logged  
+5. **Admin UI** - `/api/v1/ops/admin.js` requires admin scope  
+6. **SquidGate** - PR security gate on this repo  
 
-See:
-
-- [AGENTS.md](AGENTS.md) — agent/project memory
-- [docs/squidc5-vision.md](docs/squidc5-vision.md) — architecture
-- [docs/operator-runbook.md](docs/operator-runbook.md) — operator CLI & reverse shells
-- [docs/deployment.md](docs/deployment.md) — Docker / droplet deploy
+Report vulnerabilities via [GitHub Security Advisories](https://github.com/SquidSec/SquidC5/security). See [SECURITY.md](SECURITY.md).
 
 ## Development
 
@@ -188,14 +179,19 @@ pytest -q
 ruff check src tests
 ```
 
-## Responsible Disclosure
+Git cycle: feature branch → tests first → PR → green CI → merge. Never push straight to `master`. Details: [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Report security issues privately to the repository maintainers. Do not open public issues for unpatched vulnerabilities.
+## About SquidSec
+
+SquidC5 is created and managed by **[SquidSec](https://squidoffense.com/)** - U.S. veteran-owned security company.
+
+- Website: [https://squidoffense.com/](https://squidoffense.com/)  
+- Sister project: [SquidGate](https://github.com/SquidSec/SquidGate) (PR security gate)
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).
 
 ## Disclaimer
 
-This software is provided for authorized security testing and educational purposes. The authors are not responsible for misuse.
+Provided for authorized security testing and education. Authors are not responsible for misuse.

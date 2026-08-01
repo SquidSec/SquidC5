@@ -179,6 +179,59 @@ ssh -i <key> root@<droplet> '
 
 Do **not** rsync source or `docker compose up --build` for production once this path is active. Docker remains for local/lab only.
 
+### systemd unit
+
+Unit template: [`packaging/squidc5.service`](../packaging/squidc5.service).
+
+```bash
+# First install
+install -d /opt/squidc5/bin /opt/squidc5/data
+install -m 755 squidc5-linux-x64 /opt/squidc5/bin/squidc5
+cp packaging/squidc5.service /etc/systemd/system/squidc5.service
+# Optional drop-ins: /etc/systemd/system/squidc5.service.d/*.conf
+systemctl daemon-reload
+systemctl enable --now squidc5
+```
+
+### Binary upgrade (preserve data)
+
+```bash
+# 1. Download latest Linux squidc5 from GitHub Release (main CI)
+# 2. Backup DB
+sc5 backup /opt/squidc5/backups/pre-upgrade.db --data-dir /opt/squidc5/data
+# or: sqlite3 /opt/squidc5/data/squidc5.db ".backup /opt/squidc5/backups/pre.db"
+
+scp -i <key> squidc5-linux-x64 root@HOST:/opt/squidc5/bin/squidc5.new
+ssh -i <key> root@HOST '
+  set -e
+  systemctl stop squidc5
+  install -m 755 /opt/squidc5/bin/squidc5.new /opt/squidc5/bin/squidc5
+  rm -f /opt/squidc5/bin/squidc5.new
+  systemctl start squidc5
+  # Schema migrations apply automatically on start
+  curl -skf https://127.0.0.1:8443/api/v1/health
+'
+```
+
+Listeners marked `running` are restored after restart. Prefer stopping via systemd (not operator `listeners stop`) when you want auto-restore.
+
+### Recommended prod env drop-ins
+
+```ini
+# /etc/systemd/system/squidc5.service.d/rate.conf
+[Service]
+Environment=SQUIDC5_RATE_LIMIT_PER_MINUTE=600
+Environment=SQUIDC5_AUTH_FAIL_LIMIT_PER_MINUTE=60
+```
+
+```ini
+# /etc/systemd/system/squidc5.service.d/tls.conf  (real certs)
+[Service]
+Environment=SQUIDC5_TLS_ENABLED=true
+Environment=SQUIDC5_TLS_CERT_FILE=/etc/letsencrypt/live/HOST/fullchain.pem
+Environment=SQUIDC5_TLS_KEY_FILE=/etc/letsencrypt/live/HOST/privkey.pem
+```
+
 ## Secrets hygiene
 
 Never commit:

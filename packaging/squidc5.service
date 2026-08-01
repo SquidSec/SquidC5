@@ -1,0 +1,30 @@
+[Unit]
+Description=SquidC5 C2 server (standalone binary)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/squidc5
+Environment=SQUIDC5_HOST=0.0.0.0
+Environment=SQUIDC5_PORT=8443
+Environment=SQUIDC5_DATA_DIR=/opt/squidc5/data
+Environment=SQUIDC5_PUBLIC_HOST=
+Environment=SQUIDC5_MCP_ENABLED=false
+Environment=SQUIDC5_AI_ENABLED=true
+Environment=SQUIDC5_SHELL_AUTO_STABILIZE=true
+Environment=SQUIDC5_EXPOSE_HEALTH_DETAILS=false
+Environment=SQUIDC5_SECURITY_HEADERS=true
+Environment=SQUIDC5_TLS_ENABLED=true
+Environment=SQUIDC5_RATE_LIMIT_PER_MINUTE=600
+# Optional production TLS (Let's Encrypt):
+# Environment=SQUIDC5_TLS_CERT_FILE=/etc/letsencrypt/live/HOST/fullchain.pem
+# Environment=SQUIDC5_TLS_KEY_FILE=/etc/letsencrypt/live/HOST/privkey.pem
+ExecStart=/opt/squidc5/bin/squidc5
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
