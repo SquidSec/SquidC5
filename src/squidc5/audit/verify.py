@@ -18,9 +18,10 @@ def compute_chain_hash(
     risk_score: int,
     allowed: int,
 ) -> str:
-    """Same formula as Database.audit()."""
+    """Same formula as Database.audit() — stable float formatting."""
+    ts_s = format(float(ts), ".12f")
     material = (
-        f"{prev}|{ts}|{actor}|{actor_type}|{action}|{resource or ''}|"
+        f"{prev}|{ts_s}|{actor}|{actor_type}|{action}|{resource or ''}|"
         f"{details}|{risk_score}|{allowed}"
     )
     return hashlib.sha256(material.encode("utf-8")).hexdigest()

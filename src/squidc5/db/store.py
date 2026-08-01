@@ -362,7 +362,11 @@ class Database:
         prev = ""
         if prev_row:
             prev = (prev_row.get("chain_hash") if isinstance(prev_row, dict) else prev_row[0]) or ""
-        material = f"{prev}|{ts}|{actor}|{actor_type}|{action}|{resource or ''}|{det}|{risk_score}|{1 if allowed else 0}"
+        ts_s = format(float(ts), ".12f")
+        material = (
+            f"{prev}|{ts_s}|{actor}|{actor_type}|{action}|{resource or ''}|"
+            f"{det}|{risk_score}|{1 if allowed else 0}"
+        )
         chain = hashlib.sha256(material.encode("utf-8")).hexdigest()
         # Prefer new columns when migration applied; fall back for mid-upgrade
         try:
