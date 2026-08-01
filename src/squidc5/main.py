@@ -56,7 +56,12 @@ async def build_state(settings: Settings) -> AppState:
     sessions = SessionManager(db, metrics)
     tasks = TaskManager(db, metrics)
     payloads = PayloadGenerator()
-    admin_ai = AdminAI(db, metrics, policy)
+    from squidc5.crypto.secrets import SecretBox, resolve_secrets_key
+
+    secret_box = SecretBox(
+        resolve_secrets_key(explicit=settings.secrets_key, data_dir=settings.data_dir)
+    )
+    admin_ai = AdminAI(db, metrics, policy, secrets=secret_box)
     features = FeatureFlags(db)
     await features.load()
     profiles = ProfileEngine(db)
