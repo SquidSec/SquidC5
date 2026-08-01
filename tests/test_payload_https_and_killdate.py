@@ -18,14 +18,8 @@ def test_http_beacon_python_defaults_https():
     g = PayloadGenerator()
     out = g.generate("http_beacon_python", "c2.example", 8443)
     assert "https://c2.example:8443" in out["content"]
-    # default verifies TLS (insecure flag false)
-    assert "if False:" in out["content"] or "if False :" in out["content"]
-
-
-def test_http_beacon_python_insecure_opt_in():
-    g = PayloadGenerator()
-    out = g.generate("http_beacon_python", "c2.example", 8443, extra={"insecure": True})
-    assert "if True:" in out["content"]
+    assert "CERT_NONE" not in out["content"]
+    assert "create_default_context" in out["content"]
 
 
 def test_http_beacon_bash_defaults_https():
