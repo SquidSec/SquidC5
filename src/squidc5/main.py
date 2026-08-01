@@ -64,6 +64,7 @@ async def build_state(settings: Settings) -> AppState:
         metrics,
         policy,
         secrets=secret_box,
+        local_llm_enabled=settings.local_llm_enabled,
         local_llm_base_url=settings.local_llm_base_url,
         local_llm_model=settings.local_llm_model,
     )

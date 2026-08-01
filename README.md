@@ -155,8 +155,9 @@ See [.env.example](.env.example). Prefix `SQUIDC5_`.
 | `TLS_ENABLED` | `true` | HTTPS |
 | `MCP_ENABLED` | `false` | External AI tools |
 | `IMPLANT_REQUIRE_AUTH` | `true` | AEAD beacons |
+| `LOCAL_LLM_ENABLED` | `false` | Opt-in Ollama path |
 | `LOCAL_LLM_BASE_URL` | `http://127.0.0.1:11434/v1` | Ollama-compatible |
-| `LOCAL_LLM_MODEL` | `llama3.2` | Used if no cloud LLM rows |
+| `LOCAL_LLM_MODEL` | `llama3.2` | Model id when enabled |
 | `RATE_LIMIT_PER_MINUTE` | `60` | Raise for ops UI (e.g. 600) |
 | `PUBLIC_HOST` | empty | Stage-2 / SOCKS data host |
 
