@@ -27,14 +27,19 @@ GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o sc5beacon-arm64 .
 | `SC5_KILL_DATE` | no | Unix epoch; agent exits after |
 | `SC5_MAX_MISS` | no | Exit after N failed check-ins |
 | `SC5_WORK_START` / `SC5_WORK_END` | no | Working hours (local), 0–23 |
+| `SC5_SLEEP_MASK` | no | `jitter` (default) \| `timer` \| `ekko` (timer stand-in) |
+| `SC5_ALLOW_INJECT` | no | Must be `1` to accept `inject:*` lab stubs |
+| `SC5_ALLOW_BOF` | no | Must be `1` to accept `bof:run` lab stubs |
 
 TLS always verifies the system trust store. For lab CAs, install the CA or set `SSL_CERT_FILE`. There is **no** skip-verify flag.
 
 ## Features
 
 - ChaCha20-Poly1305 sealed check-in (matches server `implants/crypto.py`)
-- Sleep + jitter + kill date + max miss + working hours
+- Sleep mask + jitter + kill date + max miss + working hours
 - Shell commands + `file:list|read|write|delete` + `sysinfo`
+- SOCKS reverse-dial (`socks:start` / `socks:connect`)
+- Lab-gated inject / BOF stubs (no real injection unless research build + env gates)
 - Cross-compile Linux/Windows/macOS via Go
 
 ## Server factory

@@ -368,6 +368,116 @@
     `, true, "c2-profiles"));
   }
 
+  // ----- File ops -----
+  if (can("shell:interact")) {
+    parts.push(panel("filesPanel", "📁 File ops", `
+      ${hint("Structured file list/read/write/delete tasks on a beacon session. Write may require HITL. Implant executes <code>file:*</code> commands.", "file-ops")}
+      <label for="fileSession">Session id</label>
+      <input id="fileSession" placeholder="beacon session id" autocomplete="off" />
+      <label for="fileOp">Op</label>
+      <select id="fileOp">
+        <option value="list">list</option>
+        <option value="read">read</option>
+        <option value="write">write</option>
+        <option value="delete">delete</option>
+      </select>
+      <label for="filePath">Path</label>
+      <input id="filePath" placeholder="/tmp or C:\\\\temp" autocomplete="off" />
+      <label for="fileContent">Content (write)</label>
+      <textarea id="fileContent" placeholder="optional text" style="min-height:60px"></textarea>
+      <div class="row">
+        <button type="button" class="primary" id="fileOpBtn">Queue file op</button>
+      </div>
+      <div class="outbox empty-out" id="fileOut" style="margin-top:8px">—</div>
+    `, false, "file-ops"));
+  }
+
+  // ----- SOCKS pivot -----
+  if (can("shell:interact")) {
+    parts.push(panel("socksPanel", "🕸 SOCKS pivot", `
+      ${hint("Start a SOCKS5 listener bridged through an implant (reverse-dial) or direct mode. List/stop existing pivots.", "socks-pivot")}
+      <label for="socksSession">Session id</label>
+      <input id="socksSession" placeholder="beacon session id" autocomplete="off" />
+      <label for="socksHost">Listen host</label>
+      <input id="socksHost" value="127.0.0.1" autocomplete="off" />
+      <label for="socksPort">Listen port (0=ephemeral)</label>
+      <input id="socksPort" type="number" value="0" autocomplete="off" />
+      <label for="socksMode">Mode</label>
+      <select id="socksMode">
+        <option value="implant">implant (reverse-dial)</option>
+        <option value="direct">direct</option>
+      </select>
+      <div class="row">
+        <button type="button" class="primary" id="socksStartBtn">Start</button>
+        <button type="button" id="socksListBtn">List</button>
+      </div>
+      <label for="socksStopId">Stop pivot id</label>
+      <input id="socksStopId" placeholder="pivot id" autocomplete="off" />
+      <div class="row">
+        <button type="button" class="danger" id="socksStopBtn">Stop</button>
+      </div>
+      <div class="outbox empty-out" id="socksOut" style="margin-top:8px">—</div>
+    `, false, "socks-pivot"));
+  }
+
+  // ----- Modules inject / BOF -----
+  if (can("shell:interact") || can("tasks:read")) {
+    parts.push(panel("modulesPanel", "🧬 Inject / BOF / sleep", `
+      ${hint("Lab catalog for inject techniques, BOF modules, sleep-mask modes. Queue inject/BOF only on authorized targets; implant requires <code>SC5_ALLOW_INJECT=1</code> / <code>SC5_ALLOW_BOF=1</code>.", "modules")}
+      <div class="row">
+        <button type="button" id="modCatalogBtn">Load catalog</button>
+      </div>
+      <label for="modSession">Session id</label>
+      <input id="modSession" placeholder="beacon session id" autocomplete="off" />
+      <label for="modTech">Inject technique</label>
+      <input id="modTech" placeholder="create_remote_thread" autocomplete="off" />
+      <label for="modPid">PID</label>
+      <input id="modPid" type="number" value="0" autocomplete="off" />
+      <div class="row">
+        ${can("shell:interact") ? '<button type="button" class="primary" id="modInjectBtn">Queue inject</button>' : ""}
+      </div>
+      <label for="modBofId">BOF module id</label>
+      <input id="modBofId" placeholder="whoami" autocomplete="off" />
+      <div class="row">
+        ${can("shell:interact") ? '<button type="button" id="modBofBtn">Queue bof:run</button>' : ""}
+      </div>
+      <div class="outbox empty-out" id="modOut" style="margin-top:8px">—</div>
+    `, false, "modules"));
+  }
+
+  // ----- HITL queue -----
+  if (can("policy:manage") || can("admin")) {
+    parts.push(panel("hitlPanel", "✋ HITL queue", `
+      ${hint("Human-in-the-loop approvals for high-risk actions. List pending requests; approve or deny as admin.", "hitl")}
+      <div class="row">
+        <button type="button" id="hitlListBtn">List pending</button>
+      </div>
+      <label for="hitlId">Request id</label>
+      <input id="hitlId" placeholder="hitl request id" autocomplete="off" />
+      <div class="row">
+        ${can("admin") ? '<button type="button" class="primary" id="hitlApproveBtn">Approve</button>' : ""}
+        ${can("admin") ? '<button type="button" class="danger" id="hitlDenyBtn">Deny</button>' : ""}
+      </div>
+      <div class="outbox empty-out" id="hitlOut" style="margin-top:8px">—</div>
+    `, false, "hitl"));
+  }
+
+  // ----- Engagement ROE -----
+  if (can("policy:manage") || can("admin")) {
+    parts.push(panel("engagementPanel", "🎯 Engagement ROE", `
+      ${hint("Rules of engagement: allowed hosts/CIDRs, kill date, working hours. Get current policy; admins can PATCH JSON fields.", "engagement")}
+      <div class="row">
+        <button type="button" id="engGetBtn">Get engagement</button>
+      </div>
+      <label for="engJson">Update JSON (admin)</label>
+      <textarea id="engJson" placeholder='{"allowed_cidrs":["10.0.0.0/8"]}' style="min-height:80px"></textarea>
+      <div class="row">
+        ${can("admin") ? '<button type="button" class="primary" id="engSetBtn">Save engagement</button>' : ""}
+      </div>
+      <div class="outbox empty-out" id="engOut" style="margin-top:8px">—</div>
+    `, false, "engagement"));
+  }
+
   // ----- Feature toggles (admin) -----
   if (can("admin") || can("policy:manage")) {
     parts.push(panel("featuresPanel", "🎛 Feature toggles", `
@@ -1176,6 +1286,152 @@
   }
   if ($("chatReloadBtn")) {
     $("chatReloadBtn").onclick = () => loadChat().catch((e) => showError(String(e.message || e)));
+  }
+
+  // File ops
+  if ($("fileOpBtn")) {
+    $("fileOpBtn").onclick = async () => {
+      const session_id = ($("fileSession").value || "").trim();
+      const op = ($("fileOp").value || "list").trim();
+      const path = ($("filePath").value || "").trim();
+      if (!session_id) return showError("Session id required");
+      const body = { session_id, op, path };
+      if (op === "write") body.content = $("fileContent").value || "";
+      try {
+        const r = await api("POST", "/api/v1/files/op", body);
+        setOut("fileOut", JSON.stringify(r, null, 2), false);
+        showOk("File op queued");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+
+  // SOCKS
+  if ($("socksStartBtn")) {
+    $("socksStartBtn").onclick = async () => {
+      const session_id = ($("socksSession").value || "").trim();
+      if (!session_id) return showError("Session id required");
+      try {
+        const r = await api("POST", "/api/v1/pivot/socks", {
+          session_id,
+          listen_host: ($("socksHost").value || "127.0.0.1").trim(),
+          listen_port: Number($("socksPort").value || 0),
+          mode: ($("socksMode").value || "implant"),
+        });
+        setOut("socksOut", JSON.stringify(r, null, 2), false);
+        showOk("SOCKS started");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("socksListBtn")) {
+    $("socksListBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/pivot/socks");
+        setOut("socksOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("socksStopBtn")) {
+    $("socksStopBtn").onclick = async () => {
+      const id = ($("socksStopId").value || "").trim();
+      if (!id) return showError("Pivot id required");
+      try {
+        const r = await api("DELETE", `/api/v1/pivot/socks/${encodeURIComponent(id)}`);
+        setOut("socksOut", JSON.stringify(r, null, 2), false);
+        showOk("Stopped");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+
+  // Modules
+  if ($("modCatalogBtn")) {
+    $("modCatalogBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/modules");
+        setOut("modOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("modInjectBtn")) {
+    $("modInjectBtn").onclick = async () => {
+      const session_id = ($("modSession").value || "").trim();
+      if (!session_id) return showError("Session id required");
+      try {
+        const r = await api("POST", "/api/v1/modules/inject", {
+          session_id,
+          technique: ($("modTech").value || "create_remote_thread").trim(),
+          pid: Number($("modPid").value || 0),
+        });
+        setOut("modOut", JSON.stringify(r, null, 2), false);
+        showOk("Inject task queued");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("modBofBtn")) {
+    $("modBofBtn").onclick = async () => {
+      const session_id = ($("modSession").value || "").trim();
+      const module_id = ($("modBofId").value || "").trim();
+      if (!session_id || !module_id) return showError("Session and module id required");
+      try {
+        const r = await api("POST", "/api/v1/modules/bof/run", { session_id, module_id });
+        setOut("modOut", JSON.stringify(r, null, 2), false);
+        showOk("BOF task queued");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+
+  // HITL
+  if ($("hitlListBtn")) {
+    $("hitlListBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/policy/hitl?status=pending");
+        setOut("hitlOut", JSON.stringify(r, null, 2), false);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("hitlApproveBtn")) {
+    $("hitlApproveBtn").onclick = async () => {
+      const id = ($("hitlId").value || "").trim();
+      if (!id) return showError("Request id required");
+      try {
+        const r = await api("POST", `/api/v1/policy/hitl/${encodeURIComponent(id)}/approve`);
+        setOut("hitlOut", JSON.stringify(r, null, 2), false);
+        showOk("Approved");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("hitlDenyBtn")) {
+    $("hitlDenyBtn").onclick = async () => {
+      const id = ($("hitlId").value || "").trim();
+      if (!id) return showError("Request id required");
+      try {
+        const r = await api("POST", `/api/v1/policy/hitl/${encodeURIComponent(id)}/deny`);
+        setOut("hitlOut", JSON.stringify(r, null, 2), false);
+        showOk("Denied");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+
+  // Engagement
+  if ($("engGetBtn")) {
+    $("engGetBtn").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/engagement");
+        setOut("engOut", JSON.stringify(r, null, 2), false);
+        if ($("engJson") && !$("engJson").value) $("engJson").value = JSON.stringify(r, null, 2);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+  if ($("engSetBtn")) {
+    $("engSetBtn").onclick = async () => {
+      let body = {};
+      try { body = JSON.parse($("engJson").value || "{}"); }
+      catch (_) { return showError("Invalid JSON"); }
+      try {
+        const r = await api("PUT", "/api/v1/engagement", body);
+        setOut("engOut", JSON.stringify(r, null, 2), false);
+        showOk("Engagement saved");
+      } catch (e) { showError(String(e.message || e)); }
+    };
   }
 
   // Bootstrap data for panels present

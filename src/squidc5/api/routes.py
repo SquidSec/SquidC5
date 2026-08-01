@@ -109,6 +109,20 @@ class SocksStart(BaseModel):
     mode: str = "implant"  # implant (reverse-dial) | direct (C2 dials target)
 
 
+class InjectTaskRequest(BaseModel):
+    session_id: str
+    technique: str = "create_remote_thread"
+    pid: int = 0
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class BofRunRequest(BaseModel):
+    session_id: str
+    module_id: str
+    entry: str = "go"
+    object_b64: str | None = None
+
+
 class BeaconIn(BaseModel):
     session_id: str | None = None
     hostname: str | None = None
@@ -805,6 +819,144 @@ def build_api_router() -> APIRouter:
         if not ok:
             raise HTTPException(404, "pivot not found")
         return {"status": "stopped", "id": pivot_id}
+
+    # ----- Modules: inject / BOF / sleep mask catalog -----
+
+    @api.get("/modules")
+    async def list_modules_catalog(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("tasks:read", "shell:interact", "admin")),
+    ) -> dict[str, Any]:
+        from squidc5.modules.catalog import (
+            list_bof_modules,
+            list_inject_techniques,
+            sleep_mask_catalog,
+        )
+
+        return {
+            "inject": list_inject_techniques(),
+            "bof": list_bof_modules(),
+            "sleep_mask": sleep_mask_catalog(),
+            "gates": {
+                "inject": "SC5_ALLOW_INJECT=1 on implant",
+                "bof": "SC5_ALLOW_BOF=1 on implant",
+            },
+        }
+
+    @api.get("/modules/bof")
+    async def list_bof(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("tasks:read", "admin")),
+    ) -> dict[str, Any]:
+        from squidc5.modules.catalog import list_bof_modules
+
+        return {"modules": list_bof_modules()}
+
+    @api.get("/modules/inject")
+    async def list_inject(
+        request: Request,
+        platform: str | None = None,
+        auth: AuthContext = Depends(require_scope("tasks:read", "admin")),
+    ) -> dict[str, Any]:
+        from squidc5.modules.catalog import list_inject_techniques
+
+        return {"techniques": list_inject_techniques(platform)}
+
+    @api.post("/modules/inject")
+    async def queue_inject(
+        body: InjectTaskRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("shell:interact", "admin")),
+    ) -> dict[str, Any]:
+        """Queue lab inject task (implant refuses without SC5_ALLOW_INJECT=1)."""
+        state = get_state(request)
+        tech = (body.technique or "").strip().lower()
+        if not tech:
+            raise HTTPException(400, "technique required")
+        cmd = f"inject:{tech}" if not tech.startswith("inject:") else tech
+        args: dict[str, Any] = {"technique": tech.replace("inject:", ""), "pid": body.pid}
+        args.update(body.args or {})
+        decision = await state.policy.check_and_audit(
+            auth,
+            "shell.interact",
+            resource=body.session_id,
+            extra={"command": cmd, "technique": tech},
+        )
+        if not decision.allowed:
+            raise _policy_http_error(decision)
+        try:
+            task = await state.tasks.create(
+                session_id=body.session_id,
+                command=cmd,
+                args=args,
+                created_by=auth.name,
+            )
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="modules.inject.queue",
+            resource=body.session_id,
+            details={"technique": tech, "task_id": task.get("id")},
+            risk_score=9,
+        )
+        return task
+
+    @api.post("/modules/bof/run")
+    async def queue_bof_run(
+        body: BofRunRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("shell:interact", "admin")),
+    ) -> dict[str, Any]:
+        """Queue BOF run plan (implant refuses without SC5_ALLOW_BOF=1)."""
+        from squidc5.modules.catalog import bof_modules_dir
+        from squidc5.modules.coff_loader import plan_bof_run
+
+        state = get_state(request)
+        mod_id = (body.module_id or "").strip()
+        if not mod_id or "/" in mod_id or "\\" in mod_id or ".." in mod_id:
+            raise HTTPException(400, "invalid module_id")
+        obj_path = bof_modules_dir() / f"{mod_id}.c"
+        # Prefer .o if present (compiled COFF)
+        o_path = bof_modules_dir() / f"{mod_id}.o"
+        path = o_path if o_path.is_file() else (obj_path if obj_path.is_file() else None)
+        plan = plan_bof_run(
+            module_id=mod_id,
+            object_path=path,
+            object_b64=body.object_b64,
+            entry=body.entry or "go",
+        )
+        decision = await state.policy.check_and_audit(
+            auth,
+            "shell.interact",
+            resource=body.session_id,
+            extra={"command": "bof:run", "module_id": mod_id},
+        )
+        if not decision.allowed:
+            raise _policy_http_error(decision)
+        try:
+            task = await state.tasks.create(
+                session_id=body.session_id,
+                command=plan["command"],
+                args=plan["args"],
+                created_by=auth.name,
+            )
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="modules.bof.run",
+            resource=body.session_id,
+            details={"module_id": mod_id, "task_id": task.get("id")},
+            risk_score=9,
+        )
+        return task
 
     # ----- Shell interact -----
 
