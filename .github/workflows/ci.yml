@@ -195,7 +195,7 @@ jobs:
           squidc5-linux-x64 / squidc5-windows-x64.exe   C2 server
 
           Server defaults: 0.0.0.0:8443  data in ./data/
-          Ops console: http://HOST:8443/ops
+          Ops console: https://HOST:8443/ops (self-signed TLS by default)
           Authorized use only.
           EOF
           ls -lah release/
@@ -228,12 +228,12 @@ jobs:
           chmod +x squidc5-linux-x64
           ./squidc5-linux-x64
           # token: ./data/admin_token.txt
-          # console: http://HOST:8443/ops
+          # console: https://HOST:8443/ops
           \`\`\`
 
           ### CLI
           \`\`\`bash
-          ./sc5-linux-x64 login --url http://HOST:8443 --token sc5_...
+          ./sc5-linux-x64 login --url https://HOST:8443 --token sc5_... --insecure
           ./sc5-linux-x64 sessions list
           \`\`\`
 

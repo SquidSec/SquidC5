@@ -114,7 +114,7 @@ cat data/admin_token.txt   # local
 # docker exec squidc5 cat /data/admin_token.txt
 
 # Default: HTTPS with unique self-signed cert (data/tls/)
-sc5 login --url https://HOST:8443 --token sc5_...
+sc5 login --url https://HOST:8443 --token sc5_... --insecure
 sc5 whoami
 ```
 
@@ -144,7 +144,7 @@ Operators need a phone-friendly and desktop console without shipping secrets bac
 ### Example
 
 ```text
-http://127.0.0.1:8443/ops
+https://127.0.0.1:8443/ops
 Token: sc5_… (from data/admin_token.txt)
 ```
 
@@ -164,14 +164,14 @@ The UI is a pure client. Without a token, only public shell HTML loads; admin pa
 
 | Field | Meaning |
 |-------|---------|
-| Server URL | Base URL, e.g. `http://159.x.x.x:8443` |
+| Server URL | Base URL, e.g. `https://159.x.x.x:8443` |
 | API token | `sc5_…` Bearer token |
 | Refresh | Poll interval for sessions/metrics/events |
 
 ### Example (CLI equivalent)
 
 ```bash
-sc5 login --url http://HOST:8443 --token sc5_...
+sc5 login --url https://HOST:8443 --insecure --token sc5_...
 sc5 config
 ```
 
@@ -733,7 +733,7 @@ Incident response: disable a capability without redeploying. Defaults stay secur
 
 ```bash
 # API (admin)
-curl -H "Authorization: Bearer $TOK" http://HOST:8443/api/v1/features
+curl -sk -H "Authorization: Bearer $TOK" https://HOST:8443/api/v1/features
 ```
 
 UI: flip toggles → **Save features**.

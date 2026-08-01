@@ -34,7 +34,8 @@ Lightweight, security-first, AI-native C5 platform for authorized red team opera
 
 ```bash
 docker compose up --build -d
-curl -s http://127.0.0.1:8443/api/v1/health
+# TLS is on by default (self-signed under data/tls/)
+curl -sk https://127.0.0.1:8443/api/v1/health
 docker compose exec squidc5 cat /data/admin_token.txt
 ```
 
@@ -43,8 +44,11 @@ docker compose exec squidc5 cat /data/admin_token.txt
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt && pip install -e .
-uvicorn squidc5.main:create_app --factory --host 0.0.0.0 --port 8443
-# Admin token printed path: data/admin_token.txt
+# Prefer package entrypoint (enables per-instance TLS under data/tls/):
+squidc5
+# Admin token: data/admin_token.txt  |  console: https://HOST:8443/ops
+# Plain uvicorn has no TLS unless you pass --ssl-*:
+# uvicorn squidc5.main:create_app --factory --host 0.0.0.0 --port 8443
 ```
 
 ## Standalone binaries (no venv)
@@ -65,10 +69,10 @@ Every successful push to `main`/`master`:
 ```bash
 # Server (Linux release asset)
 chmod +x squidc5-linux-x64 && ./squidc5-linux-x64
-# token: ./data/admin_token.txt   console: http://HOST:8443/ops
+# token: ./data/admin_token.txt   console: https://HOST:8443/ops
 
-# Operator CLI
-./sc5-linux-x64 login --url http://HOST:8443 --token sc5_...
+# Operator CLI (--insecure for lab self-signed certs)
+./sc5-linux-x64 login --url https://HOST:8443 --token sc5_... --insecure
 ./sc5-linux-x64 sessions list
 ```
 
@@ -81,7 +85,7 @@ Local harness to control a remote SquidC5 instance:
 ```bash
 pip install -e .
 # or use the standalone sc5 binary from CI artifacts
-sc5 login --url http://YOUR_HOST:8443 --token sc5_...
+sc5 login --url https://YOUR_HOST:8443 --token sc5_... --insecure
 sc5 health
 sc5 sessions list
 sc5 tasks create <session_id> "whoami"
@@ -123,7 +127,7 @@ Auth header: `Authorization: Bearer <token>` or `X-API-Token: <token>`
 ```bash
 ADMIN=$(cat data/admin_token.txt)
 
-curl -s -X POST http://127.0.0.1:8443/api/v1/tokens \
+curl -sk -X POST https://127.0.0.1:8443/api/v1/tokens \
   -H "Authorization: Bearer $ADMIN" \
   -H "Content-Type: application/json" \
   -d '{"name":"ops","scopes":["sessions:read","sessions:write","tasks:read","tasks:write","listeners:read","listeners:write","payloads:generate","metrics:read","audit:read"]}'
@@ -132,19 +136,19 @@ curl -s -X POST http://127.0.0.1:8443/api/v1/tokens \
 ### Example: restricted external AI (MCP)
 
 ```bash
-curl -s -X POST http://127.0.0.1:8443/api/v1/tokens \
+curl -sk -X POST https://127.0.0.1:8443/api/v1/tokens \
   -H "Authorization: Bearer $ADMIN" \
   -H "Content-Type: application/json" \
   -d '{"name":"ext-ai","scopes":["mcp:connect","sessions:read","tasks:read","tasks:write","metrics:read"],"mcp_tools":["list_sessions","get_session","list_tasks","create_task","get_metrics"]}'
 
 # List only allow-listed tools
-curl -s http://127.0.0.1:8443/mcp/tools -H "Authorization: Bearer $AI_TOKEN"
+curl -sk https://127.0.0.1:8443/mcp/tools -H "Authorization: Bearer $AI_TOKEN"
 ```
 
 ### Example: Admin AI (offline deterministic mode)
 
 ```bash
-curl -s -X POST http://127.0.0.1:8443/api/v1/ai/run \
+curl -sk -X POST https://127.0.0.1:8443/api/v1/ai/run \
   -H "Authorization: Bearer $ADMIN" \
   -H "Content-Type: application/json" \
   -d '{"capability":"shell_classify","user_data":"uid=0(root) gid=0(root)"}'
