@@ -3,8 +3,8 @@
 version: 1
 
 llm:
-  provider: openai
-  model: gpt-4o
+  provider: custom
+  model: grok-build-0.1
 
 policy:
   block_on: high
