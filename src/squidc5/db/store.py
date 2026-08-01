@@ -374,6 +374,11 @@ class Database:
             (limit, offset),
         )
 
+    async def purge_audit_before(self, cutoff_ts: float) -> int:
+        """Delete audit rows older than cutoff. Returns rows deleted."""
+        cur = await self.execute("DELETE FROM audit_log WHERE ts < ?", (float(cutoff_ts),))
+        return int(cur.rowcount or 0)
+
     # --- LLM ---
 
     async def upsert_llm(
