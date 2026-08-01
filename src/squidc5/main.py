@@ -178,6 +178,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.rate_limit = rate_limit_state
 
+    from squidc5.api.max_body import MaxBodySizeMiddleware
+
+    app.add_middleware(MaxBodySizeMiddleware, max_body_bytes=settings.max_body_bytes)
+
     # Secure CORS: no wildcard. Allow:
     #  - explicit SQUIDC5_CORS_ORIGINS
     #  - same-host origins (so /ops on this server can use Authorization)
