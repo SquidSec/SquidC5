@@ -212,9 +212,15 @@ CREATE INDEX IF NOT EXISTS idx_hitl_actor ON hitl_requests(actor);
 """
 
 # (version, description, sql) — versions must be contiguous starting at 1
+AUDIT_INTEGRITY_SQL = """
+ALTER TABLE audit_log ADD COLUMN chain_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE audit_log ADD COLUMN prev_hash TEXT NOT NULL DEFAULT '';
+"""
+
 MIGRATIONS: Sequence[tuple[int, str, str]] = (
     (1, "baseline schema", BASELINE_SQL),
     (2, "HITL approval queue", HITL_REQUESTS_SQL),
+    (3, "audit integrity chain columns", AUDIT_INTEGRITY_SQL),
 )
 
 SCHEMA_VERSION_TABLE = """

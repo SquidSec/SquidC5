@@ -680,6 +680,17 @@ def build_api_router() -> APIRouter:
         )
         if not decision.allowed:
             raise _policy_http_error(decision)
+        # Team RBAC: if session is owned by a team, actor must be member (admins bypass)
+        if not auth.has_scope("admin"):
+            sess = await state.sessions.get(body.session_id)
+            if sess:
+                meta = sess.get("metadata") if isinstance(sess.get("metadata"), dict) else {}
+                team_id = meta.get("team_id")
+                if team_id:
+                    members = await state.db.list_team_members(str(team_id))
+                    names = {m.get("actor") for m in members}
+                    if auth.name not in names:
+                        raise HTTPException(403, "Not a member of session team")
         if not state.listeners.is_live(body.session_id):
             # Stale DB row looking "active" but TCP is gone
             await state.sessions.close(body.session_id)
