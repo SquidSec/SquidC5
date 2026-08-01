@@ -107,11 +107,11 @@ async def test_ops_admin_has_new_panels(tmp_path):
             assert r.status_code == 200
             js = r.text
             for marker in (
-                "filesPanel",
-                "socksPanel",
-                "modulesPanel",
-                "hitlPanel",
-                "engagementPanel",
+                "view-postex",
+                "pxFile",
+                "pxSocks",
+                "pxBofRun",
                 "/api/v1/modules",
+                "selectSession",
             ):
                 assert marker in js, marker

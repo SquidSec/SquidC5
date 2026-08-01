@@ -204,18 +204,15 @@ async def test_ops_admin_collab_ui_markers(tmp_path):
             assert r.status_code == 200
             js = r.text
             for m in (
-                "workbenchPanel",
-                "eventsRailPanel",
-                "teamsPanel",
-                "auditMePanel",
-                "pivotMapPanel",
-                "layoutPreset",
+                "view-sessions",
+                "view-collab",
+                "ctxClaim",
                 "/api/v1/sessions/",
                 "claim",
                 "handoff",
                 "presence",
-                "fileCrumbs",
-                "wb-bound",
+                "selectSession",
+                "renderSessionsView",
             ):
                 assert m in js, m
 
