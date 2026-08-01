@@ -47,13 +47,29 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
-      - name: Build sc5beacon linux/windows
+      - name: Test + build sc5beacon matrix
         working-directory: agents/sc5beacon
         run: |
           go mod tidy
+          go test -count=1 ./...
+          mkdir -p ../../dist
           go build -ldflags='-s -w' -o ../../dist/sc5beacon-linux-amd64 .
+          GOOS=linux GOARCH=arm64 go build -ldflags='-s -w' -o ../../dist/sc5beacon-linux-arm64 .
           GOOS=windows GOARCH=amd64 go build -ldflags='-s -w' -o ../../dist/sc5beacon-windows-amd64.exe .
+          GOOS=darwin GOARCH=arm64 go build -ldflags='-s -w' -o ../../dist/sc5beacon-darwin-arm64 .
           ls -la ../../dist/sc5beacon*
+      - name: Lab soak smoke (config + sysinfo task path)
+        working-directory: agents/sc5beacon
+        run: |
+          # Unit-level soak: job manager + config blob without network
+          go test -count=1 -run 'TestLoadConfig|TestCOFF|TestSimulate' -v ./...
+          # Binary starts and exits on missing config
+          set +e
+          ../../dist/sc5beacon-linux-amd64 2>/tmp/sc5beacon_err.txt
+          code=$?
+          set -e
+          test "$code" -ne 0
+          grep -qi config /tmp/sc5beacon_err.txt || grep -qi psk /tmp/sc5beacon_err.txt || grep -qi required /tmp/sc5beacon_err.txt
       - uses: actions/upload-artifact@v4
         with:
           name: sc5beacon-native

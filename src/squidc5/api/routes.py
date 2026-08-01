@@ -230,6 +230,8 @@ class ImplantBuildRequest(BaseModel):
     max_miss: int = 0
     work_start: int = 0
     work_end: int = 0
+    channel: str = "http"  # http | ws
+    sleep_mask: str = "jitter"
 
 
 class EngagementUpdate(BaseModel):
@@ -1634,6 +1636,8 @@ def build_api_router() -> APIRouter:
                 max_miss=body.max_miss,
                 work_start=body.work_start,
                 work_end=body.work_end,
+                channel=body.channel or "http",
+                sleep_mask=body.sleep_mask or "jitter",
             )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e

