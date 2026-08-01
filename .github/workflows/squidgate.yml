@@ -27,6 +27,10 @@ jobs:
         with:
           llm-api-key: ${{ env.LLM_API_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Repo secret is an xAI key (xai-...)
+          llm-provider: custom
+          llm-model: grok-build-0.1
+          llm-base-url: https://api.x.ai/v1
 
       - name: SquidGate not configured
         if: env.LLM_API_KEY == ''
