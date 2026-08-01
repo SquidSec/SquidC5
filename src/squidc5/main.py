@@ -59,7 +59,14 @@ async def build_state(settings: Settings) -> AppState:
     secret_box = SecretBox(
         resolve_secrets_key(explicit=settings.secrets_key, data_dir=settings.data_dir)
     )
-    admin_ai = AdminAI(db, metrics, policy, secrets=secret_box)
+    admin_ai = AdminAI(
+        db,
+        metrics,
+        policy,
+        secrets=secret_box,
+        local_llm_base_url=settings.local_llm_base_url,
+        local_llm_model=settings.local_llm_model,
+    )
     features = FeatureFlags(db)
     await features.load()
     profiles = ProfileEngine(db)
@@ -134,8 +141,14 @@ async def build_state(settings: Settings) -> AppState:
         data_dir=settings.data_dir,
     )
     socks = SocksBroker()
+    socks.public_host = settings.public_host or settings.public_ip or "127.0.0.1"
     engagement = EngagementPolicy()
     tasks.engagement = engagement
+
+    async def _socks_enqueue(session_id: str, command: str, args: dict) -> None:
+        await tasks.create(session_id=session_id, command=command, args=args, created_by="system")
+
+    socks.enqueue_task = _socks_enqueue
 
     return AppState(
         settings=settings,

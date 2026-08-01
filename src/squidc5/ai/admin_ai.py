@@ -149,11 +149,16 @@ class AdminAI:
         metrics: MetricsCollector,
         policy: PolicyEngine,
         secrets: SecretBox | None = None,
+        *,
+        local_llm_base_url: str = "",
+        local_llm_model: str = "",
     ) -> None:
         self.db = db
         self.metrics = metrics
         self.policy = policy
         self.secrets = secrets
+        self.local_llm_base_url = (local_llm_base_url or "").rstrip("/")
+        self.local_llm_model = local_llm_model or ""
         self._busy = False
         self._last: dict[str, Any] = {
             "status": "idle",
@@ -392,6 +397,18 @@ class AdminAI:
                 caps = json.loads(caps)
             if capability in (caps or []) or not caps:
                 return full
+        # Optional local Ollama-compatible endpoint (no API key)
+        if self.local_llm_base_url and self.local_llm_model:
+            return {
+                "id": "local",
+                "name": "local-llm",
+                "provider": "ollama",
+                "base_url": self.local_llm_base_url,
+                "model": self.local_llm_model,
+                "api_key_enc": "",
+                "enabled": 1,
+                "capabilities": list(ALLOWED_CAPABILITIES),
+            }
         return None
 
     async def _call_llm(self, llm: dict[str, Any], capability: str, safe_data: str) -> dict[str, Any]:

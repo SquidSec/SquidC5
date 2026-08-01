@@ -1,19 +1,28 @@
 # SquidC5 documentation
 
-**SquidSec** open source C5 platform - [squidoffense.com](https://squidoffense.com/)
+**[SquidSec](https://squidoffense.com/)** open-source C5 — [GitHub](https://github.com/SquidSec/SquidC5) · [Releases](https://github.com/SquidSec/SquidC5/releases/latest)
 
 | Document | Description |
 |----------|-------------|
 | [User guide](user-guide.md) | Features, workflows, examples |
-| [Operator runbook](operator-runbook.md) | Day-2 operator procedures |
-| [Deployment](deployment.md) | Binary production + Docker lab |
-| [Threat model](threat-model.md) | Assets, adversaries, controls |
-| [Vision](squidc5-vision.md) | Architecture and security design |
-| [Roadmap 2026-2027](roadmap-2026-2027.md) | Prioritized roadmap |
-| [Prod readiness plan](prod-readiness-plan.md) | Phase A-D execution checklist |
-| [CHANGELOG](../CHANGELOG.md) | Release notes + OPSEC |
-| [CONTRIBUTING](../CONTRIBUTING.md) | How to contribute |
-| [SECURITY](../SECURITY.md) | Disclosure policy |
-| [AGENTS](../AGENTS.md) | Agent/operator memory |
+| [Operator runbook](operator-runbook.md) | Day-2 shells, beacons, native implant |
+| [Deployment](deployment.md) | Binary prod + Docker lab + systemd |
+| [Threat model](threat-model.md) | Assets, adversaries, STRIDE |
+| [Vision](squidc5-vision.md) | Architecture |
+| [Roadmap 2026–2027](roadmap-2026-2027.md) | Long-range priorities |
+| [Five-star program](roadmap-five-star.md) | Pack A–E to category leadership |
+| [Prod readiness](prod-readiness-plan.md) | Security/ops checklist |
+| [Changelog](../CHANGELOG.md) | Releases + OPSEC notes |
+| [Contributing](../CONTRIBUTING.md) | PR / git cycle |
+| [Security](../SECURITY.md) | Disclosure |
+| [AGENTS](../AGENTS.md) | CLI + agent memory |
 
-Public OpenAPI is **not** served by the running server.
+### Implant & modules
+
+| Path | Description |
+|------|-------------|
+| [agents/sc5beacon](../agents/sc5beacon/README.md) | Native Go beacon (Linux/Windows/macOS) |
+| [agents/windows](../agents/windows/README.md) | Windows notes |
+| [modules/bof](../modules/bof/README.md) | BOF-style lab modules |
+
+Public OpenAPI is **not** served by the running server (`/docs` stays off).

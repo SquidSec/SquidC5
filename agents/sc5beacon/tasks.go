@@ -16,8 +16,10 @@ func runTask(cmd string, args map[string]any) string {
 		return runFileOp(cmd, args)
 	}
 	if cmd == "socks:start" {
-		// Operator already has local SOCKS broker; agent confirms readiness.
 		return "socks:ready"
+	}
+	if cmd == "socks:connect" {
+		return handleSocksConnect(args)
 	}
 	if cmd == "profile:switch" {
 		if pid, ok := args["profile_id"].(string); ok {

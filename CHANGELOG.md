@@ -4,6 +4,22 @@ All notable changes to SquidC5 are documented here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).  
 **OPSEC notes** call out changes that affect detection surface or defaults.
 
+## [Unreleased]
+
+### Added
+- SOCKS5 **duplex**: direct mode + implant reverse-dial bridge (`socks:connect`)
+- Local Ollama path via `SQUIDC5_LOCAL_LLM_*` when no cloud LLM configured
+- README badges fixed (live CI + SquidGate workflow shields)
+- Docs index links to five-star roadmap + implant paths
+
+### Security / OPSEC
+- Native agent remains AEAD-only with full TLS verify
+
+## [0.1.126] - 2026-08-01
+
+### Added
+- Audit verify, profile push, file chunks, native agent CI builds
+
 ## [0.1.115] - 2026-08-01
 
 ### Added
