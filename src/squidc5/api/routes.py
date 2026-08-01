@@ -215,7 +215,6 @@ class ImplantBuildRequest(BaseModel):
     max_miss: int = 0
     work_start: int = 0
     work_end: int = 0
-    tls_skip_verify: bool = False
 
 
 class EngagementUpdate(BaseModel):
@@ -1417,7 +1416,6 @@ def build_api_router() -> APIRouter:
                 max_miss=body.max_miss,
                 work_start=body.work_start,
                 work_end=body.work_end,
-                tls_skip_verify=body.tls_skip_verify,
             )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e

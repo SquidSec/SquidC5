@@ -27,7 +27,8 @@ GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o sc5beacon-arm64 .
 | `SC5_KILL_DATE` | no | Unix epoch; agent exits after |
 | `SC5_MAX_MISS` | no | Exit after N failed check-ins |
 | `SC5_WORK_START` / `SC5_WORK_END` | no | Working hours (local), 0–23 |
-| `SC5_TLS_SKIP_VERIFY` | no | `1` only for lab self-signed |
+
+TLS always verifies the system trust store. For lab CAs, install the CA or set `SSL_CERT_FILE`. There is **no** skip-verify flag.
 
 ## Features
 

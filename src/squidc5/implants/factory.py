@@ -31,7 +31,6 @@ def build_plan(
     max_miss: int = 0,
     work_start: int = 0,
     work_end: int = 0,
-    tls_skip_verify: bool = False,
     psk_placeholder: str = "${SC5_PSK}",
 ) -> dict[str, Any]:
     os_l = os_name.lower().strip()
@@ -56,8 +55,6 @@ def build_plan(
     if work_start or work_end:
         env_lines.append(f"export SC5_WORK_START={int(work_start)}")
         env_lines.append(f"export SC5_WORK_END={int(work_end)}")
-    if tls_skip_verify:
-        env_lines.append("export SC5_TLS_SKIP_VERIFY=1")
 
     build_sh = textwrap.dedent(
         f"""\
@@ -84,7 +81,6 @@ def build_plan(
             "SC5_JITTER": jitter,
             "SC5_KILL_DATE": kill_date,
             "SC5_MAX_MISS": max_miss,
-            "SC5_TLS_SKIP_VERIFY": tls_skip_verify,
         },
         "build_script": build_sh,
         "run_script": run_sh,

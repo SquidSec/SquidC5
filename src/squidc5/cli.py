@@ -404,7 +404,6 @@ def cmd_implants_build(args: argparse.Namespace, client: Client) -> None:
         "scheme": args.scheme,
         "sleep": args.sleep,
         "jitter": args.jitter,
-        "tls_skip_verify": args.tls_skip_verify,
     }
     if args.kill_date:
         body["kill_date"] = args.kill_date
@@ -1043,7 +1042,6 @@ def build_parser() -> argparse.ArgumentParser:
     im_b.add_argument("--jitter", type=float, default=20.0)
     im_b.add_argument("--kill-date", type=int, default=None)
     im_b.add_argument("--max-miss", type=int, default=0)
-    im_b.add_argument("--tls-skip-verify", action="store_true")
     im_b.set_defaults(func=cmd_implants_build, needs_client=True)
 
     # teams
