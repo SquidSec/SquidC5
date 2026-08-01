@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from squidc5.core.state import AppState
@@ -56,15 +57,39 @@ async def process_beacon_checkin(
     if listener_id:
         metadata = {**metadata, "listener_id": listener_id}
 
+    # Lifecycle controls from implant payload (authorized lab)
+    if payload.get("kill_date") is not None:
+        try:
+            metadata = {**metadata, "kill_date": float(payload["kill_date"])}
+        except (TypeError, ValueError):
+            pass
+    if payload.get("max_missed_checkins") is not None:
+        try:
+            metadata = {
+                **metadata,
+                "max_missed_checkins": int(payload["max_missed_checkins"]),
+            }
+        except (TypeError, ValueError):
+            pass
+
     if session_id:
         existing = await state.sessions.get(session_id)
         if existing and existing["status"] == "active":
+            meta = existing.get("metadata") if isinstance(existing.get("metadata"), dict) else {}
+            kill = meta.get("kill_date")
+            if kill is not None and time.time() > float(kill):
+                await state.sessions.close(session_id)
+                raise PermissionError("Implant kill date exceeded")
             await state.sessions.heartbeat(
                 session_id,
                 hostname=hostname,
                 username=username,
                 os_info=os_info,
             )
+            # reset miss counter on successful check-in
+            if "missed_checkins" in meta or metadata:
+                merged = {**meta, **metadata, "missed_checkins": 0}
+                await state.sessions.heartbeat(session_id, metadata=merged)
             sid = session_id
         else:
             sid = await state.sessions.register(
