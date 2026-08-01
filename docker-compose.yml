@@ -24,12 +24,13 @@ services:
     volumes:
       - squidc5-data:/data
     healthcheck:
+      # TLS is on by default — match Dockerfile (unverified localhost probe)
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8443/api/v1/health', timeout=3)",
+          "import ssl,urllib.request; ctx=ssl._create_unverified_context(); urllib.request.urlopen('https://127.0.0.1:8443/api/v1/health', timeout=3, context=ctx)",
         ]
       interval: 30s
       timeout: 5s
