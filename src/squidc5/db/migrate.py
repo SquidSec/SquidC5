@@ -191,9 +191,29 @@ CREATE INDEX IF NOT EXISTS idx_oast_interactions_client ON oast_interactions(cli
 CREATE INDEX IF NOT EXISTS idx_oast_interactions_token ON oast_interactions(token);
 """
 
+HITL_REQUESTS_SQL = """
+CREATE TABLE IF NOT EXISTS hitl_requests (
+    id TEXT PRIMARY KEY,
+    action TEXT NOT NULL,
+    resource TEXT,
+    actor TEXT NOT NULL,
+    actor_type TEXT NOT NULL DEFAULT 'operator',
+    details TEXT NOT NULL DEFAULT '{}',
+    risk_score INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at REAL NOT NULL,
+    resolved_at REAL,
+    resolved_by TEXT,
+    expires_at REAL
+);
+CREATE INDEX IF NOT EXISTS idx_hitl_status ON hitl_requests(status);
+CREATE INDEX IF NOT EXISTS idx_hitl_actor ON hitl_requests(actor);
+"""
+
 # (version, description, sql) — versions must be contiguous starting at 1
 MIGRATIONS: Sequence[tuple[int, str, str]] = (
     (1, "baseline schema", BASELINE_SQL),
+    (2, "HITL approval queue", HITL_REQUESTS_SQL),
 )
 
 SCHEMA_VERSION_TABLE = """
