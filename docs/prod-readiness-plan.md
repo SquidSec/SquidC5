@@ -567,32 +567,32 @@ For **each** Change ID:
 | A08 | A | done | merged |
 | A09 | A | done | merged |
 | A10 | A | done | merged |
-| A11 | A | pending | |
+| A11 | A | done | merged |
 | A11b | A | pending/optional | |
 | B01 | B | done | merged |
 | B02 | B | done | merged |
-| B03 | B | pending | |
+| B03 | B | done | merged |
 | B04 | B | done | merged |
 | B05 | B | done | merged |
 | B06 | B | done | merged |
-| B07 | B | pending | |
+| B07 | B | done | merged |
 | B08 | B | done | merged |
 | B09 | B | done | merged |
 | B10 | B | pending | |
 | B11 | B | pending | |
 | B12 | B | pending | |
 | B13 | B | pending | |
-| B14 | B | pending | |
+| B14 | B | done | merged |
 | B15 | B | done | merged |
 | B16 | B | done | merged |
-| C01 | C | pending | |
-| C02 | C | pending | |
+| C01 | C | done | merged |
+| C02 | C | done | merged |
 | C03 | C | pending | |
 | C04 | C | pending | |
 | C05 | C | pending | |
-| C06 | C | pending | |
+| C06 | C | done | merged |
 | C07 | C | pending | |
-| C08 | C | pending | |
+| C08 | C | done | merged |
 | C09 | C | pending | |
 | C10 | C | pending | |
 | C11 | C | pending | |
@@ -601,7 +601,7 @@ For **each** Change ID:
 | D03 | D | pending | |
 | D04 | D | pending | |
 | D05 | D | pending | |
-| D06 | D | pending | |
+| D06 | D | done | merged |
 | D07 | D | pending | |
 | D08 | D | pending | |
 
