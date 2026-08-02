@@ -13,7 +13,7 @@ This guide lives in the GitHub repository. It is **not** served by the C2 proces
 |--------|------------|
 | **Command** | Task shells and beacons; issue operator intent |
 | **Control** | Auth scopes, policy engine, listeners, feature kill-switches |
-| **Cognitive** | Admin AI (railed) + external MCP tools (allow-listed) |
+| **Cognitive** | INKO (Intelligent Neural Kinetic Operator) + Admin AI rails + external MCP tools (allow-listed) |
 | **Collaborative** | Teams, chat, handoff, shared ops console |
 | **Coordination** | C2 profiles, task queues, metrics, timeline, reports |
 
@@ -67,7 +67,7 @@ Operators use:
 - **Deterministic implants** — templates and fixed generators over free-form agent loops
 - **Auditability** — operator, AI, MCP, and feature changes go through policy/audit
 - **Port flexibility** — no hard requirement for 80/443
-- **Dual AI** — external models stay on allow-listed MCP tools; Admin AI stays capability-gated and sanitizes untrusted input
+- **Dual AI** — external models stay on allow-listed MCP tools; INKO / Admin AI stays capability-gated and sanitizes untrusted input
 
 ### High-level architecture
 
@@ -75,7 +75,7 @@ Operators use:
 Operator (CLI /ops)
     → API (scopes + policy)
         → Sessions / Tasks / Listeners / Payloads
-        → Admin AI (sandboxed) / MCP (allow-listed)
+        → INKO + Admin AI (sandboxed) / MCP (allow-listed)
         → SQLite data/ (local, never commit)
 Implants / reverse shells → Listeners → Sessions
 ```
@@ -98,7 +98,7 @@ Implants / reverse shells → Listeners → Sessions
 
 - **Tokens** `sc5_<urlsafe>` with scopes (`admin`, `sessions:read`, `shell:interact`, …)
 - **Admin UI code** (`console.js`) only after the server validates the token
-- **Admin AI** sanitizes untrusted input; capabilities are allow-listed
+- **INKO / Admin AI** sanitizes untrusted input; capabilities are allow-listed
 - **MCP** tools are per-token allow-listed; feature often off by default
 - **Public docs** hard-locked off on the running server
 
@@ -555,31 +555,40 @@ UI: **Metrics** / **Audit log** buttons dump JSON into the panel outbox.
 
 ---
 
-## Admin AI
+## INKO (Intelligent Neural Kinetic Operator)
 
 ### What
 
-Sandboxed, **allow-listed** AI capabilities on the server (not free-form agents). Capabilities are fixed functions (`recon_assist`, `shell_classify`, …) with structured inputs—not an open chat that can chain arbitrary tools.
+**INKO** is SquidC5's **Intelligent Neural Kinetic Operator**: the in-ops neural operator for chat-driven inspection and railed actions on the teamserver.
+
+- **UI:** **INKO** button in the top bar opens a right-side flyout panel (full screen on mobile).
+- **Chat:** talk to INKO to list sessions, spin listeners, triage events, and run allow-listed tools.
+- **Page:** Ops nav **INKO** still has the full AI workspace (status, tools list, page chat).
+- **Server:** same sandboxed Admin AI stack underneath (capability allow-list, `sanitize_untrusted`, audit).
+
+Structured Admin AI capabilities (`recon_assist`, `shell_classify`, …) remain available via API/CLI for deterministic jobs. INKO chat is the operator-facing surface.
 
 ### Why
 
-Assist recon notes, shell classification, payload hints, and engagement docs—without:
-
-- Feeding raw hostile session output into unconstrained agent loops  
-- Giving external models direct shell  
-- Shipping API keys back to browsers  
-
-Untrusted text is passed through `sanitize_untrusted` before prompts.
-
-**Phishing-related capabilities** exist only for **authorized** engagements (phishing simulations under ROE).  
-**Learn more:** [Grokpedia: phishing](https://grok.com/pedia/phishing)
+Red team ops need AI that lives *inside* the C5 with the same scopes and audit as humans—not a browser tab that never saw your HITL policy.
 
 ### How
 
-1. Configure an LLM under **LLM connections** (optional).
-2. Without LLM → offline/deterministic fallbacks still return structured guidance.
-3. Pick capability + input → **Run AI**.
-4. Review **Status** / **Debug** (never returns API keys).
+1. Configure a BYO LLM under **Admin** (optional). Offline fallbacks still work.
+2. Click **INKO** in the top bar (needs `ai:use` or `admin`).
+3. Pick an LLM connection in the flyout, ask INKO to inspect or act.
+4. Approve HITL when policy requires it. Review audit for tool calls.
+
+### Example (CLI capabilities)
+
+```bash
+sc5 ai recon_assist --data "windows domain, no creds yet"
+sc5 ai shell_classify --data "session looks like scanner"
+```
+
+### Admin AI (structured capabilities)
+
+Legacy name for the sandboxed capability runner behind INKO. Fixed functions with structured inputs (not an open agent loop).
 
 | Capability | Intent |
 |------------|--------|
@@ -589,12 +598,7 @@ Untrusted text is passed through `sanitize_untrusted` before prompts.
 | `phishing_asset` | Authorized phishing content assist |
 | `doc_generate` | Engagement documentation drafts |
 
-### Example
-
-```bash
-sc5 ai recon_assist --data "windows domain, no creds yet"
-sc5 ai shell_classify --data "session looks like scanner"
-```
+**Phishing-related capabilities** exist only for **authorized** engagements (phishing simulations under ROE).
 
 ---
 
@@ -606,7 +610,7 @@ BYO OpenAI-compatible endpoints (including xAI Grok) stored **server-side** in `
 
 ### Why
 
-Admin AI needs a model; keys must never return in status APIs or git.
+INKO / Admin AI need a model; keys must never return in status APIs or git.
 
 ### How
 
@@ -827,10 +831,10 @@ sc5 mcp tools
 sc5 mcp call list_sessions --args-json '{}'
 ```
 
-### Contrast: MCP vs Admin AI
+### Contrast: MCP vs INKO / Admin AI
 
-| | Admin AI | MCP |
-|--|----------|-----|
+| | INKO / Admin AI | MCP |
+|--|----------------|-----|
 | Who | Operators on the team server | External models / agents |
 | Gate | `ai:use` + capability allow-list | `mcp:connect` + per-tool allow-list |
 | Default | Offline fallback if no LLM | Often feature-off |

@@ -69,7 +69,8 @@
       { a: "hitl", t: "HITL queue" },
     ],
     ai: [
-      { a: "admin-ai", t: "INK" },
+      { a: "inko-intelligent-neural-kinetic-operator", t: "INKO" },
+      { a: "admin-ai", t: "Admin AI (legacy anchor)" },
       { a: "llm-connections", t: "LLM connections" },
     ],
     observe: [
@@ -1095,31 +1096,32 @@
     const root = el("view-ai");
     if (!root) return;
     if (!can("ai:use") && !can("admin")) {
-      root.innerHTML = `<div class="empty-state"><strong>INK locked</strong>Need <code>ai:use</code> scope.</div>`;
+      root.innerHTML = `<div class="empty-state"><strong>INKO locked</strong>Need <code>ai:use</code> scope.</div>`;
       return;
     }
     root.innerHTML = `
       <div class="work-panel" style="min-height:min(70vh,640px);display:flex;flex-direction:column">
-        <div class="wp-head">
-          <span class="ink-brand">◈ INK</span>
-          <span class="muted" style="margin-left:8px;font-size:0.75rem;font-weight:500;text-transform:none;letter-spacing:0">neural operator</span>
+        <div class="wp-head" style="flex-wrap:wrap;gap:6px">
+          <span class="inko-brand">◈ INKO</span>
+          <span class="muted" style="margin-left:4px;font-size:0.75rem;font-weight:600;text-transform:none;letter-spacing:0">Intelligent Neural Kinetic Operator</span>
         </div>
         <div class="wp-body" style="display:flex;flex-direction:column;flex:1;min-height:0">
           <p class="muted" style="font-size:0.78rem;margin:0 0 8px">
-            Chat with the op. INK inspects sessions, listeners, events, and runs railed actions
-            (e.g. <em>“setup reverse shell on 4444”</em>). Configure models under <strong>Admin</strong>.
+            Chat with the op. INKO inspects sessions, listeners, events, and runs railed actions
+            (e.g. <em>"setup reverse shell on 4444"</em>). Configure models under <strong>Admin</strong>.
+            Use the <strong>INKO</strong> button in the top bar for the flyout panel.
           </p>
           <label>LLM connection</label>
           <select id="aiLlmPick"><option value="">Loading…</option></select>
           <div id="aiPageLog" class="outbox" style="flex:1;max-height:none;min-height:220px;margin-top:10px"></div>
           <label style="margin-top:10px">Message</label>
-          <textarea id="aiData" rows="3" placeholder="Talk to INK… Enter to send, Shift+Enter for newline"></textarea>
+          <textarea id="aiData" rows="3" placeholder="Talk to INKO… Enter to send, Shift+Enter for newline"></textarea>
           <div class="row">
             <button type="button" class="primary" id="aiRun">Send</button>
             <button type="button" id="aiClearPage">Clear</button>
             <button type="button" id="aiStatus">Status</button>
             <button type="button" id="aiTools">Tools</button>
-            <button type="button" id="aiOpenDrawer">Pop-out</button>
+            <button type="button" id="aiOpenDrawer">Open flyout</button>
           </div>
           <div class="outbox empty hidden" id="aiOut">—</div>
         </div>
@@ -1203,7 +1205,7 @@
       if (tools.some((t) => t.ok && /listener|session|task|payload/i.test(t.tool || ""))) {
         if (window.__SC5_refresh) try { await window.__SC5_refresh(); } catch (_) {}
       }
-      showOk(r.mode === "offline" ? "INK (offline)" : "INK replied");
+      showOk(r.mode === "offline" ? "INKO (offline)" : "INKO replied");
       return r;
     } catch (e) {
       const err = String(e.message || e);
@@ -1223,7 +1225,7 @@
       div.className = "ai-msg " + (who === "user" ? "user" : "bot");
       const w = document.createElement("div");
       w.className = "who";
-      w.textContent = who === "user" ? "You" : "INK";
+      w.textContent = who === "user" ? "You" : "INKO";
       const b = document.createElement("div");
       b.style.whiteSpace = "pre-wrap";
       b.textContent = text;
@@ -1260,19 +1262,39 @@
 
   function openAiDrawer(open) {
     const d = el("aiDrawer");
+    const backdrop = el("aiBackdrop");
+    const btn = el("btnInko");
     if (!d) return;
-    if (open === false) d.classList.add("hidden");
-    else d.classList.toggle("hidden", open == null ? !d.classList.contains("hidden") : !open);
+    let show;
+    if (open === false) show = false;
+    else if (open === true) show = true;
+    else show = d.classList.contains("hidden") || !d.classList.contains("open");
+    d.classList.toggle("hidden", !show);
+    d.classList.toggle("open", show);
+    d.setAttribute("aria-hidden", show ? "false" : "true");
+    if (backdrop) {
+      backdrop.hidden = !show;
+      backdrop.classList.toggle("show", show);
+      backdrop.setAttribute("aria-hidden", show ? "false" : "true");
+    }
+    if (btn) btn.setAttribute("aria-expanded", show ? "true" : "false");
+    if (show) {
+      const ta = el("aiPromptGlobal");
+      if (ta) setTimeout(() => { try { ta.focus(); } catch (_) {} }, 50);
+    }
   }
 
   function setupGlobalAi() {
-    const fab = el("aiFab");
+    const btn = el("btnInko");
     const drawer = el("aiDrawer");
-    if (!fab || !drawer) return;
+    const backdrop = el("aiBackdrop");
+    if (!btn || !drawer) return;
     const allowed = can("ai:use") || can("admin");
-    fab.classList.toggle("hidden", !allowed);
+    btn.classList.toggle("hidden", !allowed);
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-controls", "aiDrawer");
     if (!allowed) {
-      drawer.classList.add("hidden");
+      openAiDrawer(false);
       return;
     }
     loadSavedLlms().then((llms) => {
@@ -1282,8 +1304,12 @@
       saveSel("sc5_ops_llm", el("aiLlmGlobal").value || "");
       if (el("aiLlmPick") && el("aiLlmGlobal").value) el("aiLlmPick").value = el("aiLlmGlobal").value;
     };
-    fab.onclick = () => openAiDrawer();
+    btn.onclick = () => openAiDrawer();
     if (el("aiDrawerClose")) el("aiDrawerClose").onclick = () => openAiDrawer(false);
+    if (backdrop) backdrop.onclick = () => openAiDrawer(false);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && drawer.classList.contains("open")) openAiDrawer(false);
+    });
     if (el("aiClearGlobal")) el("aiClearGlobal").onclick = () => clearAiChat();
     if (el("aiSendGlobal")) el("aiSendGlobal").onclick = async () => {
       const prompt = (el("aiPromptGlobal") && el("aiPromptGlobal").value) || "";

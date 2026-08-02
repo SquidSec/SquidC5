@@ -7,10 +7,15 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- **INKO** (Intelligent Neural Kinetic Operator): rebrand of ops neural operator chat
+- INKO opens from a **top-bar button** as a right flyout panel (full-screen on mobile); floating FAB removed
 - SOCKS5 **duplex**: direct mode + implant reverse-dial bridge (`socks:connect`)
 - Local Ollama path via `SQUIDC5_LOCAL_LLM_*` when no cloud LLM configured
 - README badges fixed (live CI + SquidGate workflow shields)
 - Docs index links to five-star roadmap + implant paths
+
+### Changed
+- Ops UI and chat system prompt use **INKO** naming; user guide / runbook / README updated
 
 ### Security / OPSEC
 - Native agent remains AEAD-only with full TLS verify

@@ -76,7 +76,11 @@ sc5 tokens create ext-ai \
   --mcp-tools "list_sessions,get_session,list_tasks,create_task,get_metrics"
 ```
 
-## Admin AI
+## INKO (Intelligent Neural Kinetic Operator)
+
+Ops UI: top-bar **INKO** opens the right flyout chat (full screen on mobile). Needs `ai:use` or `admin`.
+
+Structured capabilities (CLI):
 
 ```bash
 sc5 ai recon_assist --data "windows domain host"

@@ -34,14 +34,14 @@ Security-first, AI-native C5 teamserver for **authorized** red team and penetrat
 |--------|------|
 | **Command** | Tasking shells, beacons, native implants |
 | **Control** | Scoped tokens, policy, HITL, feature flags |
-| **Cognitive** | Sandboxed Admin AI + restricted MCP |
+| **Cognitive** | INKO (Intelligent Neural Kinetic Operator) + sandboxed Admin AI + restricted MCP |
 | **Collaborative** | Teams, handoff, per-operator audit |
 | **Coordination** | Profiles, OAST, timeline, reports |
 
 ## Features
 
 - **Scoped API tokens** + immutable audit hash chain (`sc5 audit-verify`)
-- **Dual AI** — MCP off by default; Admin AI with 15 allow-listed capabilities; optional local Ollama
+- **Dual AI** — MCP off by default; **INKO** neural operator chat + Admin AI (15 allow-listed capabilities); optional local Ollama
 - **Native implant** — `agents/sc5beacon` (Go): AEAD, sleep/jitter/kill/hours, files, SOCKS reverse-dial
 - **Implant factory** — `sc5 implants build` / `POST /api/v1/implants/build`
 - **Malleable transforms** — base64, prepend/append, xor, netbios + profile push
@@ -127,7 +127,7 @@ Docs: [agents/sc5beacon/README.md](agents/sc5beacon/README.md)
 | Engagement | `GET/PUT /api/v1/engagement` |
 | HITL | `GET /api/v1/policy/hitl` |
 | Audit verify | `GET /api/v1/audit/verify` |
-| Admin AI | `POST /api/v1/ai/run` |
+| Admin AI / INKO chat | `POST /api/v1/ai/run` · `POST /api/v1/ai/chat` |
 
 Auth: `Authorization: Bearer <token>`. **No public OpenAPI** on the server.
 
