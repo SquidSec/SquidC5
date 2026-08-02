@@ -79,6 +79,32 @@ def render_markdown_safe(src: str) -> str:
         return f"\x00TABLE{i}\x00\n\n"
 
     s = re.sub(r"(?:^[ \t]*\|.+\|[ \t]*\n){2,}", _table_repl, s, flags=re.M)
+    lists: list[str] = []
+
+    def _stash_list(html: str) -> str:
+        i = len(lists)
+        lists.append(html)
+        return f"\x00LIST{i}\x00\n\n"
+
+    def _ul_repl(m: re.Match[str]) -> str:
+        items = []
+        for ln in m.group(0).strip().split("\n"):
+            t = re.sub(r"^[-*+]\s+", "", ln).strip()
+            if t:
+                items.append(f"<li>{_escape_html(t)}</li>")
+        return _stash_list("<ul>" + "".join(items) + "</ul>")
+
+    def _ol_repl(m: re.Match[str]) -> str:
+        items = []
+        for ln in m.group(0).strip().split("\n"):
+            t = re.sub(r"^\d+\.\s+", "", ln).strip()
+            if t:
+                items.append(f"<li>{_escape_html(t)}</li>")
+        return _stash_list("<ol>" + "".join(items) + "</ol>")
+
+    # Greedy + so consecutive items share one list (non-greedy caused 1. 1. 1.)
+    s = re.sub(r"(?:^(?:[-*+])\s+.+(?:\n|$))+", _ul_repl, s, flags=re.M)
+    s = re.sub(r"(?:^\d+\.\s+.+(?:\n|$))+", _ol_repl, s, flags=re.M)
     s = _escape_html(s)
     s = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", s)
     s = re.sub(
@@ -89,6 +115,7 @@ def render_markdown_safe(src: str) -> str:
     s = re.sub(r"^(#{1,4})\s+(.+)$", lambda m: f"<h{len(m.group(1))}>{m.group(2)}</h{len(m.group(1))}>", s, flags=re.M)
     s = re.sub(r"(\*\*|__)(?=\S)([\s\S]*?\S)\1", r"<strong>\2</strong>", s)
     s = re.sub(r"(\*|_)(?=\S)([\s\S]*?\S)\1", r"<em>\2</em>", s)
+    s = re.sub(r"^&gt;\s?(.+)$", r"<blockquote>\1</blockquote>", s, flags=re.M)
     parts = []
     for para in re.split(r"\n{2,}", s):
         p = para.strip()
@@ -96,14 +123,20 @@ def render_markdown_safe(src: str) -> str:
             continue
         if re.match(r"^<(?:ul|ol|pre|h[1-4]|blockquote|div)", p):
             parts.append(p)
-        elif re.fullmatch(r"\x00TABLE\d+\x00", p):
+        elif re.fullmatch(r"\x00(?:TABLE|LIST)\d+\x00", p):
             parts.append(p)
         else:
             parts.append(f"<p>{p.replace(chr(10), '<br>')}</p>")
     s = "".join(parts)
+    s = re.sub(r"\x00LIST(\d+)\x00", lambda m: lists[int(m.group(1))], s)
     s = re.sub(r"\x00TABLE(\d+)\x00", lambda m: tables[int(m.group(1))], s)
     s = re.sub(r"\x00FENCE(\d+)\x00", lambda m: fences[int(m.group(1))], s)
+    # Inline md inside restored list items
+    s = re.sub(r"(\*\*|__)(?=\S)([\s\S]*?\S)\1", r"<strong>\2</strong>", s)
+    s = re.sub(r"(\*|_)(?=\S)([\s\S]*?\S)\1", r"<em>\2</em>", s)
+    s = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", s)
     return s
+
 
 
 def test_raw_html_is_escaped() -> None:
@@ -152,3 +185,46 @@ def test_table_cells_escape_html() -> None:
     out = render_markdown_safe(md)
     assert "<script>" not in out
     assert "&lt;script&gt;" in out
+
+
+def test_ordered_list_single_ol() -> None:
+    """Consecutive 1. lines must become one <ol> (not four restarting at 1)."""
+    md = (
+        "Operator workflow (short)\n"
+        "1. **Upsert**/select profile → activate it.\n"
+        "1. Ensure **HTTP/HTTPS listener** is up.\n"
+        "1. Generate payload that matches that profile.\n"
+        "1. If you switch active profile mid-op, old implants keep old behavior.\n"
+    )
+    out = render_markdown_safe(md)
+    assert out.count("<ol>") == 1
+    assert out.count("</ol>") == 1
+    assert out.count("<li>") == 4
+    assert "<strong>Upsert</strong>" in out
+    assert "<strong>HTTP/HTTPS listener</strong>" in out
+
+
+def test_list_item_html_escaped() -> None:
+    out = render_markdown_safe("1. <script>alert(1)</script>\n2. ok\n")
+    assert "<script>" not in out
+    assert "&lt;script&gt;" in out
+    assert out.count("<ol>") == 1
+
+
+def test_unordered_list_single_ul() -> None:
+    md = "- alpha\n- beta\n- gamma\n"
+    out = render_markdown_safe(md)
+    assert out.count("<ul>") == 1
+    assert out.count("<li>") == 3
+
+
+def test_chat_system_prompt_covers_platform() -> None:
+    from squidc5.ai.ops_tools import CHAT_SYSTEM_PROMPT
+
+    p = CHAT_SYSTEM_PROMPT
+    assert "INKO" in p
+    assert "Command" in p and "Control" in p
+    assert "reverse_shell" in p
+    assert "list_sessions" in p
+    assert "activate_profile" in p
+    assert "authorized" in p.lower()

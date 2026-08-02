@@ -1332,36 +1332,58 @@
       tables.push(`<div class="md-table-wrap"><table class="md-table"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table></div>`);
       return `\u0000TABLE${i}\u0000\n\n`;
     });
+    // Lists from raw text with per-item escapeHtml (greedy + → one <ol>/<ul>).
+    // Non-greedy +? previously made each line its own <ol> (displayed 1. 1. 1.).
+    const lists = [];
+    const stashList = (html) => {
+      const i = lists.length;
+      lists.push(html);
+      return `\u0000LIST${i}\u0000\n\n`;
+    };
+    s = s.replace(/(?:^(?:[-*+])\s+.+(?:\n|$))+/gm, (block) => {
+      const items = block
+        .trim()
+        .split("\n")
+        .map((line) => line.replace(/^[-*+]\s+/, "").trim())
+        .filter(Boolean)
+        .map((t) => `<li>${escapeHtml(t)}</li>`);
+      return stashList(`<ul>${items.join("")}</ul>`);
+    });
+    s = s.replace(/(?:^\d+\.\s+.+(?:\n|$))+/gm, (block) => {
+      const items = block
+        .trim()
+        .split("\n")
+        .map((line) => line.replace(/^\d+\.\s+/, "").trim())
+        .filter(Boolean)
+        .map((t) => `<li>${escapeHtml(t)}</li>`);
+      return stashList(`<ol>${items.join("")}</ol>`);
+    });
+    // Escape remaining prose; list/table/fence bodies restored after.
     s = escapeHtml(s);
-    // Restore table/fence placeholders swallowed by escapeHtml (\u0000 stays)
+    // Inline / block markdown on escaped text only (allow-listed tags)
     s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
     s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     s = s.replace(/^(#{1,4})\s+(.+)$/gm, (_, h, t) => `<h${h.length}>${t}</h${h.length}>`);
     s = s.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "<strong>$2</strong>");
     s = s.replace(/(\*|_)(?=\S)([\s\S]*?\S)\1/g, "<em>$2</em>");
     s = s.replace(/^&gt;\s?(.+)$/gm, "<blockquote>$1</blockquote>");
-    // unordered lists
-    s = s.replace(/(?:^(?:[-*+])\s+.+(?:\n|$))+?/gm, (block) => {
-      const items = block.trim().split("\n").map((line) => line.replace(/^[-*+]\s+/, "").trim());
-      return `<ul>${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
-    });
-    // ordered lists
-    s = s.replace(/(?:^\d+\.\s+.+(?:\n|$))+?/gm, (block) => {
-      const items = block.trim().split("\n").map((line) => line.replace(/^\d+\.\s+/, "").trim());
-      return `<ol>${items.map((i) => `<li>${i}</li>`).join("")}</ol>`;
-    });
     s = s
       .split(/\n{2,}/)
       .map((para) => {
         const t = para.trim();
         if (!t) return "";
         if (/^<(?:ul|ol|pre|h[1-4]|blockquote|div)/.test(t)) return t;
-        if (/^\u0000TABLE\d+\u0000$/.test(t)) return t;
+        if (/^\u0000(?:TABLE|LIST)\d+\u0000$/.test(t)) return t;
         return `<p>${para.replace(/\n/g, "<br>")}</p>`;
       })
       .join("");
+    s = s.replace(/\u0000LIST(\d+)\u0000/g, (_, i) => lists[Number(i)] || "");
     s = s.replace(/\u0000TABLE(\d+)\u0000/g, (_, i) => tables[Number(i)] || "");
     s = s.replace(/\u0000FENCE(\d+)\u0000/g, (_, i) => fences[Number(i)] || "");
+    // Bold/em inside list items (restored after escape)
+    s = s.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "<strong>$2</strong>");
+    s = s.replace(/(\*|_)(?=\S)([\s\S]*?\S)\1/g, "<em>$2</em>");
+    s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
     return s;
   }
 
