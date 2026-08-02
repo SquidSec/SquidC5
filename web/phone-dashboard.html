@@ -312,6 +312,52 @@
       text-align: center; padding: 32px 16px; color: var(--muted);
     }
     .empty-state strong { display: block; color: var(--text); margin-bottom: 6px; font-size: 0.95rem; }
+    a.doc-link {
+      color: var(--pink2); font-weight: 600; text-decoration: none;
+      border-bottom: 1px solid rgba(233,30,140,0.35); font-size: 0.78rem;
+    }
+    a.doc-link:hover { color: #fff; border-bottom-color: var(--pink2); }
+    .feat-docs {
+      display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      margin: 0 0 10px; font-size: 0.78rem;
+    }
+    .main-head .doc-link { flex-shrink: 0; }
+
+    /* Global AI FAB + drawer */
+    .ai-fab {
+      position: fixed; right: 18px; bottom: calc(var(--bottom-h) + 16px); z-index: 40;
+      width: auto; min-width: 72px; height: 44px; border-radius: 999px;
+      background: rgba(233,30,140,0.25); border: 1px solid rgba(233,30,140,0.55);
+      color: var(--pink2); font-weight: 800; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .ai-fab:hover { background: rgba(233,30,140,0.4); }
+    .ai-drawer {
+      position: fixed; right: 16px; bottom: calc(var(--bottom-h) + 68px); z-index: 41;
+      width: min(380px, calc(100vw - 24px)); height: min(420px, 50vh);
+      background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px;
+      display: flex; flex-direction: column; box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+      overflow: hidden;
+    }
+    .ai-drawer.hidden, .ai-fab.hidden { display: none !important; }
+    .ai-drawer-head {
+      display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+      border-bottom: 1px solid var(--border); font-size: 0.85rem;
+    }
+    .ai-drawer-body {
+      flex: 1; overflow: auto; padding: 10px; font-size: 0.8rem; min-height: 0;
+    }
+    .ai-msg { margin-bottom: 10px; padding: 8px 10px; border-radius: 8px; line-height: 1.4; }
+    .ai-msg.user { background: rgba(255,255,255,0.04); border: 1px solid var(--border); }
+    .ai-msg.bot { background: rgba(233,30,140,0.08); border: 1px solid rgba(233,30,140,0.25); }
+    .ai-msg .who { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .ai-drawer-foot {
+      border-top: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .ai-drawer-foot select, .ai-drawer-foot textarea { width: 100%; }
+    @media (max-width: 900px) {
+      .ai-fab { bottom: 24px; right: 12px; }
+      .ai-drawer { bottom: 76px; right: 8px; left: 8px; width: auto; }
+    }
 
     /* Mobile: stack */
     @media (max-width: 900px) {
@@ -369,10 +415,14 @@
         <button type="button" class="nav-item" data-view="payloads"><span class="ico">⌘</span> Payloads</button>
         <button type="button" class="nav-item" data-view="postex"><span class="ico">⚡</span> Post-Ex</button>
         <button type="button" class="nav-item" data-view="collab"><span class="ico">⇄</span> Collab</button>
+        <button type="button" class="nav-item" data-view="ai" id="navAi"><span class="ico">✦</span> AI</button>
         <button type="button" class="nav-item" data-view="observe"><span class="ico">▤</span> Observe</button>
         <button type="button" class="nav-item hidden" data-view="admin" id="navAdmin"><span class="ico">⚙</span> Admin</button>
       </div>
-      <div class="side-foot" id="sideFoot">Authorized use only</div>
+      <div class="side-foot" id="sideFoot">
+        <a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md" target="_blank" rel="noopener noreferrer">User guide</a>
+        · Authorized only
+      </div>
     </nav>
 
     <main class="main">
@@ -381,6 +431,7 @@
           <h2 id="viewTitle">Dashboard</h2>
           <div class="sub" id="viewSub">Overview of this teamserver</div>
         </div>
+        <a class="doc-link" id="viewDocs" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md" target="_blank" rel="noopener noreferrer" title="Documentation">Docs ↗</a>
         <div class="tools" id="viewTools"></div>
       </div>
       <div class="main-body" id="mainBody">
@@ -389,12 +440,13 @@
           <div class="empty-state" id="dashEmpty">
             <strong>Connect to get started</strong>
             Enter your server URL and API token (top-right Connect).
+            <div style="margin-top:10px"><a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#connection" target="_blank" rel="noopener noreferrer">Connection docs ↗</a></div>
           </div>
           <div id="dashContent" class="hidden">
             <div class="stats" id="dashStats"></div>
             <div class="split" style="min-height:300px">
               <div class="list-panel">
-                <div class="lp-head">Recent sessions</div>
+                <div class="lp-head">Recent sessions <a class="doc-link" style="margin-left:auto;font-size:0.65rem;text-transform:none;letter-spacing:0" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#sessions" target="_blank" rel="noopener noreferrer">Docs</a></div>
                 <div class="lp-body" id="dashSes"></div>
               </div>
               <div class="work-panel">
@@ -409,10 +461,27 @@
         <div class="view" id="view-payloads"></div>
         <div class="view" id="view-postex"></div>
         <div class="view" id="view-collab"></div>
+        <div class="view" id="view-ai"></div>
         <div class="view" id="view-observe"></div>
         <div class="view" id="view-admin"></div>
       </div>
     </main>
+
+    <!-- Global AI assistant (all pages) -->
+    <button type="button" id="aiFab" class="ai-fab hidden" title="Admin AI assistant">✦ AI</button>
+    <div id="aiDrawer" class="ai-drawer hidden" aria-label="Admin AI chat">
+      <div class="ai-drawer-head">
+        <strong>Admin AI</strong>
+        <a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#admin-ai" target="_blank" rel="noopener noreferrer" style="font-size:0.7rem">Docs</a>
+        <button type="button" id="aiDrawerClose" style="margin-left:auto">✕</button>
+      </div>
+      <div class="ai-drawer-body" id="aiChatLog"></div>
+      <div class="ai-drawer-foot">
+        <select id="aiCapGlobal" title="Capability"></select>
+        <textarea id="aiPromptGlobal" rows="2" placeholder="Ask the sandboxed Admin AI…"></textarea>
+        <button type="button" class="primary" id="aiSendGlobal">Send</button>
+      </div>
+    </div>
 
     <aside class="ctx" id="ctxRail">
       <div class="ctx-head">Session context</div>
@@ -555,19 +624,22 @@
   }
 
   /* —— Navigation —— */
+  const DOCS = "https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md";
   const VIEWS = {
-    dashboard: { title: "Dashboard", sub: "Teamserver health and shortcuts" },
-    sessions: { title: "Sessions", sub: "Beacons and reverse shells" },
-    listeners: { title: "Listeners", sub: "Bind ports and manage acceptors" },
-    payloads: { title: "Payloads", sub: "Generate implants and templates" },
-    postex: { title: "Post-Ex", sub: "Files, SOCKS, modules on selected session" },
-    collab: { title: "Collab", sub: "Teams, chat, handoff, presence" },
-    observe: { title: "Observe", sub: "Metrics, audit, timeline, reports" },
-    admin: { title: "Admin", sub: "Tokens, policy, features, LLM, MCP" },
+    dashboard: { title: "Dashboard", sub: "Teamserver health and shortcuts", doc: "status-overview" },
+    sessions: { title: "Sessions", sub: "Beacons and reverse shells", doc: "sessions" },
+    listeners: { title: "Listeners", sub: "Bind ports and manage acceptors", doc: "listeners" },
+    payloads: { title: "Payloads", sub: "Generate implants and templates", doc: "payloads-and-implants" },
+    postex: { title: "Post-Ex", sub: "Files, SOCKS, modules on selected session", doc: "file-ops" },
+    collab: { title: "Collab", sub: "Teams, chat, handoff, presence", doc: "multi-operator-collab" },
+    ai: { title: "Admin AI", sub: "Sandboxed allow-listed AI capabilities", doc: "admin-ai" },
+    observe: { title: "Observe", sub: "Metrics, audit, timeline, reports", doc: "timeline-and-reports" },
+    admin: { title: "Admin", sub: "Tokens, policy, features, LLM, MCP", doc: "feature-toggles" },
   };
   let currentView = "dashboard";
   function setView(name) {
-    if (name === "admin" && !can("admin")) name = "dashboard";
+    if (name === "admin" && !can("admin") && !can("tokens:manage") && !can("policy:manage")) name = "dashboard";
+    if (name === "ai" && !can("ai:use") && !can("admin")) name = "dashboard";
     currentView = name;
     document.querySelectorAll(".nav-item").forEach((b) => {
       b.classList.toggle("active", b.getAttribute("data-view") === name);
@@ -578,10 +650,15 @@
     const meta = VIEWS[name] || VIEWS.dashboard;
     $("viewTitle").textContent = meta.title;
     $("viewSub").textContent = meta.sub;
+    if ($("viewDocs")) {
+      $("viewDocs").href = DOCS + (meta.doc ? "#" + meta.doc : "");
+      $("viewDocs").textContent = "Docs ↗";
+    }
     $("viewTools").innerHTML = "";
     if (window.__SC5_onView) window.__SC5_onView(name);
     try { localStorage.setItem("sc5_ops_view", name); } catch (_) {}
   }
+  window.__SC5_DOCS = DOCS;
   document.querySelectorAll(".nav-item").forEach((b) => {
     b.addEventListener("click", () => setView(b.getAttribute("data-view")));
   });
@@ -637,7 +714,8 @@
       $("hostLine").textContent = apiBase();
       $("roleBadge").textContent = state.scopes.indexOf("admin") >= 0 ? "admin" : (state.actor || "op");
       $("roleBadge").classList.remove("hidden");
-      $("navAdmin").classList.toggle("hidden", !can("admin"));
+      $("navAdmin").classList.toggle("hidden", !(can("admin") || can("tokens:manage") || can("policy:manage")));
+      if ($("navAi")) $("navAi").classList.toggle("hidden", !(can("ai:use") || can("admin")));
       $("dashEmpty").classList.add("hidden");
       $("dashContent").classList.remove("hidden");
       await loadAdminModule();
@@ -724,13 +802,24 @@
           </tr>`;
         }).join("") + `</tbody></table>`
       : `<div class="empty-state"><strong>No active sessions</strong>Start a listener and land an implant.</div>`;
-    $("dashSes").querySelectorAll("tr[data-sid]").forEach((tr) => {
+      $("dashSes").querySelectorAll("tr[data-sid]").forEach((tr) => {
       tr.onclick = () => {
-        state.selectedId = tr.getAttribute("data-sid");
+        const sid = tr.getAttribute("data-sid");
+        state.selectedId = sid;
+        try { localStorage.setItem("sc5_ops_sid", sid); } catch (_) {}
         setView("sessions");
-        if (window.__SC5_selectSession) window.__SC5_selectSession(state.selectedId);
+        if (window.__SC5_selectSession) window.__SC5_selectSession(sid);
       };
     });
+    // keep selection highlight on dash table
+    const keepSid = state.selectedId || (() => { try { return localStorage.getItem("sc5_ops_sid"); } catch (_) { return null; } })();
+    if (keepSid) {
+      state.selectedId = keepSid;
+      $("dashSes").querySelectorAll("tr[data-sid]").forEach((tr) => {
+        tr.classList.toggle("selected", tr.getAttribute("data-sid") === keepSid);
+      });
+    }
+
 
     $("dashQuick").innerHTML = `
       <p class="muted" style="margin:0 0 8px;font-size:0.85rem">Common next steps</p>

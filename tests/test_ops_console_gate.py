@@ -57,6 +57,9 @@ async def test_public_ops_html_does_not_include_admin_module(client):
         or "loadAdminModule" in html
         or "ops/admin.js" in html
     )
+    # shell has AI drawer hooks + docs
+    assert "aiDrawer" in html or "aiFab" in html
+    assert "user-guide.md" in html
 
 
 @pytest.mark.asyncio
