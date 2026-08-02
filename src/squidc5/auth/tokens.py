@@ -398,6 +398,13 @@ class TokenService:
         if not row or row.get("revoked"):
             raise KeyError("token not found")
         before = self.parse_row(row)
+        # tokens:manage must not touch tokens that already hold privileged scopes
+        if not grantor_is_admin:
+            held_priv = set(before.get("scopes") or []) & self.PRIVILEGED_SCOPES
+            if held_priv:
+                raise PermissionError(
+                    f"Only admin may modify tokens with privileged scopes: {sorted(held_priv)}"
+                )
         new_name = before["name"]
         if name is not None:
             clean = name.strip()

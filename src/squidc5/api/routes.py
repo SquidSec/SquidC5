@@ -522,6 +522,8 @@ def build_api_router() -> APIRouter:
             )
         except KeyError as e:
             raise HTTPException(404, "token not found") from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         return row

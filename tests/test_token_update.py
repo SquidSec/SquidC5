@@ -122,3 +122,29 @@ async def test_patch_empty_body_400(client, admin_headers):
         json={},
     )
     assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_tokens_manage_cannot_modify_privileged_token(client, admin_headers):
+    """tokens:manage must not demote/edit tokens that already hold admin/etc."""
+    mgr = await mint_token(
+        client,
+        admin_headers,
+        "tok-mgr3",
+        ["tokens:manage", "sessions:read", "metrics:read"],
+    )
+    # Find bootstrap/admin token id via list
+    listed = await client.get("/api/v1/tokens", headers=admin_headers)
+    assert listed.status_code == 200
+    admin_tok = next(
+        (t for t in listed.json() if "admin" in (t.get("scopes") or []) and not t.get("revoked")),
+        None,
+    )
+    assert admin_tok is not None
+    mh = bearer(mgr["token"])
+    r = await client.patch(
+        f"/api/v1/tokens/{admin_tok['id']}",
+        headers=mh,
+        json={"scopes": ["sessions:read"]},
+    )
+    assert r.status_code == 403
