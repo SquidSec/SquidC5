@@ -78,17 +78,28 @@ sc5 tokens create ext-ai \
 
 ## INKO (Intelligent Neural Kinetic Operator)
 
-Ops UI: top-bar **INKO** opens the right flyout chat (full screen on mobile). Needs `ai:use` or `admin`.
+**INKO** is the ops neural operator (chat + railed C5 tools).
 
-Structured capabilities (CLI):
+Ops UI:
+
+1. Configure LLM under **Admin** (or `sc5 llm add …`) — optional; offline intents still work.
+2. Top-bar **INKO** → right flyout (full screen on mobile). Nav **INKO** page for full workspace.
+3. Needs `ai:use` or `admin`. Enter sends; Shift+Enter newline. Escape / backdrop closes flyout.
+4. Chat history is browser-local; tool calls are audited server-side (scopes + policy + HITL).
+
+Example asks: *“list sessions”*, *“setup reverse shell listener on 4444”*, *“show recent events”*.
+
+Structured capabilities (CLI / API — not the free-form chat box):
 
 ```bash
 sc5 ai recon_assist --data "windows domain host"
 sc5 ai shell_classify --data "uid=0(root)"
 sc5 ai payload_template --data "need bash http beacon"
+sc5 llm list
+sc5 llm add grok-prod grok-3 --provider xai --base-url https://api.x.ai/v1 --api-key "$XAI_KEY"
 ```
 
-Offline mode works without configured LLMs. Configure BYO LLM via `sc5 llm add ...`.
+REST: `POST /api/v1/ai/chat`, `POST /api/v1/ai/run`, `GET /api/v1/ai/tools`, `GET /api/v1/ai/status`.
 
 ## Observability
 

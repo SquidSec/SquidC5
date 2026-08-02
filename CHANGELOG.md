@@ -15,8 +15,9 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 - Docs index links to five-star roadmap + implant paths
 
 ### Changed
-- Ops UI and chat system prompt use **INKO** naming; user guide / runbook / README updated
+- Ops UI and chat system prompt use **INKO** naming; user guide / runbook / README / AGENTS updated
 - INKO chat: **persisted history** (browser localStorage), clear input on send, pending indicator, block send while waiting, **markdown** rendering for assistant replies
+- Docs: INKO flyout UX, `/api/v1/ai/chat` + tools catalog, Admin LLM configure path
 
 ### Security / OPSEC
 - Native agent remains AEAD-only with full TLS verify

@@ -31,7 +31,7 @@ External AI agents connect using scoped API tokens and interact via the MCP-comp
 
 **INKO** (Intelligent Neural Kinetic Operator) is the operator-facing neural chat surface on top of the sandboxed Admin AI stack.
 
-Administrators configure BYO LLM connections. The Admin AI supports limited capabilities:
+Administrators configure BYO LLM connections (Ops **Admin** UI or CLI). **INKO** exposes multi-turn chat with railed C5 tools (`POST /api/v1/ai/chat`). The Admin AI also supports limited structured capabilities (`POST /api/v1/ai/run`):
 
 - `payload_template`
 - `phishing_asset`

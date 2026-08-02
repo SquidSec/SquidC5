@@ -49,7 +49,7 @@ Security-first, AI-native C5 teamserver for **authorized** red team and penetrat
 - **File ops** — `file:list|read|write|delete` (+ chunk offset/length)
 - **Engagement ROE** — banned commands, end time, HITL file-write
 - **Multi-op collab** — session claim/lock, handoff packs, spectator, presence, team chat, per-op audit
-- **Ops console** — multi-page nav (Dashboard/Sessions/Listeners/Post-Ex/Collab/Admin), role layouts, workbench
+- **Ops console** — multi-page nav, mobile drawer, **INKO** top-bar flyout chat, resizable event/console dock
 - **Secure defaults** — TLS on, empty CORS (no null), no public OpenAPI, admin.js gated, MCP scoped+HITL, implant AEAD on all listeners
 
 - **Binary CI** — Linux/Windows server+CLI, native agents, SBOM
@@ -127,7 +127,9 @@ Docs: [agents/sc5beacon/README.md](agents/sc5beacon/README.md)
 | Engagement | `GET/PUT /api/v1/engagement` |
 | HITL | `GET /api/v1/policy/hitl` |
 | Audit verify | `GET /api/v1/audit/verify` |
-| Admin AI / INKO chat | `POST /api/v1/ai/run` · `POST /api/v1/ai/chat` |
+| INKO chat (ops) | `POST /api/v1/ai/chat` · `GET /api/v1/ai/tools` |
+| Admin AI capabilities | `POST /api/v1/ai/run` · `GET /api/v1/ai/status` |
+| LLM connections | `GET/POST /api/v1/llm` · `POST /api/v1/llm/models` |
 
 Auth: `Authorization: Bearer <token>`. **No public OpenAPI** on the server.
 
@@ -166,7 +168,7 @@ See [.env.example](.env.example). Prefix `SQUIDC5_`.
 ## Security model
 
 1. Deny by default · scoped tokens · server-side HITL  
-2. Admin AI capability allow-list + `sanitize_untrusted`  
+2. INKO / Admin AI: capability + chat-tool allow-lists, `sanitize_untrusted`, audited tool calls  
 3. Implant AEAD · no skip-verify in native agent  
 4. Audit chain + verify · engagement ROE  
 5. [SquidGate](https://github.com/SquidSec/SquidGate) on PRs  

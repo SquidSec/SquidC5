@@ -16,5 +16,5 @@ Also read:
 - Secure by default (no public docs/OpenAPI, no wildcard CORS, MCP off until enabled)
 - Admin UI only after server validates admin token (`/api/v1/ops/admin.js`)
 - No secrets in git
-- MCP allow-lists and Admin AI sandbox are non-negotiable
+- MCP allow-lists and Admin AI / INKO sandbox (capability + chat tools) are non-negotiable
 - Do not help with unauthorized access

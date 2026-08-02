@@ -8,8 +8,8 @@
 
 | Document | Description |
 |----------|-------------|
-| [User guide](user-guide.md) | Features, workflows, examples |
-| [Operator runbook](operator-runbook.md) | Day-2 shells, beacons, native implant |
+| [User guide](user-guide.md) | Features, workflows, examples (includes **INKO** neural operator) |
+| [Operator runbook](operator-runbook.md) | Day-2 shells, beacons, native implant, INKO chat |
 | [Deployment](deployment.md) | Binary prod + Docker lab + systemd |
 | [Threat model](threat-model.md) | Assets, adversaries, STRIDE |
 | [Vision](squidc5-vision.md) | Architecture |

@@ -5,8 +5,7 @@
 **Authorized red team / penetration testing only.**  
 This guide lives in the GitHub repository. It is **not** served by the C2 process (`/docs` on the server stays disabled).
 
-**Source of truth:** [docs/user-guide.md](https://github.com/DotNetRussell/SquidC5/blob/master/docs/user-guide.md) on branch `master`.
-
+**Source of truth:** [docs/user-guide.md](https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md) on branch `master`.
 ### What C5 stands for
 
 | Pillar | In SquidC5 |
@@ -561,12 +560,14 @@ UI: **Metrics** / **Audit log** buttons dump JSON into the panel outbox.
 
 **INKO** is SquidC5's **Intelligent Neural Kinetic Operator**: the in-ops neural operator for chat-driven inspection and railed actions on the teamserver.
 
-- **UI:** **INKO** button in the top bar opens a right-side flyout panel (full screen on mobile).
-- **Chat:** talk to INKO to list sessions, spin listeners, triage events, and run allow-listed tools.
-- **Page:** Ops nav **INKO** still has the full AI workspace (status, tools list, page chat).
-- **Server:** same sandboxed Admin AI stack underneath (capability allow-list, `sanitize_untrusted`, audit).
+- **UI:** top-bar **INKO** opens a right-side flyout (~440px desktop; full width on mobile). Backdrop or **Escape** closes it.
+- **Chat:** multi-turn Q&A; Enter to send, Shift+Enter for newline; pending “Thinking…” while waiting.
+- **History:** kept in this browser (`localStorage`); Clear wipes the thread.
+- **Page:** Ops nav **INKO** is the full workspace (LLM picker, status, tools list, page chat).
+- **Markdown:** assistant replies render safely (escaped HTML; fenced code, links https-only).
+- **Server:** sandboxed Admin AI stack underneath — allow-listed chat tools, `sanitize_untrusted`, policy/scopes/HITL per tool, full audit.
 
-Structured Admin AI capabilities (`recon_assist`, `shell_classify`, …) remain available via API/CLI for deterministic jobs. INKO chat is the operator-facing surface.
+Structured Admin AI capabilities (`recon_assist`, `shell_classify`, …) remain available via API/CLI for deterministic jobs. **INKO chat** is the operator-facing surface.
 
 ### Why
 
@@ -574,10 +575,31 @@ Red team ops need AI that lives *inside* the C5 with the same scopes and audit a
 
 ### How
 
-1. Configure a BYO LLM under **Admin** (optional). Offline fallbacks still work.
+1. Configure a BYO LLM under **Admin** → Configure LLM (or `sc5 llm add`). Optional — offline intents still handle phrases like “list sessions” / “setup reverse shell on 4444”.
 2. Click **INKO** in the top bar (needs `ai:use` or `admin`).
-3. Pick an LLM connection in the flyout, ask INKO to inspect or act.
-4. Approve HITL when policy requires it. Review audit for tool calls.
+3. Pick an LLM connection, ask INKO to inspect or act.
+4. Approve HITL when policy requires it. Review audit for `ai.chat.tool.*` / `ai.admin.chat`.
+
+### Chat API
+
+```http
+POST /api/v1/ai/chat
+Authorization: Bearer <token with ai:use|admin>
+Content-Type: application/json
+
+{
+  "message": "Setup a reverse shell listener on 4444 and start it",
+  "history": [{"role": "user", "content": "…"}, {"role": "assistant", "content": "…"}],
+  "llm_id": optional,
+  "max_rounds": 6
+}
+```
+
+Response includes `reply`, `mode` (`llm`|`offline`), and `tool_trace` (which railed tools ran).
+
+Tool catalog (no secrets): `GET /api/v1/ai/tools`.
+
+Railed tools include (scopes + policy enforced): `list_sessions`, `get_session`, `list_listeners`, `create_listener`, `start_listener`, `stop_listener`, `list_tasks`, `create_task`, `generate_payload`, `get_metrics`, `list_recent_events`, `list_audit`, `interact_shell` (HITL when required), and related helpers.
 
 ### Example (CLI capabilities)
 
@@ -588,7 +610,7 @@ sc5 ai shell_classify --data "session looks like scanner"
 
 ### Admin AI (structured capabilities)
 
-Legacy name for the sandboxed capability runner behind INKO. Fixed functions with structured inputs (not an open agent loop).
+Server name for the sandboxed **capability runner** behind INKO (`POST /api/v1/ai/run`). Fixed functions with structured inputs — not an open agent loop.
 
 | Capability | Intent |
 |------------|--------|
@@ -597,6 +619,7 @@ Legacy name for the sandboxed capability runner behind INKO. Fixed functions wit
 | `payload_template` | Template guidance |
 | `phishing_asset` | Authorized phishing content assist |
 | `doc_generate` | Engagement documentation drafts |
+| `session_triage` / `task_suggest` / `opsec_review` / … | See full allow-list in product |
 
 **Phishing-related capabilities** exist only for **authorized** engagements (phishing simulations under ROE).
 
@@ -614,12 +637,17 @@ INKO / Admin AI need a model; keys must never return in status APIs or git.
 
 ### How
 
+**Ops UI:** **Admin** → Configure LLM (provider presets: xAI, OpenAI, Groq, OpenRouter, Ollama, …). Paste API key → **Refresh models** (server proxies `/models`, SSRF-guarded). Keys encrypted at rest; never returned by API.
+
+**CLI:**
+
 ```bash
-sc5 llm add grok-prod grok-4 --provider xai --base-url https://api.x.ai/v1 --api-key "$XAI_KEY"
+sc5 llm add grok-prod grok-3 --provider xai --base-url https://api.x.ai/v1 --api-key "$XAI_KEY"
 sc5 llm list
 ```
 
-Status: `GET /api/v1/ai/status` shows provider/model presence, **not** the key.
+Status: `GET /api/v1/ai/status` shows provider/model presence, **not** the key.  
+Models probe: `POST /api/v1/llm/models` (admin / `llm:manage` only).
 
 ---
 
