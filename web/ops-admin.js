@@ -344,6 +344,12 @@
 
   /* —— Context rail —— */
   let ctxBoundSid = null;
+  function bindCtxChrome() {
+    if (el("ctxClose")) el("ctxClose").onclick = () => openCtxSheet(false);
+    if (el("ctxBackdrop")) el("ctxBackdrop").onclick = () => openCtxSheet(false);
+  }
+  bindCtxChrome();
+
   function bindContextHandlers() {
     if (el("ctxClaim")) el("ctxClaim").onclick = async () => {
       try {
@@ -458,6 +464,22 @@
     bindContextHandlers();
   }
 
+  function isMobileShell() {
+    try { return window.matchMedia && window.matchMedia("(max-width: 900px)").matches; } catch (_) { return false; }
+  }
+  function openCtxSheet(open) {
+    const rail = el("ctxRail");
+    const bd = el("ctxBackdrop");
+    if (!rail) return;
+    if (!isMobileShell()) {
+      rail.classList.remove("open");
+      if (bd) bd.classList.add("hidden");
+      return;
+    }
+    const show = open !== false && !!selectedId;
+    rail.classList.toggle("open", show);
+    if (bd) bd.classList.toggle("hidden", !show);
+  }
   function selectSession(id) {
     selectedId = id || null;
     state.selectedId = selectedId;
@@ -478,6 +500,7 @@
     }
     if (el("pxSid")) el("pxSid").textContent = selectedId || "(none — pick in Sessions)";
     renderContext();
+    openCtxSheet(!!selectedId);
     if (el("tskList")) loadTasksPanel();
   }
   window.__SC5_selectSession = selectSession;
@@ -598,10 +621,11 @@
     if (el("tskReload")) el("tskReload").onclick = () => loadTasksPanel();
     if (el("tskCancel")) el("tskCancel").onclick = () => cancelSelectedTask();
     if (el("tskSave")) el("tskSave").onclick = () => saveSelectedTask();
-    tools(` <button type="button" class="primary" id="toolNewShell">Focus rail</button>`);
+    tools(`<button type="button" class="primary" id="toolNewShell">Context</button>`);
     if (el("toolNewShell")) el("toolNewShell").onclick = () => {
       if (!selectedId) return showError("Select a session first");
-      renderContext();
+      renderContext(true);
+      openCtxSheet(true);
     };
     if (selectedId) selectSession(selectedId);
     loadTasksPanel();
@@ -1418,8 +1442,15 @@
     }
     setPageDocs(name || "dashboard");
     renderContext();
+    // Admin/AI hide ctx on desktop; on mobile keep sheet available when a session is selected
+    if (name === "admin" || name === "ai") {
+      if (!isMobileShell()) openCtxSheet(false);
+    } else if (selectedId && isMobileShell()) {
+      /* leave sheet closed until user re-selects unless already open */
+    }
   }
   window.__SC5_setPageDocs = setPageDocs;
+  window.__SC5_openCtx = openCtxSheet;
 
   window.__SC5_onView = renderView;
   window.__SC5_onRefresh = (data) => {
