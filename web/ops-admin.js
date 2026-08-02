@@ -35,18 +35,152 @@
     if (typeof m === "string") { try { m = JSON.parse(m); } catch (_) { m = {}; } }
     return m || {};
   }
-  function docLink(anchor, label) {
-    const href = DOCS + (anchor ? "#" + anchor : "");
-    return `<a class="doc-link" href="${href}" target="_blank" rel="noopener noreferrer">${label || "Docs ↗"}</a>`;
+  function docHref(anchor) {
+    return DOCS + (anchor ? "#" + anchor : "");
   }
-  function featDocs(anchor, blurb) {
-    return `<div class="feat-docs"><span class="muted">${blurb || ""}</span> ${docLink(anchor, "Docs ↗")}</div>`;
+  /** Per-page doc menus (single button in header — no spam links in body) */
+  const PAGE_DOCS = {
+    dashboard: [
+      { a: "status-overview", t: "Status overview" },
+      { a: "connection", t: "Connection" },
+      { a: "sessions", t: "Sessions" },
+    ],
+    sessions: [
+      { a: "sessions", t: "Sessions" },
+      { a: "shell", t: "Shell interact" },
+      { a: "tasks", t: "Tasks / beacons" },
+    ],
+    listeners: [
+      { a: "listeners", t: "Listeners" },
+      { a: "payloads-and-implants", t: "Payloads" },
+    ],
+    payloads: [
+      { a: "payloads-and-implants", t: "Payloads & implants" },
+      { a: "c2-profiles", t: "C2 profiles" },
+    ],
+    postex: [
+      { a: "file-ops", t: "File ops" },
+      { a: "socks-pivot", t: "SOCKS pivot" },
+      { a: "modules", t: "Inject / BOF" },
+    ],
+    collab: [
+      { a: "multi-operator-collab", t: "Multi-op collab" },
+      { a: "operator-chat", t: "Operator chat" },
+      { a: "hitl", t: "HITL queue" },
+    ],
+    ai: [
+      { a: "admin-ai", t: "Admin AI" },
+      { a: "llm-connections", t: "LLM connections" },
+    ],
+    observe: [
+      { a: "timeline-and-reports", t: "Timeline & reports" },
+      { a: "audit-me", t: "Audit" },
+    ],
+    admin: [
+      { a: "tokens", t: "Tokens" },
+      { a: "feature-toggles", t: "Feature toggles" },
+      { a: "policy", t: "Policy" },
+      { a: "llm-connections", t: "LLM connections" },
+      { a: "mcp-tools", t: "MCP tools" },
+    ],
+  };
+  function setPageDocs(viewName) {
+    const btn = el("viewDocsBtn");
+    const menu = el("viewDocsMenu");
+    if (!btn || !menu) return;
+    const items = PAGE_DOCS[viewName] || [{ a: "", t: "User guide" }];
+    menu.innerHTML = items.map((it) =>
+      `<a href="${esc(docHref(it.a))}" target="_blank" rel="noopener noreferrer">${esc(it.t)}</a>`
+    ).join("") +
+      `<a href="${esc(DOCS)}" target="_blank" rel="noopener noreferrer">Full user guide</a>` +
+      `<a href="https://github.com/SquidSec/SquidC5/blob/master/docs/operator-runbook.md" target="_blank" rel="noopener noreferrer">Operator runbook</a>`;
+    menu.onclick = (e) => e.stopPropagation();
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      menu.classList.toggle("open");
+    };
   }
+  document.addEventListener("click", () => {
+    const menu = el("viewDocsMenu");
+    if (menu) menu.classList.remove("open");
+  });
   const AI_CAPS = [
     "recon_assist", "session_triage", "task_suggest", "shell_classify", "opsec_review",
     "payload_template", "evasion_suggest", "beacon_anomaly", "report_draft", "hitl_brief",
     "anomaly_explain", "profile_mutate", "implant_build_plan", "phishing_asset", "doc_generate",
   ];
+
+  function llmFormHtml(prefix) {
+    const canSave = can("llm:manage") || can("admin");
+    return `
+      <p class="muted" style="font-size:0.78rem;margin:0 0 8px">API keys encrypted at rest; never returned by API. xAI / OpenAI / local Ollama.</p>
+      <div class="form-grid">
+        <div><label>Name</label><input id="${prefix}Name" placeholder="grok-prod" /></div>
+        <div><label>Provider</label>
+          <select id="${prefix}Provider">
+            <option value="xai">xAI (Grok)</option>
+            <option value="openai">OpenAI-compatible</option>
+            <option value="ollama">Ollama (localhost)</option>
+          </select>
+        </div>
+        <div class="full"><label>Model</label><input id="${prefix}Model" placeholder="grok-3" value="grok-3" /></div>
+        <div class="full"><label>Base URL</label>
+          <input id="${prefix}Base" placeholder="https://api.x.ai/v1" value="https://api.x.ai/v1" />
+        </div>
+        <div class="full"><label>API key</label>
+          <input id="${prefix}Key" type="password" placeholder="xai-… / sk-… (never shown again)" autocomplete="off" />
+        </div>
+      </div>
+      <div class="row">
+        <button type="button" class="primary" id="${prefix}Save" ${canSave ? "" : "disabled"}>Save LLM</button>
+        <button type="button" id="${prefix}List">List saved</button>
+      </div>
+      <div class="outbox empty" id="${prefix}Out">—</div>`;
+  }
+  function bindLlmForm(prefix) {
+    if (el(prefix + "Provider")) el(prefix + "Provider").onchange = () => {
+      const p = el(prefix + "Provider").value;
+      if (p === "xai") {
+        el(prefix + "Base").value = "https://api.x.ai/v1";
+        if (!el(prefix + "Model").value || el(prefix + "Model").value === "gpt-4o-mini") el(prefix + "Model").value = "grok-3";
+      } else if (p === "openai") {
+        el(prefix + "Base").value = "https://api.openai.com/v1";
+        if (!el(prefix + "Model").value || el(prefix + "Model").value === "grok-3") el(prefix + "Model").value = "gpt-4o-mini";
+      } else if (p === "ollama") {
+        el(prefix + "Base").value = "http://127.0.0.1:11434/v1";
+        el(prefix + "Model").value = el(prefix + "Model").value || "llama3.2";
+      }
+    };
+    if (el(prefix + "Save")) el(prefix + "Save").onclick = async () => {
+      try {
+        const name = (el(prefix + "Name").value || "").trim();
+        const model = (el(prefix + "Model").value || "").trim();
+        const base_url = (el(prefix + "Base").value || "").trim();
+        const api_key = (el(prefix + "Key").value || "").trim();
+        const provider = el(prefix + "Provider").value || "openai";
+        if (!name || !model) return showError("Name and model required");
+        if (!api_key && provider !== "ollama") return showError("API key required (except local Ollama)");
+        const body = {
+          name, provider, model,
+          base_url: base_url || null,
+          api_key: api_key || null,
+          capabilities: AI_CAPS,
+        };
+        const r = await api("POST", "/api/v1/llm", body);
+        el(prefix + "Out").textContent = JSON.stringify(r, null, 2);
+        el(prefix + "Out").classList.remove("empty");
+        if (el(prefix + "Key")) el(prefix + "Key").value = "";
+        showOk("LLM saved (key encrypted at rest)");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el(prefix + "List")) el(prefix + "List").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/llm");
+        el(prefix + "Out").textContent = JSON.stringify(r, null, 2);
+        el(prefix + "Out").classList.remove("empty");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
 
   /* —— Context rail —— */
   let ctxBoundSid = null;
@@ -99,7 +233,7 @@
     if (!body) return;
     if (!selectedId) {
       ctxBoundSid = null;
-      body.innerHTML = `<div class="ctx-empty">Select a session from <strong>Sessions</strong> to claim, shell, or task it. ${docLink("sessions")}</div>`;
+      body.innerHTML = `<div class="ctx-empty">Select a session from <strong>Sessions</strong> to claim, shell, or task it.</div>`;
       return;
     }
     let s = cache.sessions.find((x) => x.id === selectedId);
@@ -132,7 +266,6 @@
         ${can("shell:interact") || can("collab:use") ? '<button type="button" class="primary" id="ctxClaim">Claim</button>' : ""}
         ${can("shell:interact") || can("collab:use") ? '<button type="button" id="ctxRelease">Release</button>' : ""}
         ${can("sessions:read") ? '<button type="button" id="ctxSpectate">Spectate</button>' : ""}
-        ${docLink("shell", "Shell docs")}
       </div>
       ${shellOk ? `
         <label for="ctxCmd">Shell command</label>
@@ -234,19 +367,17 @@
     }
     const rows = cache.sessions || [];
     root.innerHTML = `
-      ${featDocs("sessions", "Beacons and reverse shells. Select a row — context rail stays on the right.")}
       <div class="split">
         <div class="list-panel">
-          <div class="lp-head">Active <span id="sesCount" style="margin-left:auto" class="muted">${rows.length}</span>
-            ${docLink("sessions", "Docs")}</div>
+          <div class="lp-head">Active <span id="sesCount" style="margin-left:auto" class="muted">${rows.length}</span></div>
           <div class="lp-body" id="sesListBody">
             ${rows.length
               ? `<table class="data"><thead><tr><th>Session</th><th>Kind</th><th>Host</th></tr></thead><tbody id="sesTbody"></tbody></table>`
-              : '<div class="empty-state" id="sesEmpty"><strong>No sessions</strong>Land a beacon or reverse shell. ' + docLink("sessions") + "</div>"}
+              : '<div class="empty-state" id="sesEmpty"><strong>No sessions</strong>Land a beacon or reverse shell.</div>'}
           </div>
         </div>
         <div class="work-panel">
-          <div class="wp-head">Session actions ${docLink("shell")}</div>
+          <div class="wp-head">Session actions</div>
           <div class="wp-body">
             <div class="toolbar">
               ${can("sessions:write") ? '<button type="button" id="sesReap">Reap dead</button>' : ""}
@@ -259,7 +390,7 @@
             </p>
             <div id="sesDetail" class="outbox empty" style="margin-top:12px">Select a session…</div>
             <div class="wp-head" style="margin-top:12px;border-top:1px solid var(--border);padding-top:8px">
-              Pending tasks ${docLink("tasks")}
+              Pending tasks
             </div>
             <div class="toolbar" style="margin-top:6px">
               <button type="button" id="tskReload">Reload tasks</button>
@@ -307,7 +438,7 @@
     if (el("tskReload")) el("tskReload").onclick = () => loadTasksPanel();
     if (el("tskCancel")) el("tskCancel").onclick = () => cancelSelectedTask();
     if (el("tskSave")) el("tskSave").onclick = () => saveSelectedTask();
-    tools(`${docLink("sessions", "Sessions docs")} <button type="button" class="primary" id="toolNewShell">Focus rail</button>`);
+    tools(` <button type="button" class="primary" id="toolNewShell">Focus rail</button>`);
     if (el("toolNewShell")) el("toolNewShell").onclick = () => {
       if (!selectedId) return showError("Select a session first");
       renderContext();
@@ -423,17 +554,16 @@
       return;
     }
     root.innerHTML = `
-      ${featDocs("listeners", "Create and control acceptors. Reverse shells need reverse_shell; beacons need http/dns/ws.")}
       <div class="split">
         <div class="list-panel">
-          <div class="lp-head">Listeners ${docLink("listeners")}</div>
+          <div class="lp-head">Listeners</div>
           <div class="lp-body">
             <table class="data"><thead><tr><th>Name</th><th>Port</th><th>Kind</th><th>Status</th></tr></thead>
             <tbody id="lisTbody"></tbody></table>
           </div>
         </div>
         <div class="work-panel">
-          <div class="wp-head">Manage ${docLink("listeners")}</div>
+          <div class="wp-head">Manage</div>
           <div class="wp-body">
             ${can("listeners:write") ? `
               <p class="muted mono" id="lisIdHint" style="font-size:0.72rem;margin:0 0 6px">Select a listener to load fields</p>
@@ -526,9 +656,8 @@
     if (!root) return;
     const host = (() => { try { return location.hostname || "127.0.0.1"; } catch (_) { return "127.0.0.1"; } })();
     root.innerHTML = `
-      ${featDocs("payloads-and-implants", "Deterministic templates only. Point host/port at a running listener.")}
       <div class="work-panel" style="min-height:360px">
-        <div class="wp-head">Generate ${docLink("payloads-and-implants")}</div>
+        <div class="wp-head">Generate</div>
         <div class="wp-body">
           ${can("payloads:generate") ? `
             <div class="form-grid">
@@ -579,14 +708,12 @@
     const root = el("view-postex");
     if (!root) return;
     root.innerHTML = `
-      ${featDocs("file-ops", "File ops, SOCKS pivots, and lab BOF modules on the selected session.")}
       <p class="muted" style="margin:0 0 10px;font-size:0.85rem">
         Target session: <strong class="mono" id="pxSid">${esc(selectedId || "(none — pick in Sessions)")}</strong>
-        · ${docLink("socks-pivot", "SOCKS docs")} · ${docLink("modules", "Modules docs")}
       </p>
       <div class="form-grid">
         <div class="work-panel">
-          <div class="wp-head">Files ${docLink("file-ops")}</div>
+          <div class="wp-head">Files</div>
           <div class="wp-body">
             <label>Op</label>
             <select id="pxOp"><option>list</option><option>read</option><option>write</option><option>delete</option></select>
@@ -657,10 +784,9 @@
     const root = el("view-collab");
     if (!root) return;
     root.innerHTML = `
-      ${featDocs("multi-operator-collab", "Teams, claim/handoff, presence, and operator chat.")}
       <div class="form-grid">
         <div class="work-panel">
-          <div class="wp-head">Chat ${docLink("operator-chat")}</div>
+          <div class="wp-head">Chat</div>
           <div class="wp-body">
             <label>Team channel (optional id)</label>
             <input id="chTeam" placeholder="leave empty for global" />
@@ -753,14 +879,12 @@
     const root = el("view-observe");
     if (!root) return;
     root.innerHTML = `
-      ${featDocs("timeline-and-reports", "Metrics, audit chain, ATT&CK timeline, and engagement reports.")}
       <div class="toolbar">
         <button type="button" class="primary" id="obMetrics">Metrics</button>
         <button type="button" id="obAudit">My audit</button>
         <button type="button" id="obTimeline">Timeline</button>
         <button type="button" id="obReport">Report</button>
         <button type="button" id="obAnom">Anomalies</button>
-        ${docLink("timeline-and-reports", "Docs ↗")}
       </div>
       <div class="outbox empty" id="obOut" style="max-height:480px">—</div>
     `;
@@ -784,19 +908,18 @@
     const root = el("view-ai");
     if (!root) return;
     if (!can("ai:use") && !can("admin")) {
-      root.innerHTML = `<div class="empty-state"><strong>AI locked</strong>Need <code>ai:use</code> scope. ${docLink("admin-ai")}</div>`;
+      root.innerHTML = `<div class="empty-state"><strong>AI locked</strong>Need <code>ai:use</code> scope.</div>`;
       return;
     }
     root.innerHTML = `
-      ${featDocs("admin-ai", "Sandboxed Admin AI — allow-listed capabilities only. Uses configured LLM (BYO) or offline fallback.")}
       <div class="form-grid">
         <div class="work-panel">
-          <div class="wp-head">Run capability ${docLink("admin-ai")}</div>
+          <div class="wp-head">Run capability</div>
           <div class="wp-body">
             <label>Capability</label>
             <select id="aiCap">${AI_CAPS.map((c) => `<option value="${c}">${c}</option>`).join("")}</select>
             <label>Input (untrusted — sanitized server-side)</label>
-            <textarea id="aiData" rows="5" placeholder="Describe target, paste metrics text, ask for recon assist…"></textarea>
+            <textarea id="aiData" rows="4" placeholder="Describe target, paste metrics text, ask for recon assist…"></textarea>
             <div class="row">
               <button type="button" class="primary" id="aiRun">Run</button>
               <button type="button" id="aiStatus">AI status</button>
@@ -806,15 +929,12 @@
           </div>
         </div>
         <div class="work-panel">
-          <div class="wp-head">LLM connections ${docLink("llm-connections")}</div>
-          <div class="wp-body">
-            <div class="row"><button type="button" id="aiLlmList">List LLMs</button></div>
-            <div class="outbox empty" id="aiLlmOut">—</div>
-            <p class="muted" style="font-size:0.78rem;margin-top:8px">Configure LLMs under Admin or <code>sc5 llm add</code>. Keys never returned by API.</p>
-          </div>
+          <div class="wp-head">Configure LLM (BYO)</div>
+          <div class="wp-body">${llmFormHtml("llm")}</div>
         </div>
       </div>
     `;
+    bindLlmForm("llm");
     if (el("aiRun")) el("aiRun").onclick = () => runAi(el("aiCap").value, el("aiData").value, "aiOut");
     if (el("aiStatus")) el("aiStatus").onclick = async () => {
       try {
@@ -823,15 +943,9 @@
         el("aiOut").classList.remove("empty");
       } catch (e) { showError(String(e.message || e)); }
     };
-    if (el("aiLlmList")) el("aiLlmList").onclick = async () => {
-      try {
-        const r = await api("GET", "/api/v1/llm");
-        el("aiLlmOut").textContent = JSON.stringify(r, null, 2);
-        el("aiLlmOut").classList.remove("empty");
-      } catch (e) { showError(String(e.message || e)); }
-    };
     if (el("aiOpenDrawer")) el("aiOpenDrawer").onclick = () => openAiDrawer(true);
   }
+
 
   async function runAi(capability, user_data, outId) {
     try {
@@ -933,10 +1047,9 @@
       "tokens:manage", "llm:manage", "policy:manage", "plugins:manage", "admin",
     ];
     root.innerHTML = `
-      ${featDocs("feature-toggles", "Tokens, policy engine, feature flags. High-risk — admin only where required.")}
       <div class="form-grid">
         <div class="work-panel">
-          <div class="wp-head">Mint token ${docLink("tokens")}</div>
+          <div class="wp-head">Mint token</div>
           <div class="wp-body">
             <label>Name</label><input id="adName" placeholder="operator-1" />
             <label>Scopes</label>
@@ -957,7 +1070,7 @@
           </div>
         </div>
         <div class="work-panel">
-          <div class="wp-head">Policy / features ${docLink("feature-toggles")}</div>
+          <div class="wp-head">Policy / features</div>
           <div class="wp-body">
             <div class="row">
               <button type="button" id="adPolGet">Get policy</button>
@@ -967,8 +1080,14 @@
             <div class="outbox empty" id="adOut" style="max-height:360px;flex:1">—</div>
           </div>
         </div>
+        ${(can("llm:manage") || can("admin")) ? `
+        <div class="work-panel full">
+          <div class="wp-head">Configure LLM (BYO)</div>
+          <div class="wp-body">${llmFormHtml("adLlm")}</div>
+        </div>` : ""}
       </div>
     `;
+    if (can("llm:manage") || can("admin")) bindLlmForm("adLlm");
     function selectedScopes() {
       return Array.from(document.querySelectorAll(".ad-scope:checked")).map((c) => c.value);
     }
@@ -1018,8 +1137,10 @@
       case "admin": renderAdminView(); break;
       default: break;
     }
+    setPageDocs(name || "dashboard");
     renderContext();
   }
+  window.__SC5_setPageDocs = setPageDocs;
 
   window.__SC5_onView = renderView;
   window.__SC5_onRefresh = (data) => {

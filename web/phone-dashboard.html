@@ -249,7 +249,6 @@
     .view.active {
       display: flex; flex-direction: column; height: 100%; min-height: 0;
     }
-    .view.active > .feat-docs { flex-shrink: 0; }
     .view.active > .split,
     .view.active > .form-grid,
     .view.active > .work-panel {
@@ -339,16 +338,23 @@
       text-align: center; padding: 32px 16px; color: var(--muted);
     }
     .empty-state strong { display: block; color: var(--text); margin-bottom: 6px; font-size: 0.95rem; }
-    a.doc-link {
-      color: var(--pink2); font-weight: 600; text-decoration: none;
-      border-bottom: 1px solid rgba(233,30,140,0.35); font-size: 0.78rem;
+    .docs-drop { position: relative; flex-shrink: 0; }
+    .docs-drop > button {
+      font-size: 0.78rem; padding: 5px 10px;
     }
-    a.doc-link:hover { color: #fff; border-bottom-color: var(--pink2); }
-    .feat-docs {
-      display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;
-      margin: 0 0 10px; font-size: 0.78rem;
+    .docs-menu {
+      display: none; position: absolute; right: 0; top: calc(100% + 4px);
+      min-width: 200px; background: var(--bg3); border: 1px solid var(--border2);
+      border-radius: 8px; padding: 6px; z-index: 30;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.45);
     }
-    .main-head .doc-link { flex-shrink: 0; }
+    .docs-menu.open { display: flex; flex-direction: column; gap: 2px; }
+    .docs-menu a {
+      display: block; padding: 8px 10px; border-radius: 6px;
+      color: var(--text); text-decoration: none; font-size: 0.8rem; font-weight: 500;
+      border-bottom: none;
+    }
+    .docs-menu a:hover { background: rgba(233,30,140,0.15); color: var(--pink2); }
 
     /* Global AI FAB + drawer */
     .ai-fab {
@@ -509,7 +515,10 @@
           <h2 id="viewTitle">Dashboard</h2>
           <div class="sub" id="viewSub">Overview of this teamserver</div>
         </div>
-        <a class="doc-link" id="viewDocs" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md" target="_blank" rel="noopener noreferrer" title="Documentation">Docs ↗</a>
+        <div class="docs-drop" id="docsDrop">
+          <button type="button" id="viewDocsBtn" title="Documentation for this page">Docs ▾</button>
+          <div class="docs-menu" id="viewDocsMenu"></div>
+        </div>
         <div class="tools" id="viewTools"></div>
       </div>
       <div class="main-body" id="mainBody">
@@ -728,12 +737,9 @@
     const meta = VIEWS[name] || VIEWS.dashboard;
     $("viewTitle").textContent = meta.title;
     $("viewSub").textContent = meta.sub;
-    if ($("viewDocs")) {
-      $("viewDocs").href = DOCS + (meta.doc ? "#" + meta.doc : "");
-      $("viewDocs").textContent = "Docs ↗";
-    }
     $("viewTools").innerHTML = "";
     if (window.__SC5_onView) window.__SC5_onView(name);
+    if (window.__SC5_setPageDocs) window.__SC5_setPageDocs(name);
     try { localStorage.setItem("sc5_ops_view", name); } catch (_) {}
   }
   window.__SC5_DOCS = DOCS;
