@@ -61,6 +61,28 @@
     .hidden { display: none !important; }
     a { color: var(--pink2); }
 
+    /* Themed scrollbars */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(233,30,140,0.45) rgba(255,255,255,0.04);
+    }
+    *::-webkit-scrollbar { width: 10px; height: 10px; }
+    *::-webkit-scrollbar-track {
+      background: rgba(255,255,255,0.03);
+      border-radius: 999px;
+    }
+    *::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(233,30,140,0.55), rgba(167,139,250,0.4));
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, rgba(244,114,182,0.75), rgba(167,139,250,0.55));
+      background-clip: padding-box;
+    }
+    *::-webkit-scrollbar-corner { background: transparent; }
+
     /* —— App shell —— */
     .app {
       display: grid;
@@ -121,7 +143,27 @@
     .pill.live { color: var(--pink2); border-color: rgba(233,30,140,0.4); }
     .top button { padding: 5px 10px; font-size: 0.78rem; }
 
-    /* Sidebar */
+    /* Sidebar / mobile drawer */
+    .nav-burger {
+      display: none;
+      flex-shrink: 0;
+      width: 40px; height: 36px; padding: 0;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 5px;
+    }
+    .nav-burger span {
+      display: block; width: 18px; height: 2px;
+      background: var(--text); border-radius: 2px;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    .app.nav-open .nav-burger span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .app.nav-open .nav-burger span:nth-child(2) { opacity: 0; }
+    .app.nav-open .nav-burger span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    .nav-backdrop {
+      display: none; position: fixed; inset: 0; z-index: 54;
+      background: rgba(0,0,0,0.55);
+    }
+    .nav-backdrop.show { display: block; }
     .side {
       grid-area: side;
       background: var(--bg2);
@@ -210,20 +252,63 @@
       background: rgba(0,0,0,0.55);
     }
 
-    /* Bottom console */
+    /* Bottom console — resizable height + pane split */
     .bottom {
       grid-area: bottom;
       border-top: 1px solid var(--border);
       background: #0a0a0e;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
+      flex-direction: column;
       min-height: 0;
+      position: relative;
+    }
+    .bottom-resize {
+      flex: 0 0 10px;
+      cursor: ns-resize;
+      background: transparent;
+      position: relative;
+      z-index: 6;
+      touch-action: none;
+    }
+    .bottom-resize::after {
+      content: "";
+      position: absolute; left: 50%; top: 3px;
+      width: 48px; height: 3px; margin-left: -24px;
+      border-radius: 999px;
+      background: rgba(233,30,140,0.45);
+    }
+    .bottom-resize:hover::after,
+    .bottom-resize.dragging::after {
+      background: rgba(244,114,182,0.9);
+      box-shadow: 0 0 10px rgba(233,30,140,0.45);
+    }
+    .bottom-panes {
+      flex: 1;
+      display: grid;
+      grid-template-columns: var(--pane-split, 1fr 6px 1fr);
+      min-height: 0;
+      min-width: 0;
     }
     .bottom-pane {
       display: flex; flex-direction: column; min-height: 0; min-width: 0;
-      border-right: 1px solid var(--border);
     }
-    .bottom-pane:last-child { border-right: 0; }
+    .pane-vsplit {
+      cursor: ew-resize;
+      background: rgba(255,255,255,0.06);
+      position: relative;
+      touch-action: none;
+      z-index: 5;
+    }
+    .pane-vsplit::after {
+      content: "";
+      position: absolute; top: 50%; left: 50%;
+      width: 3px; height: 28px; margin: -14px 0 0 -1.5px;
+      border-radius: 999px; background: rgba(233,30,140,0.4);
+    }
+    .pane-vsplit:hover::after,
+    .pane-vsplit.dragging::after {
+      background: rgba(244,114,182,0.9);
+    }
     .bottom-pane .bp-head {
       display: flex; align-items: center; gap: 8px;
       padding: 4px 10px; border-bottom: 1px solid var(--border);
@@ -238,6 +323,12 @@
       flex: 1; overflow: auto; padding: 6px 10px;
       font-family: var(--mono); font-size: 0.72rem; line-height: 1.4;
       color: #c4c4d0; white-space: pre-wrap; word-break: break-word;
+      min-height: 0;
+    }
+    .ink-brand {
+      background: linear-gradient(90deg, var(--pink2), var(--purple));
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent; font-weight: 800; letter-spacing: 0.04em;
     }
 
     /* Content primitives */
@@ -463,11 +554,10 @@
       }
       body { overflow: hidden; }
       .app {
-        grid-template-rows: var(--top-h) var(--nav-h) 1fr var(--bottom-h);
+        grid-template-rows: var(--top-h) 1fr var(--bottom-h);
         grid-template-columns: 1fr;
         grid-template-areas:
           "top"
-          "side"
           "main"
           "bottom";
         height: 100dvh;
@@ -476,24 +566,21 @@
         padding-bottom: env(safe-area-inset-bottom, 0px);
       }
       .app.no-bottom {
-        grid-template-rows: var(--top-h) var(--nav-h) 1fr;
+        grid-template-rows: var(--top-h) 1fr;
         grid-template-areas:
           "top"
-          "side"
           "main";
       }
       .app.no-ctx {
         grid-template-columns: 1fr;
         grid-template-areas:
           "top"
-          "side"
           "main"
           "bottom";
       }
       .app.no-bottom.no-ctx {
         grid-template-areas:
           "top"
-          "side"
           "main";
       }
 
@@ -532,33 +619,44 @@
       }
       .top #btnRefresh { min-width: 36px; padding: 0 8px; }
 
-      /* —— Horizontal nav (easy swipe scroll) —— */
+      /* —— Hamburger drawer nav —— */
+      .nav-burger { display: inline-flex; }
       .side {
-        position: sticky; top: var(--top-h); z-index: 45;
-        flex-direction: row; border-right: 0; border-bottom: 1px solid var(--border);
-        overflow: hidden; height: var(--nav-h); max-height: var(--nav-h);
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: min(300px, 86vw);
+        z-index: 55;
+        border-right: 1px solid var(--border2);
+        box-shadow: 16px 0 40px rgba(0,0,0,0.45);
+        transform: translateX(-105%);
+        transition: transform 0.22s ease;
+        height: 100dvh;
+        max-height: none;
+        padding-top: env(safe-area-inset-top, 0px);
         background: var(--bg2);
       }
+      .app.nav-open .side { transform: translateX(0); }
       .side-nav {
-        flex-direction: row; align-items: center;
-        padding: 4px 8px; gap: 6px;
-        overflow-x: auto; overflow-y: hidden;
+        flex-direction: column;
+        padding: 12px 10px;
+        gap: 4px;
+        overflow-y: auto;
         -webkit-overflow-scrolling: touch;
-        overscroll-behavior-x: contain;
-        scroll-snap-type: x proximity;
         flex: 1;
-        scrollbar-width: none;
       }
-      .side-nav::-webkit-scrollbar { display: none; }
       .nav-item {
-        white-space: nowrap; flex: 0 0 auto;
-        padding: 8px 14px; min-height: 38px;
-        font-size: 0.8rem; scroll-snap-align: start;
+        width: 100%;
+        padding: 14px 14px;
+        min-height: 48px;
+        font-size: 1rem;
         border: 1px solid var(--border);
       }
-      .nav-item .badge-n { display: none; }
-      .nav-item .ico { display: none; }
-      .side-foot { display: none; }
+      .nav-item .ico { display: inline-block; font-size: 1.05rem; }
+      .nav-item .badge-n { display: inline-block; }
+      .side-foot {
+        display: block;
+        padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+      }
 
       /* —— Context as scrollable bottom sheet —— */
       .ctx {
@@ -633,11 +731,19 @@
         -webkit-overflow-scrolling: touch;
         min-height: 0;
       }
-      .bottom {
+      .bottom { min-height: 0; }
+      .bottom-panes {
         grid-template-columns: 1fr;
-        min-height: 0;
+        grid-template-rows: var(--pane-stack, 1fr 6px 1fr);
       }
-      .bottom-pane:first-child { border-right: 0; border-bottom: 1px solid var(--border); max-height: 50%; }
+      .pane-vsplit {
+        cursor: ns-resize;
+        width: auto; height: 6px;
+      }
+      .pane-vsplit::after {
+        width: 36px; height: 3px; top: 50%; left: 50%;
+        margin: -1.5px 0 0 -18px;
+      }
       .bottom-pane .bp-body {
         font-size: 0.68rem;
         overflow-y: auto;
@@ -684,6 +790,9 @@
 <body>
   <div class="app" id="app">
     <header class="top">
+      <button type="button" class="nav-burger" id="navBurger" title="Menu" aria-label="Open navigation" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
       <img class="logo" src="/ops/assets/squidsec-logo-96.png" alt=""
            onerror="this.src='/ops/assets/squidsec-logo-256.png'" />
       <div class="title">SQUID<span>C5</span></div>
@@ -697,7 +806,8 @@
       <button type="button" id="btnRefresh" title="Refresh data">↻</button>
     </header>
 
-    <nav class="side" aria-label="Primary">
+    <div class="nav-backdrop" id="navBackdrop" hidden></div>
+    <nav class="side" id="sideNavPanel" aria-label="Primary">
       <div class="side-nav" id="sideNav">
         <button type="button" class="nav-item active" data-view="dashboard"><span class="ico">▣</span> Dashboard</button>
         <button type="button" class="nav-item" data-view="sessions"><span class="ico">◉</span> Sessions <span class="badge-n" id="navNSes">0</span></button>
@@ -705,7 +815,7 @@
         <button type="button" class="nav-item" data-view="payloads"><span class="ico">⌘</span> Payloads</button>
         <button type="button" class="nav-item" data-view="postex"><span class="ico">⚡</span> Post-Ex</button>
         <button type="button" class="nav-item" data-view="collab"><span class="ico">⇄</span> Collab</button>
-        <button type="button" class="nav-item" data-view="ai" id="navAi"><span class="ico">✦</span> AI</button>
+        <button type="button" class="nav-item" data-view="ai" id="navAi"><span class="ico">◈</span> INK</button>
         <button type="button" class="nav-item" data-view="observe"><span class="ico">▤</span> Observe</button>
         <button type="button" class="nav-item hidden" data-view="admin" id="navAdmin"><span class="ico">⚙</span> Admin</button>
       </div>
@@ -760,22 +870,24 @@
       </div>
     </main>
 
-    <!-- Global AI assistant (all pages) -->
-    <button type="button" id="aiFab" class="ai-fab hidden" title="Admin AI assistant">✦ AI</button>
-    <div id="aiDrawer" class="ai-drawer hidden" aria-label="Admin AI chat">
+    <!-- INK — SquidC5 neural operator (global) -->
+    <button type="button" id="aiFab" class="ai-fab hidden" title="INK — neural operator">◈ INK</button>
+    <div id="aiDrawer" class="ai-drawer hidden" aria-label="INK chat">
       <div class="ai-drawer-head">
-        <strong>Admin AI</strong>
+        <strong class="ink-brand">◈ INK</strong>
+        <span class="muted" style="font-size:0.68rem;font-weight:500">neural operator</span>
         <a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#admin-ai" target="_blank" rel="noopener noreferrer" style="font-size:0.7rem">Docs</a>
         <button type="button" id="aiDrawerClose" style="margin-left:auto">✕</button>
       </div>
       <div class="ai-drawer-body" id="aiChatLog"></div>
       <div class="ai-drawer-foot">
         <select id="aiLlmGlobal" title="LLM connection"></select>
-        <textarea id="aiPromptGlobal" rows="3" placeholder="Ask anything — e.g. list sessions, setup reverse shell on 4444…"></textarea>
+        <textarea id="aiPromptGlobal" rows="3" placeholder="Ask INK anything — list sessions, spin up a listener…"></textarea>
         <div class="row" style="margin:0;gap:6px">
           <button type="button" class="primary" id="aiSendGlobal" style="flex:1">Send</button>
           <button type="button" id="aiClearGlobal" title="Clear chat">Clear</button>
         </div>
+        <p class="muted" style="margin:0;font-size:0.62rem">Enter to send · Shift+Enter newline</p>
       </div>
     </div>
 
@@ -791,14 +903,18 @@
     </aside>
     <div class="ctx-backdrop hidden" id="ctxBackdrop" aria-hidden="true"></div>
 
-    <footer class="bottom">
-      <div class="bottom-pane">
-        <div class="bp-head"><span class="live-dot"></span> Event stream <span class="muted" id="eventCount" style="margin-left:auto;text-transform:none;letter-spacing:0">0</span></div>
-        <div class="bp-body" id="eventsBox">Connect to stream events…</div>
-      </div>
-      <div class="bottom-pane">
-        <div class="bp-head">Output / console</div>
-        <div class="bp-body" id="consoleBox">Command and task output appears here.</div>
+    <footer class="bottom" id="bottomDock">
+      <div class="bottom-resize" id="bottomResize" title="Drag to resize panel height" role="separator" aria-orientation="horizontal"></div>
+      <div class="bottom-panes" id="bottomPanes">
+        <div class="bottom-pane" id="paneEvents">
+          <div class="bp-head"><span class="live-dot"></span> Event stream <span class="muted" id="eventCount" style="margin-left:auto;text-transform:none;letter-spacing:0">0</span></div>
+          <div class="bp-body" id="eventsBox">Connect to stream events…</div>
+        </div>
+        <div class="pane-vsplit" id="paneSplit" title="Drag to resize panes" role="separator" aria-orientation="vertical"></div>
+        <div class="bottom-pane" id="paneConsole">
+          <div class="bp-head">Output / console</div>
+          <div class="bp-body" id="consoleBox">Command and task output appears here.</div>
+        </div>
       </div>
     </footer>
   </div>
@@ -933,11 +1049,35 @@
     payloads: { title: "Payloads", sub: "Generate implants and templates", doc: "payloads-and-implants" },
     postex: { title: "Post-Ex", sub: "Files, SOCKS, modules on selected session", doc: "file-ops" },
     collab: { title: "Collab", sub: "Teams, chat, handoff, presence", doc: "multi-operator-collab" },
-    ai: { title: "Admin AI", sub: "Sandboxed allow-listed AI capabilities", doc: "admin-ai" },
+    ai: { title: "INK", sub: "Neural operator — chat, inspect, and drive the C5", doc: "admin-ai" },
     observe: { title: "Observe", sub: "Metrics, audit, timeline, reports", doc: "timeline-and-reports" },
     admin: { title: "Admin", sub: "Tokens, policy, features, LLM, MCP", doc: "feature-toggles" },
   };
   let currentView = "dashboard";
+  function closeNavDrawer() {
+    const app = $("app");
+    if (app) app.classList.remove("nav-open");
+    const b = $("navBurger");
+    if (b) b.setAttribute("aria-expanded", "false");
+    const bd = $("navBackdrop");
+    if (bd) { bd.classList.remove("show"); bd.hidden = true; }
+  }
+  function openNavDrawer() {
+    const app = $("app");
+    if (app) app.classList.add("nav-open");
+    const b = $("navBurger");
+    if (b) b.setAttribute("aria-expanded", "true");
+    const bd = $("navBackdrop");
+    if (bd) { bd.hidden = false; bd.classList.add("show"); }
+  }
+  function toggleNavDrawer() {
+    const app = $("app");
+    if (app && app.classList.contains("nav-open")) closeNavDrawer();
+    else openNavDrawer();
+  }
+  if ($("navBurger")) $("navBurger").onclick = (e) => { e.stopPropagation(); toggleNavDrawer(); };
+  if ($("navBackdrop")) $("navBackdrop").onclick = () => closeNavDrawer();
+
   function setView(name) {
     if (name === "admin" && !can("admin") && !can("tokens:manage") && !can("policy:manage")) name = "dashboard";
     if (name === "ai" && !can("ai:use") && !can("admin")) name = "dashboard";
@@ -950,7 +1090,6 @@
     });
     const app = document.querySelector(".app");
     if (app) {
-      // Admin: full width — hide session context + bottom event/output panes
       const focusAdmin = name === "admin";
       const focusWide = name === "admin" || name === "ai";
       app.classList.toggle("no-ctx", focusWide);
@@ -960,6 +1099,7 @@
     $("viewTitle").textContent = meta.title;
     $("viewSub").textContent = meta.sub;
     $("viewTools").innerHTML = "";
+    closeNavDrawer();
     if (window.__SC5_onView) window.__SC5_onView(name);
     if (window.__SC5_setPageDocs) window.__SC5_setPageDocs(name);
     try { localStorage.setItem("sc5_ops_view", name); } catch (_) {}
@@ -968,6 +1108,100 @@
   document.querySelectorAll(".nav-item").forEach((b) => {
     b.addEventListener("click", () => setView(b.getAttribute("data-view")));
   });
+
+  /* —— Resizable bottom dock —— */
+  (function setupBottomResize() {
+    const root = document.documentElement;
+    const app = $("app");
+    const hHandle = $("bottomResize");
+    const vHandle = $("paneSplit");
+    function loadH() {
+      try {
+        const v = parseInt(localStorage.getItem("sc5_bottom_h") || "", 10);
+        if (v >= 80 && v <= Math.floor(window.innerHeight * 0.7)) {
+          root.style.setProperty("--bottom-h", v + "px");
+        }
+      } catch (_) {}
+    }
+    function loadSplit() {
+      try {
+        const r = parseFloat(localStorage.getItem("sc5_pane_ratio") || "");
+        if (r > 0.15 && r < 0.85) {
+          const mobile = window.matchMedia("(max-width: 900px)").matches;
+          if (mobile) {
+            root.style.setProperty("--pane-stack", r + "fr 6px " + (1 - r) + "fr");
+          } else {
+            root.style.setProperty("--pane-split", r + "fr 6px " + (1 - r) + "fr");
+          }
+        }
+      } catch (_) {}
+    }
+    loadH();
+    loadSplit();
+    window.addEventListener("resize", () => loadSplit());
+
+    function drag(handle, onMove, onEnd) {
+      if (!handle) return;
+      let active = false;
+      const start = (e) => {
+        if (app && app.classList.contains("no-bottom")) return;
+        active = true;
+        handle.classList.add("dragging");
+        e.preventDefault();
+        const move = (ev) => {
+          if (!active) return;
+          const pt = ev.touches ? ev.touches[0] : ev;
+          onMove(pt.clientX, pt.clientY);
+        };
+        const end = () => {
+          active = false;
+          handle.classList.remove("dragging");
+          window.removeEventListener("mousemove", move);
+          window.removeEventListener("mouseup", end);
+          window.removeEventListener("touchmove", move);
+          window.removeEventListener("touchend", end);
+          if (onEnd) onEnd();
+        };
+        window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", end);
+        window.addEventListener("touchmove", move, { passive: false });
+        window.addEventListener("touchend", end);
+      };
+      handle.addEventListener("mousedown", start);
+      handle.addEventListener("touchstart", start, { passive: false });
+    }
+
+    drag(hHandle, (_x, y) => {
+      const h = Math.max(80, Math.min(window.innerHeight * 0.7, window.innerHeight - y));
+      root.style.setProperty("--bottom-h", Math.round(h) + "px");
+    }, () => {
+      try {
+        const cur = getComputedStyle(root).getPropertyValue("--bottom-h").trim();
+        const n = parseInt(cur, 10);
+        if (n) localStorage.setItem("sc5_bottom_h", String(n));
+      } catch (_) {}
+    });
+
+    drag(vHandle, (x, y) => {
+      const panes = $("bottomPanes");
+      if (!panes) return;
+      const rect = panes.getBoundingClientRect();
+      const mobile = window.matchMedia("(max-width: 900px)").matches;
+      let r;
+      if (mobile) {
+        r = (y - rect.top) / rect.height;
+      } else {
+        r = (x - rect.left) / rect.width;
+      }
+      r = Math.max(0.18, Math.min(0.82, r));
+      if (mobile) {
+        root.style.setProperty("--pane-stack", r + "fr 6px " + (1 - r) + "fr");
+      } else {
+        root.style.setProperty("--pane-split", r + "fr 6px " + (1 - r) + "fr");
+      }
+      try { localStorage.setItem("sc5_pane_ratio", String(r)); } catch (_) {}
+    });
+  })();
 
   /* —— Connect modal —— */
   function openModal() { $("connectModal").classList.add("show"); }
