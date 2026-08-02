@@ -324,13 +324,55 @@ class Database:
     async def get_task(self, task_id: str) -> dict[str, Any] | None:
         return await self.fetchone("SELECT * FROM tasks WHERE id = ?", (task_id,))
 
-    async def list_tasks(self, session_id: str | None = None) -> list[dict[str, Any]]:
+    async def cancel_task(self, task_id: str) -> bool:
+        """Cancel a pending task only (not running/completed)."""
+        cur = await self.execute(
+            """UPDATE tasks SET status = 'cancelled', completed_at = ?, result = COALESCE(result, '')
+               WHERE id = ? AND status = 'pending'""",
+            (_now(), task_id),
+        )
+        return cur.rowcount > 0
+
+    async def update_pending_task(
+        self,
+        task_id: str,
+        *,
+        command: str | None = None,
+        args: dict[str, Any] | None = None,
+    ) -> bool:
+        """Modify command/args on a pending task only."""
+        row = await self.get_task(task_id)
+        if not row or row.get("status") != "pending":
+            return False
+        new_cmd = command if command is not None else row.get("command")
+        if args is not None:
+            new_args = json.dumps(args)
+        else:
+            existing = row.get("args")
+            new_args = existing if isinstance(existing, str) else json.dumps(existing or {})
+        cur = await self.execute(
+            """UPDATE tasks SET command = ?, args = ? WHERE id = ? AND status = 'pending'""",
+            (new_cmd, new_args, task_id),
+        )
+        return cur.rowcount > 0
+
+    async def list_tasks(
+        self, session_id: str | None = None, *, status: str | None = None
+    ) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
         if session_id:
-            return await self.fetchall(
-                "SELECT * FROM tasks WHERE session_id = ? ORDER BY created_at DESC",
-                (session_id,),
-            )
-        return await self.fetchall("SELECT * FROM tasks ORDER BY created_at DESC LIMIT 200")
+            clauses.append("session_id = ?")
+            params.append(session_id)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(200)
+        return await self.fetchall(
+            f"SELECT * FROM tasks {where} ORDER BY created_at DESC LIMIT ?",
+            tuple(params),
+        )
 
     async def complete_task(
         self,

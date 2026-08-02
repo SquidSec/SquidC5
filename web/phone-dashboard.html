@@ -158,9 +158,10 @@
     .main-body {
       flex: 1; min-height: 0; overflow: auto;
       padding: 12px 14px;
+      display: flex; flex-direction: column;
     }
-    .view { display: none; height: 100%; }
-    .view.active { display: block; }
+    .view { display: none; flex: 1; min-height: 0; }
+    .view.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
     /* Context rail (session detail) */
     .ctx {
@@ -229,11 +230,12 @@
 
     .split {
       display: grid; grid-template-columns: minmax(240px, 340px) 1fr;
-      gap: 12px; height: calc(100% - 4px); min-height: 280px;
+      gap: 12px; flex: 1; min-height: 0; height: 100%;
     }
     .list-panel, .work-panel {
       background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
       display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+      height: 100%;
     }
     .list-panel .lp-head, .work-panel .wp-head {
       padding: 8px 10px; border-bottom: 1px solid var(--border);
@@ -241,9 +243,34 @@
       color: var(--muted); display: flex; align-items: center; gap: 8px; flex-shrink: 0;
     }
     .list-panel .lp-body, .work-panel .wp-body {
-      flex: 1; overflow: auto; min-height: 0;
+      flex: 1 1 auto; overflow: auto; min-height: 0;
     }
     .work-panel .wp-body { padding: 10px 12px; }
+    .view.active {
+      display: flex; flex-direction: column; height: 100%; min-height: 0;
+    }
+    .view.active > .feat-docs { flex-shrink: 0; }
+    .view.active > .split,
+    .view.active > .form-grid,
+    .view.active > .work-panel {
+      flex: 1 1 auto; min-height: 0;
+    }
+    .view.active > .form-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      align-content: stretch;
+    }
+    .view.active > .form-grid > .work-panel { min-height: 0; height: 100%; }
+    .scope-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 6px; margin: 8px 0; max-height: 220px; overflow: auto;
+      padding: 8px; background: #0e0e14; border: 1px solid var(--border); border-radius: 8px;
+    }
+    .scope-grid label {
+      display: flex; align-items: center; gap: 6px; margin: 0;
+      font-size: 0.72rem; text-transform: none; letter-spacing: 0; color: var(--text);
+      font-weight: 500; cursor: pointer;
+    }
+    .scope-grid input { width: auto; margin: 0; }
 
     table.data { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     table.data th, table.data td {
@@ -359,35 +386,86 @@
       .ai-drawer { bottom: 76px; right: 8px; left: 8px; width: auto; }
     }
 
-    /* Mobile: stack */
+    /* Mobile: stack — keep shell height, scroll main only */
     @media (max-width: 900px) {
+      :root {
+        --top-h: 52px;
+        --bottom-h: 28vh;
+        --sidebar-w: 100%;
+      }
+      body { overflow: hidden; }
       .app {
-        grid-template-rows: var(--top-h) auto 1fr minmax(120px, 28vh);
+        grid-template-rows: var(--top-h) 48px 1fr var(--bottom-h);
         grid-template-columns: 1fr;
         grid-template-areas:
           "top"
           "side"
           "main"
           "bottom";
-        overflow: auto;
+        height: 100dvh;
+        overflow: hidden;
       }
+      .top {
+        padding: 0 8px; gap: 6px; flex-wrap: nowrap;
+      }
+      .top .title { font-size: 0.85rem; }
+      .top .host { display: none; }
+      .top .sep { display: none; }
+      .top button { padding: 8px 10px; font-size: 0.75rem; min-height: 40px; }
       .side {
         flex-direction: row; border-right: 0; border-bottom: 1px solid var(--border);
-        overflow-x: auto; max-height: none;
+        overflow: hidden; max-height: 48px;
       }
       .side-nav {
-        flex-direction: row; padding: 6px; gap: 4px; overflow-x: auto;
+        flex-direction: row; padding: 4px 6px; gap: 4px;
+        overflow-x: auto; overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        flex: 1;
       }
-      .nav-item { white-space: nowrap; flex: 0 0 auto; padding: 8px 12px; }
+      .nav-item {
+        white-space: nowrap; flex: 0 0 auto; padding: 8px 12px;
+        min-height: 40px; font-size: 0.78rem;
+      }
       .nav-item .badge-n { display: none; }
+      .nav-item .ico { display: none; }
       .side-foot { display: none; }
       .ctx { display: none !important; }
-      .bottom { grid-template-columns: 1fr; }
-      .bottom-pane:first-child { border-right: 0; border-bottom: 1px solid var(--border); }
-      .split { grid-template-columns: 1fr; height: auto; }
-      .main-body { overflow: visible; }
-      body { overflow: auto; }
-      .app { height: auto; min-height: 100dvh; }
+      .main { min-height: 0; overflow: hidden; }
+      .main-head { padding: 8px 10px; flex-wrap: wrap; gap: 6px; }
+      .main-head h2 { font-size: 0.9rem; }
+      .main-body {
+        overflow: auto; padding: 10px;
+        -webkit-overflow-scrolling: touch;
+        min-height: 0;
+      }
+      .bottom {
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+      .bottom-pane:first-child { border-right: 0; border-bottom: 1px solid var(--border); max-height: 50%; }
+      .bottom-pane .bp-body { font-size: 0.68rem; }
+      .split {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: 0;
+        gap: 10px;
+      }
+      .list-panel, .work-panel {
+        height: auto;
+        min-height: 180px;
+        max-height: none;
+      }
+      .list-panel .lp-body { max-height: 40vh; }
+      .view.active { height: auto; display: block; }
+      .view.active > .form-grid {
+        grid-template-columns: 1fr;
+      }
+      .view.active > .form-grid > .work-panel { height: auto; min-height: 200px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .scope-grid { grid-template-columns: 1fr 1fr; max-height: 180px; }
+      button, .nav-item, input, select, textarea { font-size: 16px; } /* prevent iOS zoom */
+      input, select, textarea { padding: 10px; min-height: 42px; }
+      label { margin-top: 10px; }
     }
   </style>
 </head>

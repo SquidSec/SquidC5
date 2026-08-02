@@ -78,12 +78,37 @@ class TaskManager:
         row = await self.db.get_task(task_id)
         return self._norm(row) if row else None
 
-    async def list(self, session_id: str | None = None) -> list[dict[str, Any]]:
-        return [self._norm(r) for r in await self.db.list_tasks(session_id)]
+    async def list(
+        self, session_id: str | None = None, *, status: str | None = None
+    ) -> list[dict[str, Any]]:
+        return [self._norm(r) for r in await self.db.list_tasks(session_id, status=status)]
 
     async def poll(self, session_id: str) -> dict[str, Any] | None:
         row = await self.db.next_pending_task(session_id)
         return self._norm(row) if row else None
+
+    async def cancel(self, task_id: str) -> dict[str, Any]:
+        ok = await self.db.cancel_task(task_id)
+        if not ok:
+            raise KeyError("task not found or not pending")
+        await self.metrics.incr("tasks.cancelled")
+        await self.metrics.emit("task.cancelled", {"id": task_id})
+        row = await self.db.get_task(task_id)
+        return self._norm(row)  # type: ignore[arg-type]
+
+    async def update_pending(
+        self,
+        task_id: str,
+        *,
+        command: str | None = None,
+        args: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        ok = await self.db.update_pending_task(task_id, command=command, args=args)
+        if not ok:
+            raise KeyError("task not found or not pending")
+        await self.metrics.emit("task.updated", {"id": task_id})
+        row = await self.db.get_task(task_id)
+        return self._norm(row)  # type: ignore[arg-type]
 
     async def complete(
         self,
