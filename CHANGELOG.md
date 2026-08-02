@@ -12,12 +12,12 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 - SOCKS5 **duplex**: direct mode + implant reverse-dial bridge (`socks:connect`)
 - Local Ollama path via `SQUIDC5_LOCAL_LLM_*` when no cloud LLM configured
 - README badges fixed (live CI + SquidGate workflow shields)
-- Docs index links to five-star roadmap + implant paths
+- Docs: Diátaxis index, Artifacts / Profiles / OAST / TLS cert library chapters, Ops nav map
 
 ### Changed
 - Ops UI and chat system prompt use **INKO** naming; user guide / runbook / README / AGENTS updated
 - INKO chat: **persisted history** (browser localStorage), clear input on send, pending indicator, block send while waiting, **markdown** rendering for assistant replies
-- Docs: INKO flyout UX, `/api/v1/ai/chat` + tools catalog, Admin LLM configure path
+- **Documentation consistency pass:** user guide What/Why/How/Example/See also; runbook Goal/Prereqs/Steps/Verify; deployment Context/Config/Commands/Verify; fixed cross-links and Ops Docs menu anchors
 
 ### Security / OPSEC
 - Native agent remains AEAD-only with full TLS verify

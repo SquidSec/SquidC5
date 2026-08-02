@@ -378,18 +378,25 @@ docker exec squidc5 cat /data/admin_token.txt
 
 | File | Purpose |
 |------|---------|
-| `AGENTS.md` | **This file** — primary agent operating memory |
+| `AGENTS.md` | **This file** — primary agent operating memory + full CLI surface |
 | `CLAUDE.md` | Pointer to AGENTS + docs |
-| `docs/squidc5-vision.md` | Full product vision / security architecture |
-| `docs/roadmap-2026-2027.md` | Prioritized next-gen roadmap (10 focus areas) |
-| `docs/user-guide.md` | Comprehensive features (what/why/how/examples) — GitHub only |
-| `docs/README.md` | Docs index |
-| `docs/operator-runbook.md` | Operator procedures |
-| `docs/deployment.md` | Binary prod deploy + lab Docker |
+| `docs/README.md` | Docs index (Diátaxis map + Ops nav → guide links) |
+| `docs/user-guide.md` | Feature reference (What/Why/How/Example/See also) — GitHub only |
+| `docs/operator-runbook.md` | Day-2 procedures (Goal/Prereqs/Steps/Verify) |
+| `docs/deployment.md` | Lab Docker + OAST + TLS + binary prod |
+| `docs/squidc5-vision.md` | Product / security architecture |
+| `docs/threat-model.md` | Assets, boundaries, STRIDE |
+| `docs/roadmap-2026-2027.md` | Long-range priorities (10 focus areas) |
+| `docs/roadmap-five-star.md` | Pack A–E / implant maturity status |
+| `docs/prod-readiness-plan.md` | Phased engineering checklist |
 | `README.md` | Public-facing quickstart |
 | `SECURITY.md` | Disclosure policy |
+| `CONTRIBUTING.md` | PR / git cycle |
+| `CHANGELOG.md` | Releases + OPSEC notes |
 | `.gitignore` | Blocks secrets, data, local config |
 | `.env.example` | Env template without secrets |
+
+**When changing product behavior:** update `docs/user-guide.md` (feature chapter) and cross-links in `docs/README.md` / runbook as needed. Keep section templates consistent (see docs/README).
 
 ## When Changing Code
 

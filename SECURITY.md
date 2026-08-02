@@ -1,5 +1,12 @@
 # Security Policy
 
+| Related | Link |
+|---------|------|
+| Threat model | [docs/threat-model.md](docs/threat-model.md) |
+| Secure defaults | [docs/user-guide.md#security-model](docs/user-guide.md#security-model) |
+| Disclosure contact | GitHub Security Advisories on this repository |
+| Docs index | [docs/README.md](docs/README.md) |
+
 ## Supported Versions
 
 | Version | Supported |
