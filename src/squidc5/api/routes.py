@@ -12,7 +12,13 @@ from fastapi.responses import PlainTextResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from squidc5.api.deps import get_auth, get_state, require_scope
-from squidc5.auth.tokens import ALL_MCP_TOOLS, DEFAULT_MCP_TOOLS, SCOPES, AuthContext
+from squidc5.auth.tokens import (
+    ALL_MCP_TOOLS,
+    DEFAULT_MCP_TOOLS,
+    SCOPES,
+    AuthContext,
+    scope_catalog,
+)
 from squidc5.paths import web_file
 from squidc5.policy.engine import PolicyDecision
 
@@ -29,6 +35,12 @@ def _policy_http_error(decision: PolicyDecision) -> HTTPException:
 class TokenCreate(BaseModel):
     name: str
     scopes: list[str]
+    mcp_tools: list[str] | None = None
+
+
+class TokenUpdate(BaseModel):
+    name: str | None = None
+    scopes: list[str] | None = None
     mcp_tools: list[str] | None = None
 
 
@@ -399,9 +411,13 @@ def build_api_router() -> APIRouter:
 
     @api.get("/meta")
     async def meta(auth: AuthContext = Depends(get_auth)) -> dict[str, Any]:
+        catalog = scope_catalog()
         return {
             "scopes": sorted(auth.scopes),
             "all_scopes": sorted(SCOPES),
+            "scope_catalog": catalog["scopes"],
+            "scope_presets": catalog["presets"],
+            "privileged_scopes": catalog["privileged_scopes"],
             "default_mcp_tools": sorted(DEFAULT_MCP_TOOLS),
             "all_mcp_tools": sorted(ALL_MCP_TOOLS),
             "mcp_tools": sorted(auth.mcp_tools),
@@ -477,6 +493,40 @@ def build_api_router() -> APIRouter:
         state = get_state(request)
         ok = await state.tokens.revoke(token_id, auth.name)
         return {"revoked": ok}
+
+    @api.patch("/tokens/{token_id}")
+    async def update_token(
+        token_id: str,
+        body: TokenUpdate,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("tokens:manage", "admin")),
+    ) -> dict[str, Any]:
+        """Update token name/scopes/mcp_tools. Does not rotate the secret."""
+        state = get_state(request)
+        decision = await state.policy.check_and_audit(
+            auth, "tokens.update", resource=token_id, extra={"name": body.name}
+        )
+        if not decision.allowed:
+            raise HTTPException(403, decision.reason)
+        if body.name is None and body.scopes is None and body.mcp_tools is None:
+            raise HTTPException(400, "name, scopes, or mcp_tools required")
+        try:
+            row = await state.tokens.update(
+                token_id,
+                name=body.name,
+                scopes=body.scopes,
+                mcp_tools=body.mcp_tools,
+                actor=auth.name,
+                grantor_scopes=list(auth.scopes),
+                grantor_is_admin=auth.has_scope("admin"),
+            )
+        except KeyError as e:
+            raise HTTPException(404, "token not found") from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return row
 
     # ----- Sessions -----
 

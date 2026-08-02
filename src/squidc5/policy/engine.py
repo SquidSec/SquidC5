@@ -87,6 +87,7 @@ DEFAULT_POLICY: dict[str, Any] = {
         "files.upload": 7,
         "ai.admin": 3,
         "tokens.create": 6,
+        "tokens.update": 6,
         "policy.update": 9,
     },
 }

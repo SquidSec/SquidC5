@@ -1851,43 +1851,87 @@
     const root = el("view-admin");
     if (!root) return;
     if (!force && viewBuilt.admin && root.children.length) return;
-    if (!can("admin") && !can("tokens:manage") && !can("policy:manage")) {
+    if (!can("admin") && !can("tokens:manage") && !can("policy:manage") && !can("llm:manage")) {
       root.innerHTML = '<div class="empty-state"><strong>Admin area</strong>Requires admin or manage scopes.</div>';
       return;
     }
-    const defaultScopes = new Set([
+    const meta = state.meta || {};
+    const catalog = meta.scope_catalog || [];
+    const presets = (meta.scope_presets || []).filter((p) => !p.admin_only || can("admin"));
+    const privileged = new Set(meta.privileged_scopes || ["admin", "tokens:manage", "policy:manage", "llm:manage", "plugins:manage"]);
+    const allScopes = catalog.length
+      ? catalog.map((c) => c.id)
+      : [
+          "sessions:read", "sessions:write", "tasks:read", "tasks:write",
+          "listeners:read", "listeners:write", "payloads:generate", "shell:interact",
+          "metrics:read", "audit:read", "ai:use", "collab:use", "profiles:read", "profiles:write",
+          "files:read", "files:write", "oast:read", "oast:write", "mcp:connect", "phone:operator",
+          "tokens:manage", "llm:manage", "policy:manage", "plugins:manage", "admin",
+        ];
+    const descMap = {};
+    catalog.forEach((c) => { descMap[c.id] = c.description || ""; });
+    const defaultPreset = presets.find((p) => p.id === "operator") || presets[0];
+    const defaultScopes = new Set((defaultPreset && defaultPreset.scopes) || [
       "sessions:read", "sessions:write", "tasks:read", "tasks:write",
       "shell:interact", "listeners:read", "collab:use", "metrics:read",
     ]);
-    const allScopes = [
-      "sessions:read", "sessions:write", "tasks:read", "tasks:write",
-      "listeners:read", "listeners:write", "payloads:generate", "shell:interact",
-      "metrics:read", "audit:read", "ai:use", "collab:use", "profiles:read", "profiles:write",
-      "files:read", "files:write", "oast:read", "oast:write", "mcp:connect",
-      "tokens:manage", "llm:manage", "policy:manage", "plugins:manage", "admin",
-    ];
+    const scopeLabel = (s) => {
+      const d = descMap[s] || "";
+      return d
+        ? `<span class="mono" style="font-size:0.72rem">${esc(s)}</span><span class="muted" style="display:block;font-size:0.65rem;line-height:1.25;margin-top:2px;text-transform:none;letter-spacing:0;font-weight:400">${esc(d)}</span>`
+        : `<span class="mono" style="font-size:0.72rem">${esc(s)}</span>`;
+    };
+    const presetBtns = presets.map((p) =>
+      `<button type="button" class="ad-preset" data-preset="${esc(p.id)}" title="${esc(p.description || "")}">${esc(p.label || p.id)}</button>`
+    ).join("") +
+      `<button type="button" id="adScopeNone">Clear</button>` +
+      (can("admin") ? `<button type="button" id="adScopeAll">All non-admin</button>` : "");
     root.innerHTML = `
       <div class="admin-stack">
         <div class="admin-row">
           <div class="work-panel">
-            <div class="wp-head">Mint token</div>
+            <div class="wp-head">Tokens</div>
             <div class="wp-body">
+              <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Mint a new token or select one below to update scopes. Updating scopes does <strong>not</strong> rotate the secret - revoke if compromised.</p>
               <label>Name</label><input id="adName" placeholder="operator-1" />
+              <input type="hidden" id="adEditId" value="" />
+              <label>Presets</label>
+              <div class="row" style="margin:4px 0;gap:6px" id="adPresetRow">${presetBtns}</div>
+              <p class="muted" id="adPresetDesc" style="font-size:0.72rem;margin:4px 0 8px;min-height:2.2em">${esc((defaultPreset && defaultPreset.description) || "Pick a preset or tick scopes manually.")}</p>
               <label>Scopes</label>
-              <div class="row" style="margin:4px 0">
-                <button type="button" id="adScopeOp">Operator preset</button>
-                <button type="button" id="adScopeNone">Clear</button>
-                <button type="button" id="adScopeAll">All non-admin</button>
+              <div class="scope-grid" id="adScopeGrid" style="max-height:320px">
+                ${allScopes.map((s) => {
+                  const priv = privileged.has(s);
+                  const dis = priv && !can("admin");
+                  return `<label style="align-items:flex-start">
+                    <input type="checkbox" class="ad-scope" value="${esc(s)}"
+                      ${defaultScopes.has(s) ? "checked" : ""}
+                      ${dis ? "disabled" : ""} style="margin-top:3px" />
+                    <span>${scopeLabel(s)}</span>
+                  </label>`;
+                }).join("")}
               </div>
-              <div class="scope-grid" id="adScopeGrid">
-                ${allScopes.map((s) => `
-                  <label><input type="checkbox" class="ad-scope" value="${esc(s)}"
-                    ${defaultScopes.has(s) ? "checked" : ""}
-                    ${s === "admin" && !can("admin") ? "disabled" : ""} /> ${esc(s)}</label>
-                `).join("")}
+              <label class="chk-inline" style="margin-top:10px">
+                <input type="checkbox" id="adMcpShow" /> Show MCP tool allow-list (when mcp:connect)
+              </label>
+              <div id="adMcpBox" class="hidden" style="margin-top:8px">
+                <label>MCP tools</label>
+                <div class="scope-grid" id="adMcpGrid" style="max-height:140px">
+                  ${(meta.all_mcp_tools || []).map((t) =>
+                    `<label><input type="checkbox" class="ad-mcp" value="${esc(t)}" /> <span class="mono" style="font-size:0.72rem">${esc(t)}</span></label>`
+                  ).join("") || '<span class="muted">No MCP catalog</span>'}
+                </div>
               </div>
-              <div class="row"><button type="button" class="primary" id="adMint">Mint</button></div>
-              <div class="outbox empty" id="adMintOut">Token shown once</div>
+              <div class="row" style="margin-top:10px">
+                <button type="button" class="primary" id="adMint">Mint new</button>
+                <button type="button" id="adSaveEdit" disabled>Save changes</button>
+                <button type="button" id="adCancelEdit" class="hidden">Cancel edit</button>
+              </div>
+              <div class="outbox empty" id="adMintOut">New token secret shown once after mint</div>
+              <div class="row" style="margin-top:12px">
+                <button type="button" id="adTokRefresh">Refresh list</button>
+              </div>
+              <div id="adTokTable" style="margin-top:8px;overflow:auto;max-height:280px"></div>
             </div>
           </div>
           <div class="work-panel">
@@ -1896,7 +1940,6 @@
               <div class="row">
                 <button type="button" id="adPolGet">Get policy</button>
                 <button type="button" id="adFeat">Features</button>
-                <button type="button" id="adTokList">List tokens</button>
               </div>
               <div class="outbox empty" id="adOut" style="max-height:min(420px,50vh);flex:1">-</div>
             </div>
@@ -2027,27 +2070,169 @@
     function selectedScopes() {
       return Array.from(document.querySelectorAll(".ad-scope:checked")).map((c) => c.value);
     }
+    function selectedMcp() {
+      return Array.from(document.querySelectorAll(".ad-mcp:checked")).map((c) => c.value);
+    }
     function setScopes(set) {
       document.querySelectorAll(".ad-scope").forEach((c) => {
         if (c.disabled) return;
         c.checked = set.has(c.value);
       });
+      syncMcpVisibility();
     }
-    if (el("adScopeOp")) el("adScopeOp").onclick = () => setScopes(defaultScopes);
-    if (el("adScopeNone")) el("adScopeNone").onclick = () => setScopes(new Set());
+    function setMcp(list) {
+      const want = new Set(list || []);
+      document.querySelectorAll(".ad-mcp").forEach((c) => {
+        c.checked = want.has(c.value);
+      });
+    }
+    function syncMcpVisibility() {
+      const show = !!(el("adMcpShow") && el("adMcpShow").checked) || selectedScopes().includes("mcp:connect");
+      if (el("adMcpBox")) el("adMcpBox").classList.toggle("hidden", !show);
+      if (el("adMcpShow") && selectedScopes().includes("mcp:connect")) el("adMcpShow").checked = true;
+    }
+    function clearEditMode() {
+      if (el("adEditId")) el("adEditId").value = "";
+      if (el("adSaveEdit")) el("adSaveEdit").disabled = true;
+      if (el("adCancelEdit")) el("adCancelEdit").classList.add("hidden");
+      if (el("adMint")) el("adMint").disabled = false;
+      if (el("adName")) el("adName").value = "";
+      setScopes(defaultScopes);
+      setMcp([]);
+    }
+    function enterEditMode(tok) {
+      if (!tok || tok.revoked) return;
+      if (el("adEditId")) el("adEditId").value = tok.id || "";
+      if (el("adName")) el("adName").value = tok.name || "";
+      setScopes(new Set(tok.scopes || []));
+      setMcp(tok.mcp_tools || []);
+      if (el("adSaveEdit")) el("adSaveEdit").disabled = false;
+      if (el("adCancelEdit")) el("adCancelEdit").classList.remove("hidden");
+      if (el("adMint")) el("adMint").disabled = true;
+      if (el("adMintOut")) {
+        el("adMintOut").textContent = "Editing " + (tok.id || "") + " - save applies scopes without rotating the secret.";
+        el("adMintOut").classList.remove("empty");
+      }
+    }
+    async function loadTokenTable() {
+      const box = el("adTokTable");
+      if (!box || !can("tokens:manage") && !can("admin")) {
+        if (box) box.innerHTML = '<p class="muted">tokens:manage required to list tokens</p>';
+        return;
+      }
+      try {
+        const rows = await api("GET", "/api/v1/tokens");
+        const list = Array.isArray(rows) ? rows : [];
+        if (!list.length) {
+          box.innerHTML = '<p class="muted">No tokens yet.</p>';
+          return;
+        }
+        box.innerHTML = `<table class="data"><thead><tr>
+          <th>Name</th><th>Scopes</th><th>Status</th><th></th>
+        </tr></thead><tbody>
+        ${list.map((t) => {
+          const sc = (t.scopes || []).slice(0, 6).map((s) => esc(s)).join(", ");
+          const more = (t.scopes || []).length > 6 ? " +" + ((t.scopes || []).length - 6) : "";
+          const st = t.revoked ? '<span class="chip">revoked</span>' : '<span class="chip ok">active</span>';
+          return `<tr data-tid="${esc(t.id)}">
+            <td><strong>${esc(t.name || "")}</strong><div class="mono muted" style="font-size:0.65rem">${esc(t.id || "")}</div></td>
+            <td style="font-size:0.72rem;max-width:220px">${sc}${more}</td>
+            <td>${st}</td>
+            <td class="row" style="margin:0">
+              ${!t.revoked ? `<button type="button" data-tok-edit="${esc(t.id)}">Edit</button>` : ""}
+              ${!t.revoked ? `<button type="button" class="danger" data-tok-rev="${esc(t.id)}">Revoke</button>` : ""}
+            </td>
+          </tr>`;
+        }).join("")}
+        </tbody></table>`;
+        box.querySelectorAll("[data-tok-edit]").forEach((b) => {
+          b.onclick = () => {
+            const id = b.getAttribute("data-tok-edit");
+            const tok = list.find((x) => x.id === id);
+            if (tok) enterEditMode(tok);
+          };
+        });
+        box.querySelectorAll("[data-tok-rev]").forEach((b) => {
+          b.onclick = async () => {
+            const id = b.getAttribute("data-tok-rev");
+            if (!id || !confirm("Revoke token " + id + "?")) return;
+            try {
+              await api("DELETE", "/api/v1/tokens/" + encodeURIComponent(id));
+              showOk("Revoked");
+              if (el("adEditId") && el("adEditId").value === id) clearEditMode();
+              loadTokenTable();
+            } catch (e) { showError(String(e.message || e)); }
+          };
+        });
+      } catch (e) {
+        box.innerHTML = '<p class="muted">Failed to load tokens</p>';
+        showError(String(e.message || e));
+      }
+    }
+    document.querySelectorAll(".ad-preset").forEach((b) => {
+      b.onclick = () => {
+        const id = b.getAttribute("data-preset");
+        const p = presets.find((x) => x.id === id);
+        if (!p) return;
+        if (el("adPresetDesc")) el("adPresetDesc").textContent = p.description || "";
+        setScopes(new Set(p.scopes || []));
+        if (p.mcp_tools) {
+          setMcp(p.mcp_tools);
+          if (el("adMcpShow")) el("adMcpShow").checked = true;
+          syncMcpVisibility();
+        }
+      };
+    });
+    if (el("adScopeNone")) el("adScopeNone").onclick = () => {
+      if (el("adPresetDesc")) el("adPresetDesc").textContent = "No scopes selected.";
+      setScopes(new Set());
+    };
     if (el("adScopeAll")) el("adScopeAll").onclick = () => {
+      if (el("adPresetDesc")) el("adPresetDesc").textContent = "All non-admin scopes.";
       setScopes(new Set(allScopes.filter((s) => s !== "admin" || can("admin"))));
     };
+    if (el("adMcpShow")) el("adMcpShow").onchange = () => syncMcpVisibility();
+    document.querySelectorAll(".ad-scope").forEach((c) => {
+      c.addEventListener("change", () => syncMcpVisibility());
+    });
+    if (el("adCancelEdit")) el("adCancelEdit").onclick = () => clearEditMode();
     if (el("adMint")) el("adMint").onclick = async () => {
       try {
         const scopes = selectedScopes();
         if (!scopes.length) return showError("Select at least one scope");
-        const r = await api("POST", "/api/v1/tokens", { name: el("adName").value.trim() || "op", scopes });
+        const body = { name: (el("adName").value || "").trim() || "op", scopes };
+        if (scopes.includes("mcp:connect")) {
+          const tools = selectedMcp();
+          if (tools.length) body.mcp_tools = tools;
+        }
+        const r = await api("POST", "/api/v1/tokens", body);
         el("adMintOut").textContent = r.token || JSON.stringify(r, null, 2);
         el("adMintOut").classList.remove("empty");
         showOk("Token minted - copy now");
+        loadTokenTable();
       } catch (e) { showError(String(e.message || e)); }
     };
+    if (el("adSaveEdit")) el("adSaveEdit").onclick = async () => {
+      try {
+        const id = (el("adEditId") && el("adEditId").value) || "";
+        if (!id) return showError("No token selected");
+        const scopes = selectedScopes();
+        if (!scopes.length) return showError("Select at least one scope");
+        const body = {
+          name: (el("adName").value || "").trim() || undefined,
+          scopes,
+        };
+        if (scopes.includes("mcp:connect")) body.mcp_tools = selectedMcp();
+        else body.mcp_tools = [];
+        await api("PATCH", "/api/v1/tokens/" + encodeURIComponent(id), body);
+        showOk("Token updated (secret unchanged)");
+        clearEditMode();
+        loadTokenTable();
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("adTokRefresh")) el("adTokRefresh").onclick = () => loadTokenTable();
+    syncMcpVisibility();
+    if (can("tokens:manage") || can("admin")) loadTokenTable();
     const dump = async (path) => {
       try {
         const r = await api("GET", path);
@@ -2057,7 +2242,6 @@
     };
     if (el("adPolGet")) el("adPolGet").onclick = () => dump("/api/v1/policy");
     if (el("adFeat")) el("adFeat").onclick = () => dump("/api/v1/features");
-    if (el("adTokList")) el("adTokList").onclick = () => dump("/api/v1/tokens");
   }
 
 

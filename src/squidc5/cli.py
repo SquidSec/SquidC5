@@ -123,6 +123,9 @@ class Client:
     def put(self, path: str, **kwargs: Any) -> Any:
         return self.request("PUT", path, **kwargs)
 
+    def patch(self, path: str, **kwargs: Any) -> Any:
+        return self.request("PATCH", path, **kwargs)
+
     def delete(self, path: str, **kwargs: Any) -> Any:
         return self.request("DELETE", path, **kwargs)
 
@@ -644,6 +647,19 @@ def cmd_tokens_revoke(args: argparse.Namespace, client: Client) -> None:
     pp(client.delete(f"/api/v1/tokens/{args.id}"))
 
 
+def cmd_tokens_update(args: argparse.Namespace, client: Client) -> None:
+    body: dict[str, Any] = {}
+    if args.name:
+        body["name"] = args.name
+    if args.scopes:
+        body["scopes"] = [s.strip() for s in args.scopes.split(",") if s.strip()]
+    if args.mcp_tools is not None:
+        body["mcp_tools"] = [t.strip() for t in args.mcp_tools.split(",") if t.strip()]
+    if not body:
+        raise SystemExit("provide --name and/or --scopes and/or --mcp-tools")
+    pp(client.patch(f"/api/v1/tokens/{args.id}", json=body))
+
+
 def cmd_ai_run(args: argparse.Namespace, client: Client) -> None:
     body: dict[str, Any] = {"capability": args.capability, "user_data": args.data or ""}
     if args.llm:
@@ -1155,6 +1171,12 @@ def build_parser() -> argparse.ArgumentParser:
     tk_rev = tok_sub.add_parser("revoke")
     tk_rev.add_argument("id")
     tk_rev.set_defaults(func=cmd_tokens_revoke, needs_client=True)
+    tk_upd = tok_sub.add_parser("update", help="Update token name/scopes (does not rotate secret)")
+    tk_upd.add_argument("id")
+    tk_upd.add_argument("--name", default=None)
+    tk_upd.add_argument("--scopes", default=None, help="Comma-separated scopes (replaces full set)")
+    tk_upd.add_argument("--mcp-tools", dest="mcp_tools", default=None, help="Comma-separated MCP tools")
+    tk_upd.set_defaults(func=cmd_tokens_update, needs_client=True)
 
     # ai / llm
     ai = sub.add_parser("ai", help="Run Admin AI capability")
