@@ -107,7 +107,12 @@ class AIChatRequest(BaseModel):
     message: str
     history: list[AIChatMessage] = Field(default_factory=list)
     llm_id: str | None = None
+    model: str | None = None  # optional override for this turn only
     max_rounds: int | None = None
+
+
+class LLMModelPatch(BaseModel):
+    model: str
 
 
 class MeUpdate(BaseModel):
@@ -126,6 +131,12 @@ class AssetCreate(BaseModel):
     name: str
     content: str
     meta: dict[str, Any] | None = None
+
+
+class PayloadTemplateCreate(BaseModel):
+    name: str
+    content: str
+    note: str = ""
 
 
 class ShellCommand(BaseModel):
@@ -815,13 +826,61 @@ def build_api_router() -> APIRouter:
 
     # ----- Payloads -----
 
+    async def _custom_payload_templates(state: Any) -> dict[str, str]:
+        rows = await state.db.list_operator_assets(kind="template", limit=200)
+        out: dict[str, str] = {}
+        for r in rows:
+            full = await state.db.get_operator_asset(r["id"])
+            if full and full.get("name") and full.get("content"):
+                out[str(full["name"])] = str(full["content"])
+        return out
+
     @api.get("/payloads/templates")
     async def payload_templates(
+        request: Request,
         auth: AuthContext = Depends(require_scope("payloads:generate", "admin")),
-    ) -> dict[str, list[str]]:
-        from squidc5.payloads.generator import PayloadGenerator
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        customs = await _custom_payload_templates(state)
+        builtin = state.payloads.list_templates()
+        return {
+            "templates": state.payloads.list_templates(list(customs.keys())),
+            "builtin": builtin,
+            "custom": sorted(customs.keys()),
+        }
 
-        return {"templates": PayloadGenerator().list_templates()}
+    @api.post("/payloads/templates")
+    async def register_payload_template(
+        payload: PayloadTemplateCreate,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("payloads:generate", "admin")),
+    ) -> dict[str, Any]:
+        """Register a custom payload template (placeholders: {host} {port} {path} {interval})."""
+        state = get_state(request)
+        name = (payload.name or "").strip().replace(" ", "_")
+        if not name or len(name) > 80:
+            raise HTTPException(400, "name required (max 80)")
+        if not (payload.content or "").strip():
+            raise HTTPException(400, "content required")
+        # avoid overwriting builtin names with different semantics silently
+        if name in state.payloads.TEMPLATES:
+            raise HTTPException(400, f"name conflicts with builtin template: {name}")
+        aid = await state.db.create_operator_asset(
+            kind="template",
+            name=name,
+            content=payload.content,
+            meta={"note": payload.note, "placeholders": ["{host}", "{port}", "{path}", "{interval}"]},
+            created_by=auth.name,
+        )
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="payloads.template_register",
+            resource=aid,
+            details={"name": name},
+            risk_score=4,
+        )
+        return {"id": aid, "name": name, "kind": "template"}
 
     @api.post("/payloads/generate")
     async def generate_payload(
@@ -872,6 +931,7 @@ def build_api_router() -> APIRouter:
                 template = "dns_beacon_python"
             if prof and template == "http_beacon_python" and prof.channel == "ws":
                 template = "ws_beacon_python"
+            customs = await _custom_payload_templates(state)
             result = state.payloads.generate(
                 template=template,
                 host=body.host,
@@ -879,6 +939,7 @@ def build_api_router() -> APIRouter:
                 session_path=session_path,
                 interval=interval,
                 extra=plan,
+                custom_templates=customs,
             )
         except HTTPException:
             raise
@@ -1674,14 +1735,24 @@ def build_api_router() -> APIRouter:
     async def list_llm_models(
         body: LLMModelsRequest,
         request: Request,
-        auth: AuthContext = Depends(require_scope("llm:manage", "admin")),
+        auth: AuthContext = Depends(require_scope("llm:manage", "admin", "ai:use")),
     ) -> dict[str, Any]:
-        """List models from an OpenAI-compatible provider (SSRF-guarded proxy)."""
+        """List models from an OpenAI-compatible provider (SSRF-guarded proxy).
+
+        Operators with only ai:use may pass llm_id (stored key/url only) — never raw base_url+key.
+        """
         state = get_state(request)
+        is_mgr = auth.has_scope("llm:manage") or auth.has_scope("admin")
+        if not is_mgr:
+            if not body.llm_id or body.base_url or body.api_key:
+                raise HTTPException(
+                    403,
+                    "ai:use may only list models for a saved llm_id (no base_url/api_key)",
+                )
         try:
             models = await state.admin_ai.list_remote_models(
-                base_url=body.base_url,
-                api_key=body.api_key,
+                base_url=body.base_url if is_mgr else None,
+                api_key=body.api_key if is_mgr else None,
                 provider=body.provider,
                 llm_id=body.llm_id,
             )
@@ -1700,6 +1771,41 @@ def build_api_router() -> APIRouter:
             risk_score=2,
         )
         return {"models": models}
+
+    @api.patch("/llm/{llm_id}")
+    async def patch_llm_model(
+        llm_id: str,
+        body: LLMModelPatch,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("llm:manage", "admin", "ai:use")),
+    ) -> dict[str, Any]:
+        """Update the default model on a saved LLM connection (no key change)."""
+        state = get_state(request)
+        row = await state.db.get_llm(llm_id)
+        if not row or not row.get("enabled"):
+            raise HTTPException(404, "LLM not found")
+        model = (body.model or "").strip()
+        if not model or len(model) > 200:
+            raise HTTPException(400, "model required")
+        # Direct DB update — do not re-validate base_url (avoids outbound DNS on switch)
+        await state.db.upsert_llm(
+            name=row["name"],
+            provider=row.get("provider") or "openai",
+            model=model,
+            base_url=row.get("base_url"),
+            api_key_enc=None,  # preserve existing
+            capabilities=None,
+            llm_id=llm_id,
+        )
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="llm.model_switch",
+            resource=llm_id,
+            details={"model": model, "from": row.get("model")},
+            risk_score=2,
+        )
+        return {"id": llm_id, "model": model, "name": row["name"]}
 
     @api.get("/ai/status")
     async def ai_status(
@@ -1758,6 +1864,7 @@ def build_api_router() -> APIRouter:
                 history=hist,
                 actor=auth.name,
                 llm_id=body.llm_id,
+                model=body.model,
                 state=state,
                 auth=auth,
                 max_rounds=body.max_rounds or 6,

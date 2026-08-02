@@ -134,3 +134,60 @@ async def test_tls_upload_and_activate(tmp_path):
             assert act.json().get("restart_required") is True
             lst = await client.get("/api/v1/tls/certs", headers=h)
             assert any(c["id"] == cid and c["active"] for c in lst.json()["certs"])
+
+
+
+@pytest.mark.asyncio
+async def test_custom_payload_template_register_and_generate(tmp_path):
+    app = create_app(_settings(tmp_path))
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            h = {"Authorization": f"Bearer {ADMIN}"}
+            reg = await client.post(
+                "/api/v1/payloads/templates",
+                headers=h,
+                json={"name": "echo_tpl", "content": "echo {host}:{port}"},
+            )
+            assert reg.status_code == 200, reg.text
+            tpl = await client.get("/api/v1/payloads/templates", headers=h)
+            body = tpl.json()
+            assert "echo_tpl" in body["templates"]
+            assert "echo_tpl" in body.get("custom", [])
+            gen = await client.post(
+                "/api/v1/payloads/generate",
+                headers=h,
+                json={"template": "echo_tpl", "host": "10.0.0.1", "port": 99},
+            )
+            assert gen.status_code == 200, gen.text
+            assert "10.0.0.1:99" in (gen.json().get("content") or "")
+
+
+@pytest.mark.asyncio
+async def test_patch_llm_model_preserves_key(tmp_path):
+    """Model switch without re-supplying API key (no outbound network)."""
+    app = create_app(_settings(tmp_path))
+    async with app.router.lifespan_context(app):
+        # bypass SSRF by writing LLM row directly
+        state = app.state.app_state
+        from squidc5.crypto.secrets import SecretBox, resolve_secrets_key
+        box = SecretBox(resolve_secrets_key(explicit=None, data_dir=tmp_path / "d"))
+        enc = box.encrypt("sk-secret-value-xyz")
+        lid = await state.db.upsert_llm(
+            name="direct",
+            provider="openai",
+            model="gpt-a",
+            base_url="https://api.openai.com/v1",
+            api_key_enc=enc,
+            capabilities=["recon_assist"],
+        )
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            h = {"Authorization": f"Bearer {ADMIN}"}
+            pat = await client.patch(f"/api/v1/llm/{lid}", headers=h, json={"model": "gpt-b"})
+            assert pat.status_code == 200, pat.text
+            assert pat.json()["model"] == "gpt-b"
+            row = await state.db.get_llm(lid)
+            assert row["model"] == "gpt-b"
+            assert row.get("api_key_enc")
+            assert box.decrypt(row["api_key_enc"]) == "sk-secret-value-xyz"

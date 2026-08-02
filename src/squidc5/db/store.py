@@ -564,8 +564,16 @@ class Database:
         llm_id: str | None = None,
     ) -> str:
         lid = llm_id or _uid("llm_")
-        existing = await self.fetchone("SELECT id FROM llm_connections WHERE id = ?", (lid,))
+        existing = await self.fetchone("SELECT id, api_key_enc, capabilities FROM llm_connections WHERE id = ?", (lid,))
         if existing:
+            keep_key = api_key_enc if api_key_enc is not None else existing.get("api_key_enc")
+            caps_json = (
+                json.dumps(capabilities)
+                if capabilities is not None
+                else (existing.get("capabilities") or "[]")
+            )
+            if isinstance(caps_json, list):
+                caps_json = json.dumps(caps_json)
             await self.execute(
                 """UPDATE llm_connections SET name=?, provider=?, base_url=?, model=?,
                    api_key_enc=?, capabilities=? WHERE id=?""",
@@ -574,8 +582,8 @@ class Database:
                     provider,
                     base_url,
                     model,
-                    api_key_enc,
-                    json.dumps(capabilities or []),
+                    keep_key,
+                    caps_json,
                     lid,
                 ),
             )

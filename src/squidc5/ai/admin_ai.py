@@ -298,14 +298,22 @@ class AdminAI:
         capabilities: list[str] | None = None,
         llm_id: str | None = None,
     ) -> str:
-        caps = [c for c in (capabilities or list(ALLOWED_CAPABILITIES)) if c in ALLOWED_CAPABILITIES]
+        if capabilities is None and llm_id:
+            caps = None  # preserve existing on update
+        else:
+            caps = [c for c in (capabilities or list(ALLOWED_CAPABILITIES)) if c in ALLOWED_CAPABILITIES]
         if base_url:
             from squidc5.security.ssrf import validate_llm_base_url
 
             base_url = validate_llm_base_url(base_url, allow_private=False)
-        stored_key = api_key
-        if api_key and self.secrets is not None:
+        # None api_key → keep existing encrypted key on update
+        stored_key: str | None
+        if api_key is None:
+            stored_key = None
+        elif api_key and self.secrets is not None:
             stored_key = self.secrets.encrypt(api_key)
+        else:
+            stored_key = api_key
         return await self.db.upsert_llm(
             name=name,
             provider=provider,
@@ -596,6 +604,7 @@ class AdminAI:
         history: list[dict[str, str]] | None = None,
         actor: str = "admin",
         llm_id: str | None = None,
+        model: str | None = None,
         state: Any = None,
         auth: Any = None,
         max_rounds: int = 6,
@@ -604,6 +613,7 @@ class AdminAI:
 
         Rails: fixed tool catalog, policy/scopes per tool, sanitized I/O,
         bounded rounds (no open-ended autonomous agent).
+        Optional model overrides the connection default for this call only.
         """
         import time as _time
 
@@ -659,6 +669,9 @@ class AdminAI:
         tool_trace: list[dict[str, Any]] = []
         try:
             llm = await self._select_llm(llm_id, "recon_assist")
+            if llm is not None and model and str(model).strip():
+                llm = dict(llm)
+                llm["model"] = str(model).strip()[:200]
             if llm is None:
                 offline = await offline_chat_intent(state, auth, safe_msg)
                 if offline:

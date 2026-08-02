@@ -23,8 +23,13 @@ class PayloadGenerator:
         "bof_c",
     )
 
-    def list_templates(self) -> list[str]:
-        return list(self.TEMPLATES)
+    def list_templates(self, custom_names: list[str] | None = None) -> list[str]:
+        names = list(self.TEMPLATES)
+        for n in custom_names or []:
+            n = (n or "").strip()
+            if n and n not in names:
+                names.append(n)
+        return names
 
     def generate(
         self,
@@ -34,10 +39,33 @@ class PayloadGenerator:
         session_path: str = "/api/v1/implant/beacon",
         interval: int = 5,
         extra: dict[str, Any] | None = None,
+        custom_templates: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        if template not in self.TEMPLATES:
-            raise ValueError(f"Unknown template: {template}. Allowed: {self.TEMPLATES}")
         extra = extra or {}
+        customs = custom_templates or {}
+        if template in customs:
+            body = self._render_custom(
+                customs[template],
+                host=host,
+                port=port,
+                path=session_path,
+                interval=interval,
+            )
+            encoded = base64.b64encode(body.encode()).decode()
+            return {
+                "template": template,
+                "host": host,
+                "port": port,
+                "content": body,
+                "content_b64": encoded,
+                "custom": True,
+                "profile_id": extra.get("profile_id"),
+                "notes": "Custom template. Authorized testing only.",
+            }
+        if template not in self.TEMPLATES:
+            raise ValueError(
+                f"Unknown template: {template}. Allowed: {self.list_templates(list(customs))}"
+            )
         if template == "http_beacon_python":
             body = self._http_beacon_python(host, port, session_path, interval, extra)
         elif template == "http_beacon_bash":
@@ -91,6 +119,29 @@ class PayloadGenerator:
             "uri": session_path if template.startswith("http_beacon") else None,
             "notes": "Authorized testing only. Use only on systems you own or have permission to test.",
         }
+
+    def _render_custom(
+        self,
+        tmpl: str,
+        *,
+        host: str,
+        port: int,
+        path: str,
+        interval: int,
+    ) -> str:
+        """Safe placeholder expansion only — no code execution."""
+        text = str(tmpl or "")
+        replacements = {
+            "{host}": str(host),
+            "{port}": str(int(port)),
+            "{path}": str(path),
+            "{interval}": str(int(interval)),
+            "{HOST}": str(host),
+            "{PORT}": str(int(port)),
+        }
+        for k, v in replacements.items():
+            text = text.replace(k, v)
+        return text
 
     def _http_beacon_python(
         self,

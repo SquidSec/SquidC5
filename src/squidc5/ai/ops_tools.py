@@ -30,6 +30,10 @@ TOOL_GATES: dict[str, tuple[list[str], str]] = {
     "list_payload_templates": (["payloads:generate", "admin"], "payloads.generate"),
     "save_asset": (["payloads:generate", "profiles:write", "admin"], "payloads.generate"),
     "list_assets": (["payloads:generate", "profiles:read", "admin"], "payloads.generate"),
+    "register_payload_template": (["payloads:generate", "admin"], "payloads.generate"),
+    "list_profiles": (["profiles:read", "admin"], "profiles.list"),
+    "activate_profile": (["profiles:write", "admin"], "profiles.activate"),
+    "upsert_profile": (["profiles:write", "admin"], "profiles.write"),
     "get_metrics": (["metrics:read", "admin"], "metrics.read"),
     "list_recent_events": (["metrics:read", "sessions:read", "admin"], "metrics.read"),
     "list_audit": (["audit:read", "admin"], "audit.read"),
@@ -250,6 +254,62 @@ OPENAI_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "register_payload_template",
+            "description": "Register a custom payload template (placeholders {host} {port} {path} {interval}). Becomes usable in payloads generate.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "content": {"type": "string"},
+                    "note": {"type": "string"}
+                },
+                "required": ["name", "content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_profiles",
+            "description": "List malleable C2 profiles and the active profile id.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "activate_profile",
+            "description": "Activate a C2 profile by id.",
+            "parameters": {
+                "type": "object",
+                "properties": {"profile_id": {"type": "string"}},
+                "required": ["profile_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "upsert_profile",
+            "description": "Create or update a simple HTTP C2 profile (name, uris, user_agent, sleep_sec, jitter_pct).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "profile_id": {"type": "string"},
+                    "uris": {"type": "array", "items": {"type": "string"}},
+                    "user_agent": {"type": "string"},
+                    "sleep_sec": {"type": "number"},
+                    "jitter_pct": {"type": "number"},
+                    "activate": {"type": "boolean"}
+                },
+                "required": ["name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_metrics",
             "description": "Get teamserver metrics counters snapshot.",
             "parameters": {"type": "object", "properties": {}},
@@ -452,24 +512,39 @@ def _handlers(
         )
 
     async def list_payload_templates(args: dict[str, Any]) -> Any:
-        if hasattr(state.payloads, "list_templates"):
-            names = state.payloads.list_templates()
-        else:
-            names = list(getattr(state.payloads, "TEMPLATES", ()) or ())
-        return {"templates": names}
+        customs: list[str] = []
+        try:
+            rows = await state.db.list_operator_assets(kind="template", limit=200)
+            customs = [str(r.get("name") or "") for r in rows if r.get("name")]
+        except Exception:
+            customs = []
+        names = state.payloads.list_templates(customs)
+        return {"templates": names, "custom": customs}
 
     async def generate_payload(args: dict[str, Any]) -> Any:
         if not await state.features.enabled("payloads_generate"):
             raise PermissionError("Payload generation disabled")
+        customs: dict[str, str] = {}
+        try:
+            rows = await state.db.list_operator_assets(kind="template", limit=200)
+            for r in rows:
+                full = await state.db.get_operator_asset(r["id"])
+                if full and full.get("name") and full.get("content"):
+                    customs[str(full["name"])] = str(full["content"])
+        except Exception:
+            customs = {}
         result = state.payloads.generate(
             template=str(args["template"]),
             host=str(args["host"]),
             port=int(args["port"]),
             interval=int(args.get("interval") or 5),
+            custom_templates=customs,
         )
         full_payload = ""
         if isinstance(result, dict):
-            full_payload = str(result.get("payload") or result.get("body") or "")
+            full_payload = str(
+                result.get("content") or result.get("payload") or result.get("body") or ""
+            )
         saved = None
         if args.get("save") and full_payload:
             sname = str(args.get("save_name") or f"{args.get('template')}-{args.get('port')}")
@@ -486,12 +561,12 @@ def _handlers(
             )
             saved = {"id": aid, "name": sname, "kind": "payload"}
         # payloads may be large — cap script body for model context
-        if isinstance(result, dict) and "payload" in result:
-            body = str(result.get("payload") or "")
-            if len(body) > 4000:
-                result = dict(result)
-                result["payload"] = body[:4000] + "\n...[truncated]"
-                result["truncated"] = True
+        if isinstance(result, dict):
+            for key in ("content", "payload"):
+                if key in result and len(str(result.get(key) or "")) > 4000:
+                    result = dict(result)
+                    result[key] = str(result[key])[:4000] + "\n...[truncated]"
+                    result["truncated"] = True
         if saved:
             if isinstance(result, dict):
                 result = dict(result)
@@ -561,6 +636,81 @@ def _handlers(
             raise RuntimeError("No live reverse shell for session")
         return {"sent": True, "session_id": sid}
 
+    async def register_payload_template(args: dict[str, Any]) -> Any:
+        name = str(args.get("name") or "").strip().replace(" ", "_")
+        content = str(args.get("content") or "")
+        if not name or not content.strip():
+            raise ValueError("name and content required")
+        if name in getattr(state.payloads, "TEMPLATES", ()):
+            raise ValueError(f"conflicts with builtin template: {name}")
+        aid = await state.db.create_operator_asset(
+            kind="template",
+            name=name[:80],
+            content=content,
+            meta={"note": str(args.get("note") or ""), "via": "inko"},
+            created_by=auth.name,
+        )
+        return {"id": aid, "name": name, "kind": "template"}
+
+    async def list_profiles(args: dict[str, Any]) -> Any:
+        if not await state.features.enabled("malleable_profiles"):
+            raise PermissionError("Malleable profiles disabled")
+        active = state.profiles.active()
+        return {
+            "profiles": state.profiles.list_profiles(),
+            "active_id": active.id if active else None,
+        }
+
+    async def activate_profile(args: dict[str, Any]) -> Any:
+        if not await state.features.enabled("malleable_profiles"):
+            raise PermissionError("Malleable profiles disabled")
+        pid = str(args.get("profile_id") or "")
+        prof = await state.profiles.set_active(pid)
+        return {"active_id": prof.id, "name": prof.name}
+
+    async def upsert_profile(args: dict[str, Any]) -> Any:
+        if not await state.features.enabled("malleable_profiles"):
+            raise PermissionError("Malleable profiles disabled")
+        import re
+        import secrets
+
+        from squidc5.profiles.models import C2Profile, HttpProfile
+
+        name = str(args.get("name") or "inko-profile")
+        uris = args.get("uris") or ["/api/v1/implant/beacon"]
+        if not isinstance(uris, list):
+            uris = [str(uris)]
+        http = HttpProfile(
+            uris=[str(u) for u in uris][:20],
+            user_agent=str(args.get("user_agent") or "Mozilla/5.0"),
+            sleep_sec=float(args.get("sleep_sec") or 5),
+            jitter_pct=float(args.get("jitter_pct") or 20),
+        )
+        pid = str(args.get("profile_id") or "").strip()
+        if not pid:
+            slug = re.sub(r"[^a-z0-9_]+", "_", name.lower())[:24] or "prof"
+            pid = f"prof_{slug}_{secrets.token_hex(3)}"
+        prof = C2Profile(
+            id=pid,
+            name=name,
+            channel="http",
+            http=http,
+            active=bool(args.get("activate")),
+        )
+        saved = await state.profiles.upsert(prof)
+        if args.get("activate"):
+            await state.profiles.set_active(saved.id)
+        # also save as asset for artifacts page
+        await state.db.create_operator_asset(
+            kind="profile",
+            name=name[:120],
+            content=str(saved.to_dict()),
+            meta={"profile_id": saved.id, "via": "inko"},
+            created_by=auth.name,
+        )
+        return {"profile": saved.to_dict()}
+
+
     return {
         "list_sessions": list_sessions,
         "get_session": get_session,
@@ -575,6 +725,10 @@ def _handlers(
         "generate_payload": generate_payload,
         "save_asset": save_asset,
         "list_assets": list_assets,
+        "register_payload_template": register_payload_template,
+        "list_profiles": list_profiles,
+        "activate_profile": activate_profile,
+        "upsert_profile": upsert_profile,
         "get_metrics": get_metrics,
         "list_recent_events": list_recent_events,
         "list_audit": list_audit,
