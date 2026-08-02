@@ -128,6 +128,42 @@ class Database:
         )
         return cur.rowcount > 0
 
+    async def get_token_by_id(self, token_id: str) -> dict[str, Any] | None:
+        return await self.fetchone(
+            "SELECT id, name, scopes, mcp_tools, created_at, created_by, expires_at, "
+            "revoked, last_used_at FROM tokens WHERE id = ?",
+            (token_id,),
+        )
+
+    async def update_token(
+        self,
+        token_id: str,
+        *,
+        name: str | None = None,
+        scopes: list[str] | None = None,
+        mcp_tools: list[str] | None = None,
+    ) -> bool:
+        """Patch token fields. Does not change token_hash (secret stays the same)."""
+        sets: list[str] = []
+        args: list[Any] = []
+        if name is not None:
+            sets.append("name = ?")
+            args.append(name)
+        if scopes is not None:
+            sets.append("scopes = ?")
+            args.append(json.dumps(scopes))
+        if mcp_tools is not None:
+            sets.append("mcp_tools = ?")
+            args.append(json.dumps(mcp_tools))
+        if not sets:
+            return False
+        args.append(token_id)
+        cur = await self.execute(
+            f"UPDATE tokens SET {', '.join(sets)} WHERE id = ? AND revoked = 0",
+            tuple(args),
+        )
+        return cur.rowcount > 0
+
     # --- Operator assets (saved payloads/profiles/implants) ---
 
     async def create_operator_asset(

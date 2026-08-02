@@ -178,6 +178,7 @@ sc5 output <session_id>
 
 sc5 tokens list
 sc5 tokens create <name> --scopes "a,b,c" [--mcp-tools "t1,t2"]
+sc5 tokens update <id> [--name N] [--scopes "a,b"] [--mcp-tools "t1,t2"]
 sc5 tokens revoke <id>
 
 sc5 ai <capability> [--data "..."] [--llm <id>]

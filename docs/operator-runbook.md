@@ -210,23 +210,28 @@ sc5 tokens create ops \
  --scopes "sessions:read,sessions:write,tasks:read,tasks:write,listeners:read,listeners:write,payloads:generate,metrics:read,audit:read"
 
 sc5 tokens create ext-ai \
- --scopes "mcp:connect,sessions:read,tasks:read,tasks:write,metrics:read" \
- --mcp-tools "list_sessions,get_session,list_tasks,create_task,get_metrics"
+  --scopes "mcp:connect,sessions:read,tasks:read,tasks:write,metrics:read" \
+  --mcp-tools "list_sessions,get_session,list_tasks,create_task,get_metrics"
+
+# Update scopes without rotating the secret
+sc5 tokens update <id> --scopes "sessions:read,shell:interact,metrics:read"
 ```
 
-Raw `sc5_...` is shown **once** - store in a password manager.
+Raw `sc5_...` is shown **once** on create - store in a password manager. Ops Admin has named presets and Edit/Revoke on the token table. Nav hides pages the token cannot use.
 
 ### Verify
 
 ```bash
 sc5 tokens list
 sc5 login --url ... --token <new> --insecure && sc5 whoami
+# Ops left nav should omit Profiles if profiles:read is missing
 ```
 
 ### See also
 
 - [User guide - Tokens](user-guide.md#tokens)
 - [User guide - MCP tools](user-guide.md#mcp-tools)
+
 
 ---
 

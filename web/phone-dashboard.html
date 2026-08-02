@@ -1205,6 +1205,48 @@
     if (state.scopes.indexOf("admin") >= 0) return true;
     return state.scopes.indexOf(scope) >= 0;
   }
+  function canAny(list) {
+    if (!list || !list.length) return true;
+    return list.some((s) => can(s));
+  }
+  /* Nav data-view -> any-of scopes (dashboard always shown when connected) */
+  const NAV_GATES = {
+    sessions: ["sessions:read"],
+    listeners: ["listeners:read"],
+    payloads: ["payloads:generate"],
+    profiles: ["profiles:read"],
+    artifacts: ["payloads:generate", "profiles:read"],
+    postex: ["shell:interact"],
+    collab: ["collab:use"],
+    ai: ["ai:use"],
+    observe: ["metrics:read", "audit:read"],
+    admin: ["admin", "tokens:manage", "policy:manage", "llm:manage"],
+  };
+  function applyNavGates() {
+    document.querySelectorAll(".nav-item[data-view]").forEach((b) => {
+      const v = b.getAttribute("data-view");
+      if (v === "dashboard") {
+        b.classList.remove("hidden");
+        return;
+      }
+      const need = NAV_GATES[v];
+      if (!need) return;
+      b.classList.toggle("hidden", !canAny(need));
+    });
+  }
+  function firstAllowedView(preferred) {
+    if (!preferred || preferred === "dashboard") return "dashboard";
+    const need = NAV_GATES[preferred];
+    if (!need || canAny(need)) return preferred;
+    const order = [
+      "sessions", "listeners", "payloads", "profiles", "artifacts",
+      "postex", "collab", "ai", "observe", "admin",
+    ];
+    for (const v of order) {
+      if (canAny(NAV_GATES[v] || [])) return v;
+    }
+    return "dashboard";
+  }
   async function api(method, path, body) {
     const base = apiBase();
     const token = cfg().token;
@@ -1269,8 +1311,10 @@
   if ($("navBackdrop")) $("navBackdrop").onclick = () => closeNavDrawer();
 
   function setView(name) {
-    if (name === "admin" && !can("admin") && !can("tokens:manage") && !can("policy:manage")) name = "dashboard";
-    if (name === "ai" && !can("ai:use") && !can("admin")) name = "dashboard";
+    if (name !== "dashboard") {
+      const need = NAV_GATES[name];
+      if (need && !canAny(need)) name = firstAllowedView("dashboard");
+    }
     currentView = name;
     document.querySelectorAll(".nav-item").forEach((b) => {
       b.classList.toggle("active", b.getAttribute("data-view") === name);
@@ -1444,8 +1488,7 @@
       $("hostLine").textContent = apiBase();
       $("roleBadge").textContent = state.scopes.indexOf("admin") >= 0 ? "admin" : (state.actor || "op");
       $("roleBadge").classList.remove("hidden");
-      $("navAdmin").classList.toggle("hidden", !(can("admin") || can("tokens:manage") || can("policy:manage")));
-      if ($("navAi")) $("navAi").classList.toggle("hidden", !(can("ai:use") || can("admin")));
+      applyNavGates();
       $("dashEmpty").classList.add("hidden");
       $("dashContent").classList.remove("hidden");
       await loadAdminModule();
@@ -1453,6 +1496,9 @@
       if (timer) clearInterval(timer);
       timer = setInterval(() => refresh().catch(() => {}), c.refresh * 1000);
       showOk("Connected as " + state.actor);
+      // Drop onto a view the token may open
+      const want = currentView || "dashboard";
+      setView(firstAllowedView(want));
 
     const wantActor = ($("actorName") && $("actorName").value || "").trim();
     if (wantActor && wantActor !== state.actor) {

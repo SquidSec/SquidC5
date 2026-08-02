@@ -1098,22 +1098,34 @@ INKO flyout -> connection + model selects
 
 ### What
 
-Mint and revoke scoped API tokens for operators, automation, or MCP.
+Mint, **update scopes**, list, and revoke scoped API tokens for operators, automation, or MCP. Ops nav only shows pages your scopes allow.
 
 ### Why
 
-Least privilege: phone UI might only need `shell:interact` + `sessions:read`; external AI needs `mcp:connect` + tool allow-list.
+Least privilege: phone UI might only need `shell:interact` + `sessions:read`; external AI needs `mcp:connect` + tool allow-list. Editing scopes does **not** rotate the secret - revoke if compromised.
 
 ### How
 
-1. Choose preset (operator / read-only / listener / AI / admin / custom).
-2. **Mint** - raw `sc5_...` shown **once**.
-3. Revoke from list if compromised.
+1. **Admin -> Tokens** (needs `tokens:manage` or `admin`).
+2. Pick a **preset** (short description under the buttons):
+   - **Read only** - watch sessions/listeners/metrics/audit
+   - **Operator** - shells, tasks, collab, session hygiene
+   - **Listener ops** - bind/manage listeners
+   - **Payload / profiles** - generate implants and edit C2 profiles
+   - **Phone shell** - minimal phone interact
+   - **INKO operator** - AI chat + read context + payloads
+   - **MCP external AI** - MCP connect with default safe tools
+   - **Token admin** - mint/update tokens within grant limits
+   - **Full admin** - break-glass (admin granters only)
+3. **Mint new** - raw `sc5_...` shown **once**.
+4. **Edit** a row to change name/scopes/MCP tools (`PATCH /api/v1/tokens/{id}`), or **Revoke**.
+5. Nav hides Profiles, Post-Ex, etc. when the connected token lacks those scopes.
 
 ### Example
 
 ```bash
-sc5 tokens create phone --scopes "sessions:read,shell:interact,metrics:read"
+sc5 tokens create phone --scopes "sessions:read,shell:interact,metrics:read,collab:use,phone:operator"
+sc5 tokens update <id> --scopes "sessions:read,shell:interact,metrics:read,listeners:read"
 sc5 tokens list
 sc5 tokens revoke <id>
 ```
@@ -1122,6 +1134,7 @@ sc5 tokens revoke <id>
 
 - [Identity](#identity)
 - [MCP tools](#mcp-tools)
+- [Ops console layout](#ops-console-layout)
 - [Runbook - Tokens](operator-runbook.md#tokens)
 
 ---
@@ -1354,7 +1367,7 @@ sc5 profiles list|activate
 sc5 implants families|build|generate
 sc5 oast token create | tokens list | hits
 sc5 shell <session_id> "<cmd>" | sc5 shell all "<cmd>"
-sc5 tokens list|create|revoke
+sc5 tokens list|create|update|revoke
 sc5 ai <capability> [--data "..."] [--llm <id>]
 sc5 llm list|add
 sc5 mcp tools|call
