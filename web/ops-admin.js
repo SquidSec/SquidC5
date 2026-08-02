@@ -185,6 +185,7 @@
     }
     if (el("pxSid")) el("pxSid").textContent = selectedId || "(none — pick in Sessions)";
     renderContext();
+    if (el("tskList")) loadTasksPanel();
   }
   window.__SC5_selectSession = selectSession;
 
@@ -257,6 +258,18 @@
               Shell = verified reverse shells; Tasks = beacons.
             </p>
             <div id="sesDetail" class="outbox empty" style="margin-top:12px">Select a session…</div>
+            <div class="wp-head" style="margin-top:12px;border-top:1px solid var(--border);padding-top:8px">
+              Pending tasks ${docLink("tasks")}
+            </div>
+            <div class="toolbar" style="margin-top:6px">
+              <button type="button" id="tskReload">Reload tasks</button>
+              ${can("tasks:write") ? '<button type="button" class="danger" id="tskCancel">Cancel selected</button>' : ""}
+              ${can("tasks:write") ? '<button type="button" id="tskSave">Save edit</button>' : ""}
+            </div>
+            <div id="tskList" class="lp-body" style="max-height:180px;border:1px solid var(--border);border-radius:6px;margin-top:6px"></div>
+            <label for="tskCmd">Edit command (pending only)</label>
+            <input id="tskCmd" placeholder="select a pending task" />
+            <p class="muted mono" id="tskHint" style="font-size:0.7rem;margin:4px 0 0">—</p>
           </div>
         </div>
       </div>
@@ -291,12 +304,82 @@
       }
     };
     if (el("sesRefresh")) el("sesRefresh").onclick = () => window.__SC5_refresh && window.__SC5_refresh();
+    if (el("tskReload")) el("tskReload").onclick = () => loadTasksPanel();
+    if (el("tskCancel")) el("tskCancel").onclick = () => cancelSelectedTask();
+    if (el("tskSave")) el("tskSave").onclick = () => saveSelectedTask();
     tools(`${docLink("sessions", "Sessions docs")} <button type="button" class="primary" id="toolNewShell">Focus rail</button>`);
     if (el("toolNewShell")) el("toolNewShell").onclick = () => {
       if (!selectedId) return showError("Select a session first");
       renderContext();
     };
     if (selectedId) selectSession(selectedId);
+    loadTasksPanel();
+  }
+
+  let selectedTaskId = null;
+  async function loadTasksPanel() {
+    const box = el("tskList");
+    if (!box) return;
+    if (!can("tasks:read") && !can("admin")) {
+      box.innerHTML = '<div class="muted" style="padding:8px">Need tasks:read</div>';
+      return;
+    }
+    try {
+      if (!selectedId) {
+        box.innerHTML = '<div class="muted" style="padding:8px">Select a session to list pending tasks</div>';
+        selectedTaskId = null;
+        return;
+      }
+      const q = `/api/v1/tasks?session_id=${encodeURIComponent(selectedId)}&status=pending`;
+      let tasks = await api("GET", q);
+      if (!Array.isArray(tasks)) tasks = tasks.tasks || [];
+      if (!tasks.length) {
+        box.innerHTML = '<div class="muted" style="padding:8px">No pending tasks for this session</div>';
+        selectedTaskId = null;
+        return;
+      }
+      box.innerHTML = `<table class="data"><thead><tr><th>ID</th><th>Session</th><th>Command</th><th>Status</th></tr></thead><tbody>
+        ${tasks.map((t) => `<tr data-tid="${esc(t.id)}" class="${t.id === selectedTaskId ? "selected" : ""}">
+          <td class="mono">${esc(shortId(t.id))}</td>
+          <td class="mono">${esc(shortId(t.session_id))}</td>
+          <td>${esc(t.command || "")}</td>
+          <td><span class="chip">${esc(t.status || "")}</span></td>
+        </tr>`).join("")}
+      </tbody></table>`;
+      box.querySelectorAll("tr[data-tid]").forEach((tr) => {
+        tr.onclick = () => {
+          selectedTaskId = tr.getAttribute("data-tid");
+          box.querySelectorAll("tr").forEach((x) => x.classList.remove("selected"));
+          tr.classList.add("selected");
+          const t = tasks.find((x) => x.id === selectedTaskId);
+          if (t && el("tskCmd")) el("tskCmd").value = t.command || "";
+          if (el("tskHint")) el("tskHint").textContent = t
+            ? `Editing ${t.id} (${t.status}) · session ${t.session_id}`
+            : "—";
+        };
+      });
+    } catch (e) {
+      box.innerHTML = `<div class="muted" style="padding:8px">${esc(String(e.message || e))}</div>`;
+    }
+  }
+  async function cancelSelectedTask() {
+    if (!selectedTaskId) return showError("Select a pending task");
+    try {
+      await api("POST", `/api/v1/tasks/${encodeURIComponent(selectedTaskId)}/cancel`);
+      showOk("Task cancelled");
+      selectedTaskId = null;
+      await loadTasksPanel();
+    } catch (e) { showError(String(e.message || e)); }
+  }
+  async function saveSelectedTask() {
+    if (!selectedTaskId) return showError("Select a pending task");
+    const command = (el("tskCmd") && el("tskCmd").value || "").trim();
+    if (!command) return showError("Command required");
+    try {
+      await api("PATCH", `/api/v1/tasks/${encodeURIComponent(selectedTaskId)}`, { command });
+      showOk("Task updated");
+      await loadTasksPanel();
+    } catch (e) { showError(String(e.message || e)); }
   }
 
   /* —— Listeners —— */
@@ -315,9 +398,22 @@
         saveSel("sc5_ops_lid", selectedListenerId);
         tbody.querySelectorAll("tr").forEach((x) => x.classList.remove("selected"));
         tr.classList.add("selected");
+        populateListenerForm(selectedListenerId);
       };
     });
   }
+
+  function populateListenerForm(lid) {
+    const l = (cache.listeners || []).find((x) => x.id === lid);
+    if (!l) return;
+    if (el("lisName")) el("lisName").value = l.name || "";
+    if (el("lisPort")) el("lisPort").value = l.port != null ? String(l.port) : "";
+    if (el("lisKind")) el("lisKind").value = l.kind || "reverse_shell";
+    const cfg = l.config || {};
+    if (el("lisZone")) el("lisZone").value = cfg.zone || cfg.dns_zone || "";
+    if (el("lisIdHint")) el("lisIdHint").textContent = "Selected: " + (l.id || "") + " · " + (l.status || "");
+  }
+
 
   function renderListenersView(force) {
     const root = el("view-listeners");
@@ -340,6 +436,7 @@
           <div class="wp-head">Manage ${docLink("listeners")}</div>
           <div class="wp-body">
             ${can("listeners:write") ? `
+              <p class="muted mono" id="lisIdHint" style="font-size:0.72rem;margin:0 0 6px">Select a listener to load fields</p>
               <div class="form-grid">
                 <div><label>Name</label><input id="lisName" placeholder="rev443" /></div>
                 <div><label>Port</label><input id="lisPort" type="number" placeholder="443" /></div>
@@ -355,9 +452,10 @@
               </div>
               <div class="row">
                 <button type="button" class="primary" id="lisCreate">Create + start</button>
-                <button type="button" id="lisStart">Start selected</button>
+                <button type="button" id="lisStart">Start</button>
                 <button type="button" id="lisStop">Stop</button>
                 <button type="button" class="danger" id="lisDel">Delete</button>
+                <button type="button" id="lisClear">Clear form</button>
               </div>
             ` : '<p class="muted">Read-only token</p>'}
             <div class="outbox empty" id="lisOut">—</div>
@@ -367,6 +465,7 @@
     `;
     viewBuilt.listeners = true;
     fillListenerRows(el("lisTbody"));
+    if (selectedListenerId) populateListenerForm(selectedListenerId);
     async function lisAct(fn) {
       try {
         const r = await fn();
@@ -384,6 +483,8 @@
       const config = kind === "dns" && zone ? { zone } : {};
       const created = await api("POST", "/api/v1/listeners", { name, port, kind, host: "0.0.0.0", config });
       await api("POST", `/api/v1/listeners/${created.id}/start`);
+      selectedListenerId = created.id;
+      saveSel("sc5_ops_lid", selectedListenerId);
       showOk("Listener running");
       return created;
     });
@@ -401,8 +502,21 @@
         const id = selectedListenerId;
         selectedListenerId = null;
         saveSel("sc5_ops_lid", null);
+        if (el("lisName")) el("lisName").value = "";
+        if (el("lisPort")) el("lisPort").value = "";
+        if (el("lisIdHint")) el("lisIdHint").textContent = "Select a listener to load fields";
         return api("DELETE", `/api/v1/listeners/${id}`);
       });
+    };
+    if (el("lisClear")) el("lisClear").onclick = () => {
+      selectedListenerId = null;
+      saveSel("sc5_ops_lid", null);
+      if (el("lisName")) el("lisName").value = "";
+      if (el("lisPort")) el("lisPort").value = "";
+      if (el("lisZone")) el("lisZone").value = "";
+      if (el("lisKind")) el("lisKind").value = "reverse_shell";
+      if (el("lisIdHint")) el("lisIdHint").textContent = "Select a listener to load fields";
+      document.querySelectorAll("#lisTbody tr").forEach((x) => x.classList.remove("selected"));
     };
   }
 
@@ -807,6 +921,17 @@
       root.innerHTML = '<div class="empty-state"><strong>Admin area</strong>Requires admin or manage scopes.</div>';
       return;
     }
+    const defaultScopes = new Set([
+      "sessions:read", "sessions:write", "tasks:read", "tasks:write",
+      "shell:interact", "listeners:read", "collab:use", "metrics:read",
+    ]);
+    const allScopes = [
+      "sessions:read", "sessions:write", "tasks:read", "tasks:write",
+      "listeners:read", "listeners:write", "payloads:generate", "shell:interact",
+      "metrics:read", "audit:read", "ai:use", "collab:use", "profiles:read", "profiles:write",
+      "files:read", "files:write", "oast:read", "oast:write", "mcp:connect",
+      "tokens:manage", "llm:manage", "policy:manage", "plugins:manage", "admin",
+    ];
     root.innerHTML = `
       ${featDocs("feature-toggles", "Tokens, policy engine, feature flags. High-risk — admin only where required.")}
       <div class="form-grid">
@@ -814,28 +939,54 @@
           <div class="wp-head">Mint token ${docLink("tokens")}</div>
           <div class="wp-body">
             <label>Name</label><input id="adName" placeholder="operator-1" />
-            <label>Scopes (comma)</label>
-            <input id="adScopes" value="sessions:read,sessions:write,tasks:read,tasks:write,shell:interact,listeners:read,collab:use" />
+            <label>Scopes</label>
+            <div class="row" style="margin:4px 0">
+              <button type="button" id="adScopeOp">Operator preset</button>
+              <button type="button" id="adScopeNone">Clear</button>
+              <button type="button" id="adScopeAll">All non-admin</button>
+            </div>
+            <div class="scope-grid" id="adScopeGrid">
+              ${allScopes.map((s) => `
+                <label><input type="checkbox" class="ad-scope" value="${esc(s)}"
+                  ${defaultScopes.has(s) ? "checked" : ""}
+                  ${s === "admin" && !can("admin") ? "disabled" : ""} /> ${esc(s)}</label>
+              `).join("")}
+            </div>
             <div class="row"><button type="button" class="primary" id="adMint">Mint</button></div>
             <div class="outbox empty" id="adMintOut">Token shown once</div>
           </div>
         </div>
         <div class="work-panel">
-          <div class="wp-head">Policy / features</div>
+          <div class="wp-head">Policy / features ${docLink("feature-toggles")}</div>
           <div class="wp-body">
             <div class="row">
               <button type="button" id="adPolGet">Get policy</button>
               <button type="button" id="adFeat">Features</button>
               <button type="button" id="adTokList">List tokens</button>
             </div>
-            <div class="outbox empty" id="adOut" style="max-height:360px">—</div>
+            <div class="outbox empty" id="adOut" style="max-height:360px;flex:1">—</div>
           </div>
         </div>
       </div>
     `;
+    function selectedScopes() {
+      return Array.from(document.querySelectorAll(".ad-scope:checked")).map((c) => c.value);
+    }
+    function setScopes(set) {
+      document.querySelectorAll(".ad-scope").forEach((c) => {
+        if (c.disabled) return;
+        c.checked = set.has(c.value);
+      });
+    }
+    if (el("adScopeOp")) el("adScopeOp").onclick = () => setScopes(defaultScopes);
+    if (el("adScopeNone")) el("adScopeNone").onclick = () => setScopes(new Set());
+    if (el("adScopeAll")) el("adScopeAll").onclick = () => {
+      setScopes(new Set(allScopes.filter((s) => s !== "admin" || can("admin"))));
+    };
     if (el("adMint")) el("adMint").onclick = async () => {
       try {
-        const scopes = (el("adScopes").value || "").split(",").map((s) => s.trim()).filter(Boolean);
+        const scopes = selectedScopes();
+        if (!scopes.length) return showError("Select at least one scope");
         const r = await api("POST", "/api/v1/tokens", { name: el("adName").value.trim() || "op", scopes });
         el("adMintOut").textContent = r.token || JSON.stringify(r, null, 2);
         el("adMintOut").classList.remove("empty");
@@ -875,7 +1026,10 @@
     if (data.sessions) cache.sessions = data.sessions;
     if (data.listeners) cache.listeners = data.listeners;
     // Soft update — do not wipe selection or rebuild forms
-    if (currentIs("sessions")) renderSessionsView(false);
+    if (currentIs("sessions")) {
+      renderSessionsView(false);
+      if (el("tskList")) loadTasksPanel();
+    }
     if (currentIs("listeners")) renderListenersView(false);
     if (el("pxSid")) el("pxSid").textContent = selectedId || "(none — pick in Sessions)";
     // Restore row highlights without full context rebuild if possible

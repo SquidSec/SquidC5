@@ -58,6 +58,11 @@ class TaskCreate(BaseModel):
     hitl_request_id: str | None = None
 
 
+class TaskUpdate(BaseModel):
+    command: str | None = None
+    args: dict[str, Any] | None = None
+
+
 class PayloadRequest(BaseModel):
     template: str
     host: str
@@ -533,10 +538,26 @@ def build_api_router() -> APIRouter:
     async def list_tasks(
         request: Request,
         session_id: str | None = None,
+        status: str | None = None,
         auth: AuthContext = Depends(require_scope("tasks:read", "admin")),
     ) -> list[dict[str, Any]]:
+        """List tasks. Non-admins must pass session_id (no global enumeration)."""
         state = get_state(request)
-        return await state.tasks.list(session_id=session_id)
+        if not auth.has_scope("admin"):
+            if not session_id:
+                raise HTTPException(
+                    400, "session_id required (non-admin cannot list all tasks)"
+                )
+            # read path: allow if not claim-locked against this actor
+            try:
+                await state.teams.assert_write_access(
+                    session_id, auth.name, is_admin=False
+                )
+            except KeyError as e:
+                raise HTTPException(404, str(e)) from e
+            except PermissionError as e:
+                raise HTTPException(403, str(e)) from e
+        return await state.tasks.list(session_id=session_id, status=status)
 
     @api.post("/tasks")
     async def create_task(
@@ -587,6 +608,71 @@ def build_api_router() -> APIRouter:
         if not t:
             raise HTTPException(404, "task not found")
         return t
+
+    @api.post("/tasks/{task_id}/cancel")
+    async def cancel_task(
+        task_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("tasks:write", "admin")),
+    ) -> dict[str, Any]:
+        """Cancel a pending task (not yet picked up by implant)."""
+        state = get_state(request)
+        try:
+            t = await state.tasks.get(task_id)
+            if not t:
+                raise HTTPException(404, "task not found")
+            if not auth.has_scope("admin"):
+                await state.teams.assert_write_access(
+                    t["session_id"], auth.name, is_admin=False
+                )
+            out = await state.tasks.cancel(task_id)
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="tasks.cancel",
+            resource=task_id,
+            risk_score=3,
+        )
+        return out
+
+    @api.patch("/tasks/{task_id}")
+    async def update_task(
+        task_id: str,
+        body: TaskUpdate,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("tasks:write", "admin")),
+    ) -> dict[str, Any]:
+        """Modify command/args on a pending task only."""
+        state = get_state(request)
+        if body.command is None and body.args is None:
+            raise HTTPException(400, "command or args required")
+        try:
+            t = await state.tasks.get(task_id)
+            if not t:
+                raise HTTPException(404, "task not found")
+            if not auth.has_scope("admin"):
+                await state.teams.assert_write_access(
+                    t["session_id"], auth.name, is_admin=False
+                )
+            out = await state.tasks.update_pending(
+                task_id, command=body.command, args=body.args
+            )
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="tasks.update",
+            resource=task_id,
+            risk_score=3,
+        )
+        return out
 
     # ----- Listeners -----
 
