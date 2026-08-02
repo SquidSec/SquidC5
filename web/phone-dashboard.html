@@ -211,7 +211,13 @@
     }
     .main-head h2 { margin: 0; font-size: 0.95rem; font-weight: 700; }
     .main-head .sub { font-size: 0.75rem; color: var(--muted); }
-    .main-head .tools { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+    .main-head > div:first-child { min-width: 0; flex: 1; }
+    .main-head-actions {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    }
+    .main-head .tools { margin-left: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+    .main-head .docs-drop { margin-left: 0; }
     .main-body {
       flex: 1; min-height: 0; overflow: auto;
       padding: 12px 14px;
@@ -872,6 +878,7 @@
         font-size: 0.68rem;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
+      .main-head-actions { margin-left: auto; flex-shrink: 0; }
       .main-head .tools { margin-left: 0; flex-shrink: 0; }
       .docs-drop { flex-shrink: 0; }
       .docs-menu {
@@ -963,6 +970,8 @@
         <button type="button" class="nav-item" data-view="sessions"><span class="ico">◉</span> Sessions <span class="badge-n" id="navNSes">0</span></button>
         <button type="button" class="nav-item" data-view="listeners"><span class="ico">◎</span> Listeners <span class="badge-n" id="navNLis">0</span></button>
         <button type="button" class="nav-item" data-view="payloads"><span class="ico">⌘</span> Payloads</button>
+        <button type="button" class="nav-item" data-view="profiles"><span class="ico">▦</span> Profiles</button>
+        <button type="button" class="nav-item" data-view="artifacts"><span class="ico">⧉</span> Artifacts</button>
         <button type="button" class="nav-item" data-view="postex"><span class="ico">⚡</span> Post-Ex</button>
         <button type="button" class="nav-item" data-view="collab"><span class="ico">⇄</span> Collab</button>
         <button type="button" class="nav-item" data-view="ai" id="navAi"><span class="ico">◈</span> INKO</button>
@@ -981,11 +990,13 @@
           <h2 id="viewTitle">Dashboard</h2>
           <div class="sub" id="viewSub">Overview of this teamserver</div>
         </div>
-        <div class="docs-drop" id="docsDrop">
-          <button type="button" id="viewDocsBtn" title="Documentation for this page">Docs ▾</button>
-          <div class="docs-menu" id="viewDocsMenu"></div>
+        <div class="main-head-actions">
+          <div class="docs-drop" id="docsDrop">
+            <button type="button" id="viewDocsBtn" title="Documentation for this page">Docs ▾</button>
+            <div class="docs-menu" id="viewDocsMenu"></div>
+          </div>
+          <div class="tools" id="viewTools"></div>
         </div>
-        <div class="tools" id="viewTools"></div>
       </div>
       <div class="main-body" id="mainBody">
         <!-- Views filled by ops-admin.js after auth; shell shows login empty states -->
@@ -1012,6 +1023,8 @@
         <div class="view" id="view-sessions"></div>
         <div class="view" id="view-listeners"></div>
         <div class="view" id="view-payloads"></div>
+        <div class="view" id="view-profiles"></div>
+        <div class="view" id="view-artifacts"></div>
         <div class="view" id="view-postex"></div>
         <div class="view" id="view-collab"></div>
         <div class="view" id="view-ai"></div>
@@ -1036,6 +1049,7 @@
       <div class="ai-drawer-body" id="aiChatLog"></div>
       <div class="ai-drawer-foot" id="aiDrawerFoot">
         <select id="aiLlmGlobal" title="LLM connection"></select>
+        <select id="aiModelGlobal" title="Model" disabled><option value="">Model…</option></select>
         <textarea id="aiPromptGlobal" rows="3" placeholder="Ask INKO anything - list sessions, spin up a listener…"></textarea>
         <div class="row" style="margin:0;gap:6px">
           <button type="button" class="primary" id="aiSendGlobal" style="flex:1">Send</button>
@@ -1203,6 +1217,8 @@
     sessions: { title: "Sessions", sub: "Beacons and reverse shells", doc: "sessions" },
     listeners: { title: "Listeners", sub: "Bind ports and manage acceptors", doc: "listeners" },
     payloads: { title: "Payloads", sub: "Generate implants and templates", doc: "payloads-and-implants" },
+    profiles: { title: "Profiles", sub: "Malleable C2 profiles — activate, edit, push", doc: "c2-profiles" },
+    artifacts: { title: "Artifacts", sub: "Saved payloads, templates, profiles, implants", doc: "payloads-and-implants" },
     postex: { title: "Post-Ex", sub: "Files, SOCKS, modules on selected session", doc: "file-ops" },
     collab: { title: "Collab", sub: "Teams, chat, handoff, presence", doc: "multi-operator-collab" },
     ai: { title: "INKO", sub: "Capabilities, status & tools — chat opens from the top-bar flyout", doc: "inko-intelligent-neural-kinetic-operator" },

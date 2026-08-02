@@ -58,6 +58,12 @@
       { a: "payloads-and-implants", t: "Payloads & implants" },
       { a: "c2-profiles", t: "C2 profiles" },
     ],
+    profiles: [
+      { a: "c2-profiles", t: "C2 profiles" },
+    ],
+    artifacts: [
+      { a: "payloads-and-implants", t: "Saved artifacts" },
+    ],
     postex: [
       { a: "file-ops", t: "File ops" },
       { a: "socks-pivot", t: "SOCKS pivot" },
@@ -329,6 +335,73 @@
       el(prefix + "Provider").dataset.bound = "1";
     }
     updateModelUi();
+  }
+
+
+  async function loadModelsForLlm(llmId, modelSelectId, preferred) {
+    const sel = el(modelSelectId);
+    if (!sel) return;
+    if (!llmId) {
+      sel.innerHTML = '<option value="">Select a connection first</option>';
+      sel.disabled = true;
+      return;
+    }
+    sel.disabled = true;
+    sel.innerHTML = '<option value="">Loading models…</option>';
+    try {
+      const r = await api("POST", "/api/v1/llm/models", { llm_id: llmId });
+      const models = r.models || [];
+      const pref = preferred || "";
+      if (!models.length) {
+        sel.innerHTML = pref
+          ? `<option value="${esc(pref)}">${esc(pref)}</option>`
+          : '<option value="">(no models — type via override in Admin)</option>';
+        sel.disabled = !pref;
+        if (pref) sel.value = pref;
+        return;
+      }
+      const set = new Set(models);
+      if (pref) set.add(pref);
+      const list = Array.from(set).sort((a, b) => a.localeCompare(b));
+      sel.innerHTML = list.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
+      sel.disabled = false;
+      sel.value = pref && list.includes(pref) ? pref : list[0];
+    } catch (e) {
+      const pref = preferred || "";
+      sel.innerHTML = pref
+        ? `<option value="${esc(pref)}">${esc(pref)} (offline)</option>`
+        : `<option value="">Model list failed</option>`;
+      sel.disabled = !pref;
+      if (pref) sel.value = pref;
+    }
+  }
+
+  function bindLlmModelPair(connId, modelId) {
+    const conn = el(connId);
+    const mod = el(modelId);
+    if (!conn || !mod) return;
+    const sync = async () => {
+      const id = conn.value || "";
+      saveSel("sc5_ops_llm", id || "");
+      let pref = "";
+      try {
+        const llms = await loadSavedLlms();
+        const row = (llms || []).find((L) => (L.id || L.name) === id);
+        pref = (row && row.model) || loadSel("sc5_ops_model") || "";
+      } catch (_) { pref = loadSel("sc5_ops_model") || ""; }
+      await loadModelsForLlm(id, modelId, pref);
+      if (mod.value) saveSel("sc5_ops_model", mod.value);
+    };
+    conn.onchange = () => { sync(); };
+    mod.onchange = () => {
+      if (mod.value) saveSel("sc5_ops_model", mod.value);
+      // persist model on connection for next chat default
+      const id = conn.value;
+      if (id && mod.value) {
+        api("PATCH", "/api/v1/llm/" + encodeURIComponent(id), { model: mod.value }).catch(() => {});
+      }
+    };
+    sync();
   }
 
   async function loadSavedLlms() {
@@ -865,45 +938,106 @@
           ${can("payloads:generate") ? `
             <div class="form-grid">
               <div class="full"><label>Template</label>
-                <select id="payTpl">
-                  <option value="http_beacon_python">http_beacon_python</option>
-                  <option value="http_beacon_bash">http_beacon_bash</option>
-                  <option value="reverse_shell_bash">reverse_shell_bash</option>
-                  <option value="reverse_shell_python">reverse_shell_python</option>
-                  <option value="ws_beacon_python">ws_beacon_python</option>
-                </select>
+                <select id="payTpl"><option value="">Loading…</option></select>
+              </div>
+              <div class="full"><label>C2 profile (optional)</label>
+                <select id="payProfile"><option value="">(active profile)</option></select>
               </div>
               <div><label>Host</label><input id="payHost" value="${esc(host)}" /></div>
               <div><label>Port</label><input id="payPort" type="number" value="${location.port || 8443}" /></div>
+              <div><label>Interval</label><input id="payInterval" type="number" value="5" /></div>
+              <div><label>Scheme</label>
+                <select id="payScheme"><option value="">auto</option><option value="https">https</option><option value="http">http</option></select>
+              </div>
             </div>
             <div class="row">
               <button type="button" class="primary" id="payGen">Generate</button>
               <button type="button" id="payCopy">Copy</button>
+              <button type="button" id="paySave">Save artifact</button>
             </div>
+            <details style="margin-top:12px">
+              <summary class="muted" style="cursor:pointer;font-size:0.78rem">Register custom template</summary>
+              <label>Name</label><input id="payTplName" placeholder="my_custom_beacon" />
+              <label>Body (use {host} {port} {path} {interval})</label>
+              <textarea id="payTplBody" rows="5" class="mono" style="font-size:0.75rem" placeholder="connect {host}:{port}"></textarea>
+              <div class="row"><button type="button" id="payTplReg">Register template</button></div>
+            </details>
           ` : '<p class="muted">Need payloads:generate scope</p>'}
           <div class="outbox empty" id="payOut">—</div>
         </div>
       </div>
     `;
     viewBuilt.payloads = true;
+    (async () => {
+      try {
+        const [tpl, prof] = await Promise.all([
+          api("GET", "/api/v1/payloads/templates").catch(() => ({ templates: [] })),
+          can("profiles:read") || can("admin")
+            ? api("GET", "/api/v1/profiles").catch(() => ({ profiles: [] }))
+            : Promise.resolve({ profiles: [] }),
+        ]);
+        const names = tpl.templates || [];
+        if (el("payTpl")) {
+          el("payTpl").innerHTML = names.map((n) => {
+            const custom = (tpl.custom || []).includes(n);
+            return `<option value="${esc(n)}">${esc(n)}${custom ? " (custom)" : ""}</option>`;
+          }).join("") || '<option value="">(none)</option>';
+        }
+        if (el("payProfile")) {
+          const rows = prof.profiles || [];
+          const act = prof.active_id || "";
+          el("payProfile").innerHTML = `<option value="">(active${act ? ": " + esc(act) : ""})</option>` +
+            rows.map((p) => `<option value="${esc(p.id)}">${esc(p.name || p.id)}${p.id === act ? " ★" : ""}</option>`).join("");
+        }
+      } catch (e) { /* ignore */ }
+    })();
     if (el("payGen")) el("payGen").onclick = async () => {
       try {
-        const r = await api("POST", "/api/v1/payloads/generate", {
+        const body = {
           template: el("payTpl").value,
           host: el("payHost").value.trim(),
           port: Number(el("payPort").value),
-        });
+          interval: Number(el("payInterval")?.value || 5),
+        };
+        if (el("payProfile")?.value) body.profile_id = el("payProfile").value;
+        if (el("payScheme")?.value) body.scheme = el("payScheme").value;
+        const r = await api("POST", "/api/v1/payloads/generate", body);
         const text = r.content || r.payload || JSON.stringify(r, null, 2);
         el("payOut").textContent = text;
         el("payOut").classList.remove("empty");
+        el("payOut").dataset.raw = text;
         showOk("Generated");
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("payCopy")) el("payCopy").onclick = async () => {
+      const text = el("payOut")?.dataset?.raw || el("payOut")?.textContent || "";
+      try { await navigator.clipboard.writeText(text); showOk("Copied"); }
+      catch (_) { showError("Clipboard unavailable"); }
+    };
+    if (el("paySave")) el("paySave").onclick = async () => {
       try {
-        await navigator.clipboard.writeText(el("payOut").textContent || "");
-        showOk("Copied");
-      } catch (_) { showError("Copy failed"); }
+        const text = el("payOut")?.dataset?.raw || el("payOut")?.textContent || "";
+        if (!text || text === "—") return showError("Generate first");
+        const name = (el("payTpl").value || "payload") + "-" + Date.now().toString(36);
+        await api("POST", "/api/v1/assets", {
+          kind: "payload",
+          name,
+          content: text,
+          meta: { template: el("payTpl").value, host: el("payHost").value, port: el("payPort").value },
+        });
+        showOk("Saved to Artifacts");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("payTplReg")) el("payTplReg").onclick = async () => {
+      try {
+        const r = await api("POST", "/api/v1/payloads/templates", {
+          name: (el("payTplName").value || "").trim(),
+          content: el("payTplBody").value || "",
+        });
+        showOk("Template registered: " + (r.name || ""));
+        viewBuilt.payloads = false;
+        renderPayloadsView(true);
+      } catch (e) { showError(String(e.message || e)); }
     };
   }
 
@@ -1405,6 +1539,8 @@
       };
       const llm_id = selectedLlmId();
       if (llm_id) body.llm_id = llm_id;
+      const model = selectedModel();
+      if (model) body.model = model;
       const r = await api("POST", "/api/v1/ai/chat", body);
       const reply = (r && r.reply) || JSON.stringify(r, null, 2);
       const tools = (r && r.tool_trace) || [];
@@ -1466,8 +1602,11 @@
               <button type="button" class="primary" id="aiOpenDrawer">Open INKO chat</button>
               <button type="button" id="aiClearPage">Clear chat history</button>
             </div>
-            <label>Default LLM connection (flyout)</label>
+            <label>LLM connection</label>
             <select id="aiLlmPick"><option value="">Loading…</option></select>
+            <label>Model</label>
+            <select id="aiModelPick" disabled><option value="">Select connection…</option></select>
+            <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Models load from the provider for the selected connection. Switching model updates the connection default.</p>
             <h3 style="margin:16px 0 6px;font-size:0.85rem;color:var(--text)">What INKO can do</h3>
             <div class="inko-cap-grid">
               ${CAP_CARDS.map((c) => `
@@ -1496,13 +1635,11 @@
       const prev = el("aiLlmPick")?.value || loadSel("sc5_ops_llm") || "";
       fillLlmSelect(el("aiLlmPick"), llms, prev);
       fillLlmSelect(el("aiLlmGlobal"), llms, prev);
+      bindLlmModelPair("aiLlmPick", "aiModelPick");
+      bindLlmModelPair("aiLlmGlobal", "aiModelGlobal");
     };
     window.__SC5_refreshLlms = refreshPick;
     refreshPick();
-    if (el("aiLlmPick")) el("aiLlmPick").onchange = () => {
-      saveSel("sc5_ops_llm", el("aiLlmPick").value || "");
-      if (el("aiLlmGlobal") && el("aiLlmPick").value) el("aiLlmGlobal").value = el("aiLlmPick").value;
-    };
     if (el("aiClearPage")) el("aiClearPage").onclick = () => clearAiChat();
     if (el("aiStatus")) el("aiStatus").onclick = async () => {
       try {
@@ -1532,6 +1669,12 @@
     return (el("aiLlmPick") && el("aiLlmPick").value)
       || (el("aiLlmGlobal") && el("aiLlmGlobal").value)
       || loadSel("sc5_ops_llm")
+      || null;
+  }
+  function selectedModel() {
+    return (el("aiModelPick") && el("aiModelPick").value)
+      || (el("aiModelGlobal") && el("aiModelGlobal").value)
+      || loadSel("sc5_ops_model")
       || null;
   }
 
@@ -1577,11 +1720,10 @@
     rebuildAiChatDom();
     loadSavedLlms().then((llms) => {
       fillLlmSelect(el("aiLlmGlobal"), llms, loadSel("sc5_ops_llm") || "");
+      fillLlmSelect(el("aiLlmPick"), llms, loadSel("sc5_ops_llm") || "");
+      bindLlmModelPair("aiLlmGlobal", "aiModelGlobal");
+      bindLlmModelPair("aiLlmPick", "aiModelPick");
     });
-    if (el("aiLlmGlobal")) el("aiLlmGlobal").onchange = () => {
-      saveSel("sc5_ops_llm", el("aiLlmGlobal").value || "");
-      if (el("aiLlmPick") && el("aiLlmGlobal").value) el("aiLlmPick").value = el("aiLlmGlobal").value;
-    };
     btn.onclick = () => openAiDrawer();
     if (el("aiDrawerClose")) el("aiDrawerClose").onclick = () => openAiDrawer(false);
     if (backdrop) backdrop.onclick = () => openAiDrawer(false);
@@ -1867,6 +2009,204 @@
     if (el("adTokList")) el("adTokList").onclick = () => dump("/api/v1/tokens");
   }
 
+
+  /* —— Profiles —— */
+  function renderProfilesView(force) {
+    const root = el("view-profiles");
+    if (!root) return;
+    if (!force && viewBuilt.profiles && root.querySelector("#profTbody")) return;
+    root.innerHTML = `
+      <div class="split">
+        <div class="list-panel">
+          <div class="lp-head">C2 profiles <button type="button" id="profReload" style="margin-left:auto">Reload</button></div>
+          <div class="lp-body"><table class="data"><thead><tr><th>Name</th><th>Channel</th><th>Active</th></tr></thead>
+          <tbody id="profTbody"></tbody></table></div>
+        </div>
+        <div class="work-panel">
+          <div class="wp-head">Manage</div>
+          <div class="wp-body">
+            ${(can("profiles:write") || can("admin")) ? `
+              <label>Name</label><input id="profName" placeholder="stealth-http" />
+              <label>URIs (comma-separated)</label><input id="profUris" placeholder="/api/v1/implant/beacon,/cdn/a" />
+              <label>User-Agent</label><input id="profUa" value="Mozilla/5.0" />
+              <div class="form-grid">
+                <div><label>Sleep sec</label><input id="profSleep" type="number" value="5" /></div>
+                <div><label>Jitter %</label><input id="profJitter" type="number" value="20" /></div>
+              </div>
+              <div class="row">
+                <button type="button" class="primary" id="profSave">Save profile</button>
+                <button type="button" id="profAct">Activate selected</button>
+                <button type="button" id="profPush">Push active</button>
+              </div>
+            ` : '<p class="muted">Need profiles:write</p>'}
+            <div class="outbox empty" id="profOut">—</div>
+          </div>
+        </div>
+      </div>
+    `;
+    viewBuilt.profiles = true;
+    let selectedProf = null;
+    async function loadProfs() {
+      try {
+        const r = await api("GET", "/api/v1/profiles");
+        const rows = r.profiles || [];
+        const act = r.active_id || "";
+        const tb = el("profTbody");
+        if (!tb) return;
+        tb.innerHTML = rows.map((p) => `
+          <tr data-pid="${esc(p.id)}" class="${p.id === act ? "selected" : ""}">
+            <td>${esc(p.name || p.id)}</td>
+            <td>${esc(p.channel || "http")}</td>
+            <td>${p.id === act || p.active ? "★" : ""}</td>
+          </tr>`).join("") || '<tr><td colspan="3" class="muted">No profiles</td></tr>';
+        tb.querySelectorAll("tr[data-pid]").forEach((tr) => {
+          tr.onclick = () => {
+            selectedProf = tr.getAttribute("data-pid");
+            tb.querySelectorAll("tr").forEach((x) => x.classList.toggle("selected", x === tr));
+            const row = rows.find((x) => x.id === selectedProf);
+            if (row && el("profName")) {
+              el("profName").value = row.name || "";
+              const uris = (row.http && row.http.uris) || [];
+              if (el("profUris")) el("profUris").value = uris.join(",");
+              if (el("profUa") && row.http) el("profUa").value = row.http.user_agent || "";
+              if (el("profSleep") && row.http) el("profSleep").value = row.http.sleep_sec ?? 5;
+              if (el("profJitter") && row.http) el("profJitter").value = row.http.jitter_pct ?? 20;
+            }
+          };
+        });
+        el("profOut").textContent = "active: " + (act || "none") + " · " + rows.length + " profiles";
+        el("profOut").classList.remove("empty");
+      } catch (e) { showError(String(e.message || e)); }
+    }
+    if (el("profReload")) el("profReload").onclick = () => loadProfs();
+    if (el("profSave")) el("profSave").onclick = async () => {
+      try {
+        const name = (el("profName").value || "").trim();
+        const uris = (el("profUris").value || "").split(",").map((s) => s.trim()).filter(Boolean);
+        const body = {
+          id: selectedProf || undefined,
+          name,
+          channel: "http",
+          http: {
+            uris: uris.length ? uris : ["/api/v1/implant/beacon"],
+            user_agent: el("profUa").value || "Mozilla/5.0",
+            sleep_sec: Number(el("profSleep").value || 5),
+            jitter_pct: Number(el("profJitter").value || 20),
+          },
+        };
+        const r = await api("POST", "/api/v1/profiles", body);
+        showOk("Profile saved");
+        el("profOut").textContent = JSON.stringify(r, null, 2);
+        loadProfs();
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("profAct")) el("profAct").onclick = async () => {
+      if (!selectedProf) return showError("Select a profile");
+      try {
+        const r = await api("POST", `/api/v1/profiles/${encodeURIComponent(selectedProf)}/activate`);
+        showOk("Activated");
+        el("profOut").textContent = JSON.stringify(r, null, 2);
+        loadProfs();
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("profPush")) el("profPush").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/profiles/active");
+        const id = r.id;
+        const out = await api("POST", `/api/v1/profiles/${encodeURIComponent(id)}/push`, {});
+        showOk("Push queued");
+        el("profOut").textContent = JSON.stringify(out, null, 2);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    loadProfs();
+  }
+
+  /* —— Artifacts —— */
+  function renderArtifactsView(force) {
+    const root = el("view-artifacts");
+    if (!root) return;
+    if (!force && viewBuilt.artifacts && root.querySelector("#astTbody")) return;
+    root.innerHTML = `
+      <div class="split">
+        <div class="list-panel">
+          <div class="lp-head">Artifacts
+            <select id="astKind" style="margin-left:auto;width:auto;min-height:32px;font-size:0.75rem">
+              <option value="">all</option>
+              <option value="payload">payload</option>
+              <option value="template">template</option>
+              <option value="profile">profile</option>
+              <option value="implant">implant</option>
+              <option value="other">other</option>
+            </select>
+            <button type="button" id="astReload">Reload</button>
+          </div>
+          <div class="lp-body"><table class="data"><thead><tr><th>Name</th><th>Kind</th><th>By</th></tr></thead>
+          <tbody id="astTbody"></tbody></table></div>
+        </div>
+        <div class="work-panel">
+          <div class="wp-head">Preview</div>
+          <div class="wp-body">
+            <div class="row">
+              <button type="button" id="astCopy">Copy</button>
+              <button type="button" class="danger" id="astDel">Delete</button>
+            </div>
+            <div class="outbox empty" id="astPreview" style="max-height:min(60vh,520px);min-height:200px">Select an artifact…</div>
+          </div>
+        </div>
+      </div>
+    `;
+    viewBuilt.artifacts = true;
+    let selectedAst = null;
+    let selectedContent = "";
+    async function loadAst() {
+      try {
+        const kind = el("astKind")?.value || "";
+        const q = kind ? `?kind=${encodeURIComponent(kind)}&limit=100` : "?limit=100";
+        const r = await api("GET", "/api/v1/assets" + q);
+        const rows = r.assets || [];
+        const tb = el("astTbody");
+        tb.innerHTML = rows.map((a) => `
+          <tr data-aid="${esc(a.id)}">
+            <td>${esc(a.name)}</td>
+            <td>${esc(a.kind)}</td>
+            <td class="mono">${esc(a.created_by || "—")}</td>
+          </tr>`).join("") || '<tr><td colspan="3" class="muted">No artifacts yet — generate from Payloads or INKO</td></tr>';
+        tb.querySelectorAll("tr[data-aid]").forEach((tr) => {
+          tr.onclick = async () => {
+            selectedAst = tr.getAttribute("data-aid");
+            tb.querySelectorAll("tr").forEach((x) => x.classList.toggle("selected", x === tr));
+            try {
+              const full = await api("GET", `/api/v1/assets/${encodeURIComponent(selectedAst)}`);
+              selectedContent = full.content || "";
+              el("astPreview").textContent = selectedContent || JSON.stringify(full, null, 2);
+              el("astPreview").classList.remove("empty");
+            } catch (e) { showError(String(e.message || e)); }
+          };
+        });
+      } catch (e) { showError(String(e.message || e)); }
+    }
+    if (el("astReload")) el("astReload").onclick = () => loadAst();
+    if (el("astKind")) el("astKind").onchange = () => loadAst();
+    if (el("astCopy")) el("astCopy").onclick = async () => {
+      try { await navigator.clipboard.writeText(selectedContent || ""); showOk("Copied"); }
+      catch (_) { showError("Clipboard unavailable"); }
+    };
+    if (el("astDel")) el("astDel").onclick = async () => {
+      if (!selectedAst) return showError("Select artifact");
+      try {
+        await api("DELETE", `/api/v1/assets/${encodeURIComponent(selectedAst)}`);
+        selectedAst = null;
+        selectedContent = "";
+        el("astPreview").textContent = "Select an artifact…";
+        el("astPreview").classList.add("empty");
+        showOk("Deleted");
+        loadAst();
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    loadAst();
+  }
+
+
   /* —— View router —— */
   function renderView(name) {
     // Soft by default — preserve form focus/values; only build once per view
@@ -1874,6 +2214,8 @@
       case "sessions": renderSessionsView(false); break;
       case "listeners": renderListenersView(false); break;
       case "payloads": renderPayloadsView(false); break;
+      case "profiles": renderProfilesView(false); break;
+      case "artifacts": renderArtifactsView(false); break;
       case "postex": renderPostexView(false); break;
       case "collab": renderCollabView(false); break;
       case "ai": renderAiView(false); break;
