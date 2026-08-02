@@ -1,4 +1,4 @@
-"""Multi-type listeners. Port-flexible — no default 80/443 requirement."""
+"""Multi-type listeners. Port-flexible - no default 80/443 requirement."""
 
 from __future__ import annotations
 
@@ -125,7 +125,7 @@ class ListenerManager:
                     paths = resolve_listener_ssl_paths(data_dir)
                     if not paths:
                         raise ValueError(
-                            "No TLS certificate available for HTTPS — upload one under Admin → TLS"
+                            "No TLS certificate available for HTTPS - upload one under Admin -> TLS"
                         )
                     cert_p, key_p = paths
                     ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -481,7 +481,7 @@ class ListenerManager:
                     self._auto_stabilize(sid, cb_host, cb_port),
                     name=f"stabilize-{sid}",
                 )
-            # Verify channel can execute — drop echo-only zombies
+            # Verify channel can execute - drop echo-only zombies
             if do_probe:
                 asyncio.create_task(
                     self._verify_or_drop(sid, remote),
@@ -495,7 +495,7 @@ class ListenerManager:
                     except TimeoutError:
                         if sid in self._rejected:
                             break
-                        # Do NOT touch last_seen_at on idle — that fakes a live shell.
+                        # Do NOT touch last_seen_at on idle - that fakes a live shell.
                         # Probe whether the socket is still writable.
                         try:
                             if writer.is_closing():
@@ -601,7 +601,7 @@ class ListenerManager:
                     return
 
             if "SC5_STABLE" in early:
-                log.info("Session %s already stable (banner) — skip re-stage", session_id)
+                log.info("Session %s already stable (banner) - skip re-stage", session_id)
                 await self.db.update_session(
                     session_id,
                     metadata={"stabilized": True, "stage2": True, "stable_banner": True},
@@ -630,7 +630,7 @@ class ListenerManager:
                     return
 
             if "SC5_STABLE" in blob:
-                log.info("Session %s became stable during probe — skip", session_id)
+                log.info("Session %s became stable during probe - skip", session_id)
                 return
 
             family = detect_os(blob)
@@ -928,7 +928,7 @@ class ListenerManager:
             await self.mark_verified(session_id)
         if is_echo_only:
             # Echo-only TCP zombies look live but never execute
-            log.info("Echo-only response on %s — dropping channel", session_id)
+            log.info("Echo-only response on %s - dropping channel", session_id)
             await self.drop_channel(session_id)
             try:
                 await self.db.update_session(session_id, status="closed")

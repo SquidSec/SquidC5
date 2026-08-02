@@ -1,9 +1,9 @@
 # SquidC5 Vision & System Specification
 
-**Version:** 0.1.x  
-**Status:** Active development — **military-grade, security-first C5**  
-**Purpose:** Authorized penetration testing, red team, and defensive security operations only  
-**C5:** Command · Control · Cognitive · Collaborative · Coordination  
+**Version:** 0.1.x 
+**Status:** Active development - **military-grade, security-first C5** 
+**Purpose:** Authorized penetration testing, red team, and defensive security operations only 
+**C5:** Command - Control - Cognitive - Collaborative - Coordination 
 
 | Related | Link |
 |---------|------|
@@ -19,7 +19,7 @@
 
 ### What
 
-**C5** expands to **Command, Control, Cognitive, Collaborative, Coordination** — the five pillars SquidC5 is built around (tasking, authority rails, AI assist, multi-operator work, and engagement orchestration).
+**C5** expands to **Command, Control, Cognitive, Collaborative, Coordination** - the five pillars SquidC5 is built around (tasking, authority rails, AI assist, multi-operator work, and engagement orchestration).
 
 SquidC5 is a professional, lightweight, **military-grade**, security-first, AI-native C5 / command-and-control framework. It is designed open-source-ready, with strong emphasis on **secure defaults**, AI restriction, determinism, auditability, and low resource usage.
 
@@ -31,17 +31,17 @@ Hardened posture includes: no public API documentation surface, scoped tokens, s
 
 ```text
 Operator (sc5 / /ops / INKO)
-    → API (scopes + policy + audit)
-        → Sessions · Tasks · Listeners · Payloads · Profiles · Assets
-        → INKO chat tools + Admin AI capabilities
-        → MCP (allow-listed, off by default)
-        → SQLite data/
-Implants / reverse shells / OAST callbacks → Listeners → Sessions
+ -> API (scopes + policy + audit)
+ -> Sessions - Tasks - Listeners - Payloads - Profiles - Assets
+ -> INKO chat tools + Admin AI capabilities
+ -> MCP (allow-listed, off by default)
+ -> SQLite data/
+Implants / reverse shells / OAST callbacks -> Listeners -> Sessions
 ```
 
 ### See also
 
-- [User guide — Overview](user-guide.md#overview)
+- [User guide - Overview](user-guide.md#overview)
 - [Threat model](threat-model.md)
 
 ---
@@ -66,8 +66,8 @@ External AI agents connect using scoped API tokens and interact via the MCP-comp
 
 Administrators configure BYO LLM connections (Ops **Admin** UI or CLI). **INKO** exposes multi-turn chat with railed C5 tools (`POST /api/v1/ai/chat`), optional per-turn **model** override, and a system prompt that documents platform purpose and workflows. The Admin AI also supports limited structured capabilities (`POST /api/v1/ai/run`):
 
-- `payload_template`, `phishing_asset`, `doc_generate`, `shell_classify`, `recon_assist`, …
-- Chat tools: sessions, listeners, tasks, payloads, profiles, assets, metrics, shell (HITL when required), …
+- `payload_template`, `phishing_asset`, `doc_generate`, `shell_classify`, `recon_assist`, ...
+- Chat tools: sessions, listeners, tasks, payloads, profiles, assets, metrics, shell (HITL when required), ...
 
 **Shielding:**
 
@@ -79,14 +79,14 @@ Administrators configure BYO LLM connections (Ops **Admin** UI or CLI). **INKO**
 
 ### See also
 
-- [User guide — INKO](user-guide.md#inko-intelligent-neural-kinetic-operator)
-- [User guide — MCP tools](user-guide.md#mcp-tools)
+- [User guide - INKO](user-guide.md#inko-intelligent-neural-kinetic-operator)
+- [User guide - MCP tools](user-guide.md#mcp-tools)
 
 ---
 
 ## Authentication & Tokens
 
-- Server-generated tokens only (`sc5_…`)
+- Server-generated tokens only (`sc5_...`)
 - Admin token bootstrapped on first start (written once to `data/admin_token.txt`)
 - Fine-grained scopes; MCP tools separately allow-listed
 - Full audit of create/revoke/use
@@ -94,8 +94,8 @@ Administrators configure BYO LLM connections (Ops **Admin** UI or CLI). **INKO**
 
 ### See also
 
-- [User guide — Tokens](user-guide.md#tokens)
-- [User guide — Security model](user-guide.md#security-model)
+- [User guide - Tokens](user-guide.md#tokens)
+- [User guide - Security model](user-guide.md#security-model)
 
 ---
 
@@ -103,9 +103,9 @@ Administrators configure BYO LLM connections (Ops **Admin** UI or CLI). **INKO**
 
 | Subsystem | Behavior |
 |-----------|----------|
-| **Listeners** | `http`, `https`, `tcp`, `reverse_shell`, `dns`, `smtp` — any port (no 80/443 requirement) |
+| **Listeners** | `http`, `https`, `tcp`, `reverse_shell`, `dns`, `smtp` - any port (no 80/443 requirement) |
 | **Sessions** | Beacons and reverse shells as first-class objects; verify + reap |
-| **Tasking** | Structured pending → running → completed |
+| **Tasking** | Structured pending -> running -> completed |
 | **Payloads** | Deterministic templates + custom templates + implant factory |
 | **Profiles** | Malleable HTTP(S) surface; active profile contract |
 | **Artifacts** | Saved payloads/templates/profiles for reuse |
@@ -116,7 +116,7 @@ Administrators configure BYO LLM connections (Ops **Admin** UI or CLI). **INKO**
 ### See also
 
 - [User guide](user-guide.md)
-- [Roadmap 2026–2027](roadmap-2026-2027.md)
+- [Roadmap 2026-2027](roadmap-2026-2027.md)
 
 ---
 
@@ -129,7 +129,7 @@ Administrators configure BYO LLM connections (Ops **Admin** UI or CLI). **INKO**
 
 ### See also
 
-- [User guide — Observability](user-guide.md#observability)
+- [User guide - Observability](user-guide.md#observability)
 
 ---
 
@@ -145,7 +145,7 @@ Governs humans, external AI, and admin AI:
 
 ### See also
 
-- [User guide — Policy](user-guide.md#policy)
+- [User guide - Policy](user-guide.md#policy)
 
 ---
 
@@ -153,8 +153,8 @@ Governs humans, external AI, and admin AI:
 
 `sc5` / `squidc5-cli` (`src/squidc5/cli.py`) is the primary local harness for remote C2 control. It stores config under `~/.config/squidc5/` (token local-only).
 
-**Full command surface:** [AGENTS.md](../AGENTS.md)  
-**Day-2 procedures:** [operator-runbook.md](operator-runbook.md)  
+**Full command surface:** [AGENTS.md](../AGENTS.md) 
+**Day-2 procedures:** [operator-runbook.md](operator-runbook.md) 
 **Feature reference:** [user-guide.md#cli-reference](user-guide.md#cli-reference)
 
 ---
@@ -168,7 +168,7 @@ Governs humans, external AI, and admin AI:
 | Operator CLI | `sc5` (httpx) |
 | MCP | HTTP MCP-lite (allow-listed tools) |
 | DB | SQLite (aiosqlite) |
-| Deploy | **Prod:** main-CI standalone binary + systemd · **Lab:** Docker host-network |
+| Deploy | **Prod:** main-CI standalone binary + systemd - **Lab:** Docker host-network |
 | Native implant | Go `agents/sc5beacon` |
 | Tests | pytest |
 | CI | GitHub Actions + SquidGate |
@@ -193,4 +193,4 @@ SquidC5 is intended solely for authorized security testing. Unauthorized access 
 ### See also
 
 - [SECURITY.md](../SECURITY.md)
-- [User guide — Authorized use](user-guide.md#authorized-use-reminder)
+- [User guide - Authorized use](user-guide.md#authorized-use-reminder)

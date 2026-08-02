@@ -95,7 +95,7 @@
     }
     *::-webkit-scrollbar-corner { background: transparent; }
 
-    /* —— App shell —— */
+    /* -- App shell -- */
     .app {
       display: grid;
       grid-template-rows: var(--top-h) 1fr var(--bottom-h);
@@ -270,7 +270,7 @@
       background: rgba(0,0,0,0.55);
     }
 
-    /* Bottom console — resizable height + pane split */
+    /* Bottom console - resizable height + pane split */
     .bottom {
       grid-area: bottom;
       border-top: 1px solid var(--border);
@@ -756,7 +756,7 @@
           "main";
       }
 
-      /* —— Fixed compact header —— */
+      /* -- Fixed compact header -- */
       .top {
         position: sticky; top: 0; z-index: 50;
         padding: 0 8px;
@@ -791,7 +791,7 @@
       }
       .top #btnRefresh { min-width: 36px; padding: 0 8px; }
 
-      /* —— Hamburger drawer nav —— */
+      /* -- Hamburger drawer nav -- */
       .nav-burger { display: inline-flex; }
       .side {
         position: fixed;
@@ -830,7 +830,7 @@
         padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
       }
 
-      /* —— Context as scrollable bottom sheet —— */
+      /* -- Context as scrollable bottom sheet -- */
       .ctx {
         display: flex !important;
         position: fixed;
@@ -969,31 +969,31 @@
       <div class="host mono" id="hostLine" title="Server">not connected</div>
       <div class="spacer"></div>
       <span class="pill" id="statusBadge">offline</span>
-      <span class="pill live hidden" id="roleBadge">—</span>
-      <button type="button" id="btnInko" class="inko-top-btn hidden" title="INKO — Intelligent Neural Kinetic Operator">◈ INKO</button>
-      <button type="button" id="btnPhoneQr" title="Phone QR — scan to open ops and auto-connect">Phone QR</button>
+      <span class="pill live hidden" id="roleBadge">-</span>
+      <button type="button" id="btnInko" class="inko-top-btn hidden" title="INKO - Intelligent Neural Kinetic Operator">INKO</button>
+      <button type="button" id="btnPhoneQr" title="Phone QR - scan to open ops and auto-connect">Phone QR</button>
       <button type="button" id="btnConnect" title="Connection settings">Connect</button>
-      <button type="button" id="btnRefresh" title="Refresh data">↻</button>
+      <button type="button" id="btnRefresh" title="Refresh data">Refresh</button>
     </header>
 
     <div class="nav-backdrop" id="navBackdrop" hidden></div>
     <nav class="side" id="sideNavPanel" aria-label="Primary">
       <div class="side-nav" id="sideNav">
-        <button type="button" class="nav-item active" data-view="dashboard"><span class="ico">▣</span> Dashboard</button>
-        <button type="button" class="nav-item" data-view="sessions"><span class="ico">◉</span> Sessions <span class="badge-n" id="navNSes">0</span></button>
-        <button type="button" class="nav-item" data-view="listeners"><span class="ico">◎</span> Listeners <span class="badge-n" id="navNLis">0</span></button>
-        <button type="button" class="nav-item" data-view="payloads"><span class="ico">⌘</span> Payloads</button>
-        <button type="button" class="nav-item" data-view="profiles"><span class="ico">▦</span> Profiles</button>
-        <button type="button" class="nav-item" data-view="artifacts"><span class="ico">⧉</span> Artifacts</button>
-        <button type="button" class="nav-item" data-view="postex"><span class="ico">⚡</span> Post-Ex</button>
-        <button type="button" class="nav-item" data-view="collab"><span class="ico">⇄</span> Collab</button>
-        <button type="button" class="nav-item" data-view="ai" id="navAi"><span class="ico">◈</span> INKO</button>
-        <button type="button" class="nav-item" data-view="observe"><span class="ico">▤</span> Observe</button>
-        <button type="button" class="nav-item hidden" data-view="admin" id="navAdmin"><span class="ico">⚙</span> Admin</button>
+        <button type="button" class="nav-item active" data-view="dashboard">Dashboard</button>
+        <button type="button" class="nav-item" data-view="sessions">Sessions <span class="badge-n" id="navNSes">0</span></button>
+        <button type="button" class="nav-item" data-view="listeners">Listeners <span class="badge-n" id="navNLis">0</span></button>
+        <button type="button" class="nav-item" data-view="payloads">Payloads</button>
+        <button type="button" class="nav-item" data-view="profiles">Profiles</button>
+        <button type="button" class="nav-item" data-view="artifacts">Artifacts</button>
+        <button type="button" class="nav-item" data-view="postex">Post-Ex</button>
+        <button type="button" class="nav-item" data-view="collab">Collab</button>
+        <button type="button" class="nav-item" data-view="ai" id="navAi">INKO</button>
+        <button type="button" class="nav-item" data-view="observe">Observe</button>
+        <button type="button" class="nav-item hidden" data-view="admin" id="navAdmin">Admin</button>
       </div>
       <div class="side-foot" id="sideFoot">
         <a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md" target="_blank" rel="noopener noreferrer">User guide</a>
-        · Authorized only
+         /  Authorized only
       </div>
     </nav>
 
@@ -1005,7 +1005,7 @@
         </div>
         <div class="main-head-actions">
           <div class="docs-drop" id="docsDrop">
-            <button type="button" id="viewDocsBtn" title="Documentation for this page">Docs ▾</button>
+            <button type="button" id="viewDocsBtn" title="Documentation for this page">Docs v</button>
             <div class="docs-menu" id="viewDocsMenu"></div>
           </div>
           <div class="tools" id="viewTools"></div>
@@ -1017,7 +1017,7 @@
           <div class="empty-state" id="dashEmpty">
             <strong>Connect to get started</strong>
             Enter your server URL and API token (top-right Connect).
-            <div style="margin-top:10px"><a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#connection" target="_blank" rel="noopener noreferrer">Connection docs ↗</a></div>
+            <div style="margin-top:10px"><a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#connection" target="_blank" rel="noopener noreferrer">Connection docs -></a></div>
           </div>
           <div id="dashContent" class="hidden">
             <div class="stats" id="dashStats"></div>
@@ -1046,29 +1046,29 @@
       </div>
     </main>
 
-    <!-- INKO — Intelligent Neural Kinetic Operator (top-bar flyout) -->
+    <!-- INKO - Intelligent Neural Kinetic Operator (top-bar flyout) -->
     <div id="aiBackdrop" class="ai-backdrop" hidden aria-hidden="true"></div>
     <aside id="aiDrawer" class="ai-drawer hidden" aria-label="INKO chat" aria-hidden="true">
       <div class="ai-drawer-resize" id="aiDrawerResize" title="Drag to resize INKO" role="separator" aria-orientation="vertical"></div>
       <div class="ai-drawer-head">
         <div class="inko-titles">
-          <strong class="inko-brand-full"><span class="inko-acronym">◈ INKO</span></strong>
+          <strong class="inko-brand-full"><span class="inko-acronym">INKO</span></strong>
           <span class="muted" style="font-size:0.72rem;font-weight:600;line-height:1.25">Intelligent Neural Kinetic Operator</span>
         </div>
         <button type="button" id="aiNewChat" title="Start a new chat" style="flex-shrink:0">New chat</button>
         <a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#inko-intelligent-neural-kinetic-operator" target="_blank" rel="noopener noreferrer" style="font-size:0.7rem;flex-shrink:0">Docs</a>
-        <button type="button" id="aiDrawerClose" style="margin-left:4px;flex-shrink:0" title="Close INKO" aria-label="Close INKO">✕</button>
+        <button type="button" id="aiDrawerClose" style="margin-left:4px;flex-shrink:0" title="Close INKO" aria-label="Close INKO">x</button>
       </div>
       <div class="ai-drawer-body" id="aiChatLog"></div>
       <div class="ai-drawer-foot" id="aiDrawerFoot">
         <select id="aiLlmGlobal" title="LLM connection"></select>
-        <select id="aiModelGlobal" title="Model" disabled><option value="">Model…</option></select>
-        <textarea id="aiPromptGlobal" rows="3" placeholder="Ask INKO anything - list sessions, spin up a listener…"></textarea>
+        <select id="aiModelGlobal" title="Model" disabled><option value="">Model...</option></select>
+        <textarea id="aiPromptGlobal" rows="3" placeholder="Ask INKO anything - list sessions, spin up a listener..."></textarea>
         <div class="row" style="margin:0;gap:6px">
           <button type="button" class="primary" id="aiSendGlobal" style="flex:1">Send</button>
           <button type="button" id="aiClearGlobal" title="Clear chat">Clear</button>
         </div>
-        <p class="muted" style="margin:0;font-size:0.62rem">Enter to send · Shift+Enter newline · drag left edge to resize</p>
+        <p class="muted" style="margin:0;font-size:0.62rem">Enter to send  /  Shift+Enter newline  /  drag left edge to resize</p>
       </div>
     </aside>
 
@@ -1076,7 +1076,7 @@
       <div class="ctx-head">
         <span class="ctx-drag" aria-hidden="true"></span>
         <span>Session context</span>
-        <button type="button" class="ctx-close" id="ctxClose" title="Close context" aria-label="Close">✕</button>
+        <button type="button" class="ctx-close" id="ctxClose" title="Close context" aria-label="Close">x</button>
       </div>
       <div class="ctx-body" id="ctxBody">
         <div class="ctx-empty">Select a session to see details, claim/release, and interact.</div>
@@ -1089,7 +1089,7 @@
       <div class="bottom-panes" id="bottomPanes">
         <div class="bottom-pane" id="paneEvents">
           <div class="bp-head"><span class="live-dot"></span> Event stream <span class="muted" id="eventCount" style="margin-left:auto;text-transform:none;letter-spacing:0">0</span></div>
-          <div class="bp-body" id="eventsBox">Connect to stream events…</div>
+          <div class="bp-body" id="eventsBox">Connect to stream events...</div>
         </div>
         <div class="pane-vsplit" id="paneSplit" title="Drag to resize panes" role="separator" aria-orientation="vertical"></div>
         <div class="bottom-pane" id="paneConsole">
@@ -1110,7 +1110,7 @@
       <label for="url">Server URL</label>
       <input id="url" type="url" placeholder="https://HOST:8443" autocomplete="off" />
       <label for="token">API token</label>
-      <input id="token" type="password" placeholder="sc5_…" autocomplete="off" />
+      <input id="token" type="password" placeholder="sc5_..." autocomplete="off" />
       <label for="actorName">Actor display name (optional)</label>
       <input id="actorName" type="text" placeholder="Leave blank to keep token name" autocomplete="nickname" />
       <label for="refresh">Poll interval (sec)</label>
@@ -1127,9 +1127,9 @@
     <div class="modal">
       <h3 id="qrTitle">Phone QR</h3>
       <p class="muted" style="font-size:0.85rem;margin:0">
-        Scan with your phone camera. Opens <code>/ops</code> and auto-fills server URL + token (hash only — not sent to the server).
+        Scan with your phone camera. Opens <code>/ops</code> and auto-fills server URL + token (hash only - not sent to the server).
       </p>
-      <div class="qr-wrap" id="qrBox"><span class="muted">Generating…</span></div>
+      <div class="qr-wrap" id="qrBox"><span class="muted">Generating...</span></div>
       <div class="share-url mono" id="qrUrl" title="Share URL"></div>
       <p class="muted" style="font-size:0.75rem;margin:0 0 8px">
         Treat like a password. Anyone with this QR can use your token until you revoke it.
@@ -1223,18 +1223,18 @@
     return data;
   }
 
-  /* —— Navigation —— */
+  /* -- Navigation -- */
   const DOCS = "https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md";
   const VIEWS = {
     dashboard: { title: "Dashboard", sub: "Teamserver health and shortcuts", doc: "status-overview" },
     sessions: { title: "Sessions", sub: "Beacons and reverse shells", doc: "sessions" },
     listeners: { title: "Listeners", sub: "Bind ports and manage acceptors", doc: "listeners" },
     payloads: { title: "Payloads", sub: "Generate implants and templates", doc: "payloads-and-implants" },
-    profiles: { title: "Profiles", sub: "Malleable C2 profiles — activate, edit, push", doc: "c2-profiles" },
+    profiles: { title: "Profiles", sub: "Malleable C2 profiles - activate, edit, push", doc: "c2-profiles" },
     artifacts: { title: "Artifacts", sub: "Saved payloads, templates, profiles, implants", doc: "payloads-and-implants" },
     postex: { title: "Post-Ex", sub: "Files, SOCKS, modules on selected session", doc: "file-ops" },
     collab: { title: "Collab", sub: "Teams, chat, handoff, presence", doc: "multi-operator-collab" },
-    ai: { title: "INKO", sub: "Capabilities, status & tools — chat opens from the top-bar flyout", doc: "inko-intelligent-neural-kinetic-operator" },
+    ai: { title: "INKO", sub: "Capabilities, status & tools - chat opens from the top-bar flyout", doc: "inko-intelligent-neural-kinetic-operator" },
     observe: { title: "Observe", sub: "Metrics, audit, timeline, reports", doc: "timeline-and-reports" },
     admin: { title: "Admin", sub: "Tokens, policy, features, LLM, MCP", doc: "feature-toggles" },
   };
@@ -1294,7 +1294,7 @@
     b.addEventListener("click", () => setView(b.getAttribute("data-view")));
   });
 
-  /* —— Resizable bottom dock —— */
+  /* -- Resizable bottom dock -- */
   (function setupBottomResize() {
     const root = document.documentElement;
     const app = $("app");
@@ -1388,7 +1388,7 @@
     });
   })();
 
-  /* —— Connect modal —— */
+  /* -- Connect modal -- */
   function openModal() { $("connectModal").classList.add("show"); }
   function closeModal() { $("connectModal").classList.remove("show"); }
   $("btnConnect").onclick = openModal;
@@ -1417,7 +1417,7 @@
     $("refresh").value = localStorage.getItem(KEYS.refresh) || "10";
   }
 
-  /* —— Data refresh —— */
+  /* -- Data refresh -- */
   let timer = null;
   async function connect() {
     loadForm();
@@ -1519,13 +1519,13 @@
     $("navNSes").textContent = String(activeSes.length);
     $("navNLis").textContent = String(running.length);
 
-    // Dashboard stats — live inventory only (never cumulative closed beacons)
+    // Dashboard stats - live inventory only (never cumulative closed beacons)
     const m = metrics.metrics || metrics || {};
     const stats = [
       { n: shells.length, l: "Shells", c: "ok" },
       { n: running.length, l: "Listeners", c: "pink" },
       { n: activeSes.length, l: "Sessions", c: "cyan" },
-      { n: m["tasks.pending"] != null ? m["tasks.pending"] : (m["tasks.created"] || "—"), l: "Tasks", c: "purple" },
+      { n: m["tasks.pending"] != null ? m["tasks.pending"] : (m["tasks.created"] || "-"), l: "Tasks", c: "purple" },
       { n: activeBeacons.length, l: "Beacons", c: "ok" },
       { n: formatUptime(metrics.uptime_seconds), l: "Uptime", c: "cyan" },
     ];
@@ -1539,10 +1539,10 @@
         activeSes.slice(0, 12).map((s) => {
           const meta = s.metadata || {};
           return `<tr data-sid="${esc(s.id)}">
-            <td class="mono">${esc((s.id || "").slice(0, 12))}…</td>
+            <td class="mono">${esc((s.id || "").slice(0, 12))}...</td>
             <td>${esc(s.kind || "")}</td>
-            <td>${esc(s.hostname || s.remote_addr || "—")}</td>
-            <td class="mono">${esc(meta.claimed_by || "—")}</td>
+            <td>${esc(s.hostname || s.remote_addr || "-")}</td>
+            <td class="mono">${esc(meta.claimed_by || "-")}</td>
           </tr>`;
         }).join("") + `</tbody></table>`
       : `<div class="empty-state"><strong>No active sessions</strong>Start a listener and land an implant.</div>`;
@@ -1573,7 +1573,7 @@
         <button type="button" id="dqPay">Generate payload</button>
         ${can("admin") ? '<button type="button" id="dqAdm">Admin</button>' : ""}
       </div>
-      <p class="muted" style="margin-top:12px;font-size:0.8rem">Health: ${esc(health.status || "ok")} · Actor: ${esc(state.actor || "—")}</p>
+      <p class="muted" style="margin-top:12px;font-size:0.8rem">Health: ${esc(health.status || "ok")}  /  Actor: ${esc(state.actor || "-")}</p>
     `;
     if ($("dqSes")) $("dqSes").onclick = () => setView("sessions");
     if ($("dqLis")) $("dqLis").onclick = () => setView("listeners");
@@ -1591,20 +1591,20 @@
         }).join("\n")
       : "No recent events";
 
-    $("sideFoot").textContent = (state.actor || "op") + " · " + (activeSes.length) + " sessions";
+    $("sideFoot").textContent = (state.actor || "op") + "  /  " + (activeSes.length) + " sessions";
     if (window.__SC5_onRefresh) window.__SC5_onRefresh({ sessions: ses, listeners: lis, metrics });
   }
 
   function formatUptime(sec) {
-    if (sec == null || sec === "—") return "—";
+    if (sec == null || sec === "-") return "-";
     const s = Math.floor(Number(sec));
-    if (!Number.isFinite(s)) return "—";
+    if (!Number.isFinite(s)) return "-";
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     return h + "h " + m + "m";
   }
 
-  // Hash import for phone QR — auto-connect
+  // Hash import for phone QR - auto-connect
   let importedFromQr = false;
   try {
     if (location.hash && location.hash.indexOf("sc5=") >= 0) {
@@ -1645,14 +1645,14 @@
   function openQrModal() {
     const box = $("qrBox");
     const urlEl = $("qrUrl");
-    box.innerHTML = '<span class="muted">Generating…</span>';
+    box.innerHTML = '<span class="muted">Generating...</span>';
     urlEl.textContent = "";
     try {
       const share = buildPhoneShareUrl();
       urlEl.textContent = share;
       box.innerHTML = "";
       if (typeof QRCode === "undefined") {
-        box.innerHTML = '<span class="muted">QR library missing — copy the link below.</span>';
+        box.innerHTML = '<span class="muted">QR library missing - copy the link below.</span>';
       } else {
         // qrcodejs clears and renders into element
         // eslint-disable-next-line no-new
@@ -1695,7 +1695,7 @@
   const savedView = (() => { try { return localStorage.getItem("sc5_ops_view"); } catch (_) { return null; } })();
   if (cfg().token) {
     connect().then(() => {
-      if (importedFromQr) showOk("Phone link applied — connected");
+      if (importedFromQr) showOk("Phone link applied - connected");
       if (savedView && VIEWS[savedView]) setView(savedView);
     }).catch(() => openModal());
   } else {

@@ -1,4 +1,4 @@
-"""Role / scope permission matrix — every sensitive route denied without scope."""
+"""Role / scope permission matrix - every sensitive route denied without scope."""
 
 from __future__ import annotations
 

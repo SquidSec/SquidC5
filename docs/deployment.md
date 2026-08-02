@@ -20,20 +20,20 @@ Primary **lab** path. Compose defaults to `network_mode: host` so reverse-shell/
 ### Configuration
 
 - Image/build via `docker-compose.yml`
-- Data volume → `/data` (tokens, DB, TLS) — never commit
+- Data volume -> `/data` (tokens, DB, TLS) - never commit
 - TLS on by default (self-signed)
 
 ### Commands
 
 ```bash
 docker compose up --build -d
-docker exec squidc5 cat /data/admin_token.txt   # once; store securely
+docker exec squidc5 cat /data/admin_token.txt # once; store securely
 curl -sk https://127.0.0.1:8443/api/v1/health
 ```
 
 #### Host networking (default)
 
-`network_mode: host` — process binds host ports directly. Trade-off: less isolation; fine for single-purpose C2 lab hosts.
+`network_mode: host` - process binds host ports directly. Trade-off: less isolation; fine for single-purpose C2 lab hosts.
 
 #### Bridge networking alternative
 
@@ -41,9 +41,9 @@ If using bridge, publish every listener port you need:
 
 ```yaml
 ports:
-  - "8443:8443"
-  - "443:443"
-  - "4444:4444"
+ - "8443:8443"
+ - "443:443"
+ - "4444:4444"
 ```
 
 ### Verify
@@ -55,7 +55,7 @@ curl -skf https://127.0.0.1:8443/api/v1/health
 
 ### See also
 
-- [Root README — Quick start (Docker)](../README.md#quick-start-docker-lab)
+- [Root README - Quick start (Docker)](../README.md#quick-start-docker-lab)
 - [Privileged ports](#privileged-ports)
 
 ---
@@ -82,12 +82,12 @@ Apply sysctl, then start/restart SquidC5 and create low-port listeners.
 ```bash
 sc5 listeners create rev443 443 --kind reverse_shell
 sc5 listeners start <id>
-sc5 listeners list   # status running
+sc5 listeners list # status running
 ```
 
 ### See also
 
-- [User guide — Listeners](user-guide.md#listeners)
+- [User guide - Listeners](user-guide.md#listeners)
 - [Firewall](#firewall)
 
 ---
@@ -124,7 +124,7 @@ Public listeners are only expected services (sshd + squidc5).
 
 ### See also
 
-- [OAST Collaborator](#oast-collaborator-dns-http-smtp) (ports 53/25/80/…)
+- [OAST Collaborator](#oast-collaborator-dns-http-smtp) (ports 53/25/80/...)
 
 ---
 
@@ -141,7 +141,7 @@ Typical single-droplet lab (any cloud). Paths below match common SquidC5 install
 | Size | 1 vCPU / 1 GB RAM minimum |
 | Image | Ubuntu LTS |
 | Install path | `/opt/squidc5` |
-| SSH | Operator key registered with provider — never commit private keys |
+| SSH | Operator key registered with provider - never commit private keys |
 | Env | `SQUIDC5_*` from [.env.example](../.env.example) |
 
 ### Commands
@@ -164,7 +164,7 @@ curl -skf https://127.0.0.1:8443/api/v1/health
 
 ### Context
 
-Authorized out-of-band interaction capture (Collaborator / Interactsh style). Values below are **illustrative** — use your own zone, host, and IP.
+Authorized out-of-band interaction capture (Collaborator / Interactsh style). Values below are **illustrative** - use your own zone, host, and IP.
 
 ### Configuration
 
@@ -176,9 +176,9 @@ Authorized out-of-band interaction capture (Collaborator / Interactsh style). Va
 | `SQUIDC5_OAST_ENABLED` | `true` | Gate feature |
 | `SQUIDC5_OAST_HTTP_PORT` | `80` | Port shown in HTTP payload URLs |
 
-#### DNS delegation (subdomain only — do not change apex NS)
+#### DNS delegation (subdomain only - do not change apex NS)
 
-Example for `oast.example.com` → teamserver `203.0.113.10`:
+Example for `oast.example.com` -> teamserver `203.0.113.10`:
 
 | Type | Name | Data |
 |------|------|------|
@@ -193,7 +193,7 @@ Leave apex `@` A (website) and apex NS (registrar) alone.
 
 Open at minimum for full OAST: **53/udp, 53/tcp, 25/tcp, 80/tcp, 443/tcp, 8443/tcp**.
 
-Port 53 needs root or `ip_unprivileged_port_start=0`. Port 25 is often blocked by cloud providers — use 2525 for lab SMTP OAST if needed.
+Port 53 needs root or `ip_unprivileged_port_start=0`. Port 25 is often blocked by cloud providers - use 2525 for lab SMTP OAST if needed.
 
 ### Commands
 
@@ -227,8 +227,8 @@ CLI: global `--insecure` / config `verify_ssl: false` for self-signed API TLS.
 
 ### See also
 
-- [User guide — OAST](user-guide.md#oast-collaborator)
-- [Operator runbook — OAST](operator-runbook.md#oast-collaborator-http-dns-smtp)
+- [User guide - OAST](user-guide.md#oast-collaborator)
+- [Operator runbook - OAST](operator-runbook.md#oast-collaborator-http-dns-smtp)
 
 ---
 
@@ -253,15 +253,15 @@ $SQUIDC5_DATA_DIR/tls/instance_id
 | `SQUIDC5_TLS_FORCE_NEW` | `false` | Regenerate cert/key on next start |
 | `SQUIDC5_PUBLIC_HOST` | empty | Added to cert SAN when set |
 
-Browsers warn on self-signed certs — expected. For production, put a real cert on a redirector or override cert/key paths with CA-issued material. Ops **Admin → TLS certificate library** can upload/activate PEMs; **restart the process** after activate.
+Browsers warn on self-signed certs - expected. For production, put a real cert on a redirector or override cert/key paths with CA-issued material. Ops **Admin -> TLS certificate library** can upload/activate PEMs; **restart the process** after activate.
 
-Disable only for lab debugging: `SQUIDC5_TLS_ENABLED=false` (plaintext — not recommended).
+Disable only for lab debugging: `SQUIDC5_TLS_ENABLED=false` (plaintext - not recommended).
 
 ### Commands
 
 ```bash
 curl -k https://127.0.0.1:8443/api/v1/health
-# Ops: https://HOST:8443/ops  (accept warning)
+# Ops: https://HOST:8443/ops (accept warning)
 ```
 
 ### Verify
@@ -273,8 +273,8 @@ openssl s_client -connect 127.0.0.1:8443 -servername HOST </dev/null 2>/dev/null
 
 ### See also
 
-- [User guide — TLS certificate library](user-guide.md#tls-certificate-library)
-- [User guide — Security model](user-guide.md#security-model)
+- [User guide - TLS certificate library](user-guide.md#tls-certificate-library)
+- [User guide - Security model](user-guide.md#security-model)
 - [Production binary-only deploy](#production-binary-only-deploy)
 
 ---
@@ -287,7 +287,7 @@ Prod is **not** updated from a local working tree or Docker rebuild of WIP.
 
 Pipeline:
 
-1. Open PR → CI tests must pass
+1. Open PR -> CI tests must pass
 2. Merge to `main` / `master`
 3. Main CI builds standalone binaries (`sc5`, `squidc5`) and publishes a GitHub Release
 4. Download **Linux `squidc5-linux-x64`** from that Release
@@ -325,12 +325,12 @@ sc5 backup /opt/squidc5/backups/pre-upgrade.db --data-dir /opt/squidc5/data
 
 scp -i <key> squidc5-linux-x64 root@HOST:/opt/squidc5/bin/squidc5.new
 ssh -i <key> root@HOST '
-  set -e
-  systemctl stop squidc5
-  install -m 755 /opt/squidc5/bin/squidc5.new /opt/squidc5/bin/squidc5
-  rm -f /opt/squidc5/bin/squidc5.new
-  systemctl start squidc5
-  curl -skf https://127.0.0.1:8443/api/v1/health
+ set -e
+ systemctl stop squidc5
+ install -m 755 /opt/squidc5/bin/squidc5.new /opt/squidc5/bin/squidc5
+ rm -f /opt/squidc5/bin/squidc5.new
+ systemctl start squidc5
+ curl -skf https://127.0.0.1:8443/api/v1/health
 '
 ```
 
@@ -346,7 +346,7 @@ Environment=SQUIDC5_AUTH_FAIL_LIMIT_PER_MINUTE=60
 ```
 
 ```ini
-# /etc/systemd/system/squidc5.service.d/tls.conf  (real certs)
+# /etc/systemd/system/squidc5.service.d/tls.conf (real certs)
 [Service]
 Environment=SQUIDC5_TLS_ENABLED=true
 Environment=SQUIDC5_TLS_CERT_FILE=/etc/letsencrypt/live/HOST/fullchain.pem
@@ -362,7 +362,7 @@ curl -skf https://127.0.0.1:8443/api/v1/health
 
 ### See also
 
-- [AGENTS.md — Production deploy policy](../AGENTS.md)
+- [AGENTS.md - Production deploy policy](../AGENTS.md)
 - [Prod readiness](prod-readiness-plan.md)
 - [Secrets hygiene](#secrets-hygiene)
 
@@ -397,7 +397,7 @@ sc5 tokens revoke <bootstrap_id>
 ### Verify
 
 ```bash
-git status   # no data/ or .env secrets
+git status # no data/ or .env secrets
 git check-ignore -v data/admin_token.txt
 ```
 

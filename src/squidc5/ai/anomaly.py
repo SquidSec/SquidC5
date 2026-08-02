@@ -18,7 +18,7 @@ def analyze_beacon_behavior(sessions: list[dict[str, Any]], metrics: dict[str, f
             {
                 "severity": "medium",
                 "code": "beacon_volume",
-                "detail": f"{len(beacons)} active beacons — consider reaping stale hosts",
+                "detail": f"{len(beacons)} active beacons - consider reaping stale hosts",
                 "suggest": "Run sessions reap; tighten sleep/jitter profiles",
             }
         )

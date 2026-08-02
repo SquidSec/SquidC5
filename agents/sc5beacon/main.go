@@ -1,4 +1,4 @@
-// SquidC5 native beacon v3 — authorized lab / red team only.
+// SquidC5 native beacon v3 - authorized lab / red team only.
 //
 // Config: SC5_CONFIG_B64 (JSON) or env SC5_URL/SC5_PSK, or -ldflags bakedConfigJSON.
 // Channel: http (default) or ws (SC5_CHANNEL=ws / config.channel).

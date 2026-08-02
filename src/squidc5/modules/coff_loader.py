@@ -10,7 +10,7 @@ import struct
 from pathlib import Path
 from typing import Any
 
-# COFF file header (IMAGE_FILE_HEADER) — 20 bytes
+# COFF file header (IMAGE_FILE_HEADER) - 20 bytes
 # Machine, NumberOfSections, TimeDateStamp, PointerToSymbolTable,
 # NumberOfSymbols, SizeOfOptionalHeader, Characteristics
 
@@ -58,7 +58,7 @@ def plan_bof_run(
         "module_id": module_id,
         "entry": entry,
         "requires_env": "SC5_ALLOW_BOF=1",
-        "note": "Authorized lab only — agent refuses without SC5_ALLOW_BOF",
+        "note": "Authorized lab only - agent refuses without SC5_ALLOW_BOF",
     }
     if object_path and object_path.is_file():
         raw = object_path.read_bytes()

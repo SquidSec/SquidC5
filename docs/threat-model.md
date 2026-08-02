@@ -1,6 +1,6 @@
 # SquidC5 threat model (authorized lab / red team)
 
-**Organization:** [SquidSec](https://squidoffense.com/)  
+**Organization:** [SquidSec](https://squidoffense.com/) 
 **Scope:** Teamserver, operator clients, implants/beacons on **authorized** targets only.
 
 ## Assets
@@ -20,28 +20,28 @@
 
 ```text
 [ Internet scanners ]
-        |
-        v
+ |
+ v
 [ Redirector / TLS edge ] ---- optional
-        |
-        v
-[ SquidC5 teamserver ]  <--- operators (sc5 /ops) with scoped tokens
-        |
-        +---> SQLite data/ (local disk)
-        +---> BYO LLM API (egress)
-        +---> Implants/beacons (authorized targets only)
-        +---> MCP clients (external AI; off by default)
+ |
+ v
+[ SquidC5 teamserver ] <--- operators (sc5 /ops) with scoped tokens
+ |
+ +---> SQLite data/ (local disk)
+ +---> BYO LLM API (egress)
+ +---> Implants/beacons (authorized targets only)
+ +---> MCP clients (external AI; off by default)
 ```
 
 ## Adversaries
 
-1. Internet scanners and credential stuffing against the API  
-2. Stolen operator tokens (scope abuse)  
-3. Malicious external MCP clients  
-4. Prompt injection via implant/session output into Admin AI  
-5. Network observer on implant channel (if unauthenticated)  
-6. Local host compromise of teamserver disk  
-7. Insider operator exceeding engagement scope  
+1. Internet scanners and credential stuffing against the API 
+2. Stolen operator tokens (scope abuse) 
+3. Malicious external MCP clients 
+4. Prompt injection via implant/session output into Admin AI 
+5. Network observer on implant channel (if unauthenticated) 
+6. Local host compromise of teamserver disk 
+7. Insider operator exceeding engagement scope 
 
 ## Controls
 
@@ -77,15 +77,15 @@
 
 ## Out of scope
 
-- Unauthorized access to third-party systems  
-- Guaranteeing implant evasion against all EDRs  
-- Multi-region HA teamserver clustering (single-node SQLite)  
+- Unauthorized access to third-party systems 
+- Guaranteeing implant evasion against all EDRs 
+- Multi-region HA teamserver clustering (single-node SQLite) 
 
 ## Residual risks
 
-- Script implants without AEAD remain forgeable until implant crypto lands  
-- Single SQLite node is a availability and backup dependency (`sc5 backup`)  
-- Redirector tier is operator-provided  
+- Script implants without AEAD remain forgeable until implant crypto lands 
+- Single SQLite node is a availability and backup dependency (`sc5 backup`) 
+- Redirector tier is operator-provided 
 
 ## Related
 
@@ -95,5 +95,5 @@
 | Deployment | [deployment.md](deployment.md) |
 | Prod readiness | [prod-readiness-plan.md](prod-readiness-plan.md) |
 | Vision | [squidc5-vision.md](squidc5-vision.md) |
-| User guide — Security model | [user-guide.md#security-model](user-guide.md#security-model) |
+| User guide - Security model | [user-guide.md#security-model](user-guide.md#security-model) |
 | Docs index | [README.md](README.md) |

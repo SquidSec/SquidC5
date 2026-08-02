@@ -19,7 +19,7 @@ def hitl_binding_hash(
 ) -> str:
     """Bind approval to action + resource + full command (or other intent fields)."""
     extra = extra or {}
-    # Full command — do not truncate (truncation enables prefix-collision bypass)
+    # Full command - do not truncate (truncation enables prefix-collision bypass)
     intent = {
         "action": action,
         "resource": resource or "",
@@ -234,7 +234,7 @@ class PolicyEngine:
                 }
                 # Cap stored detail length only (binding uses full command separately)
                 if isinstance(safe_details.get("command"), str) and len(safe_details["command"]) > 2000:
-                    safe_details["command"] = safe_details["command"][:2000] + "…[truncated]"
+                    safe_details["command"] = safe_details["command"][:2000] + "...[truncated]"
                 binding = hitl_binding_hash(action, resource, extra)
                 hid = await self.db.create_hitl_request(
                     action=action,

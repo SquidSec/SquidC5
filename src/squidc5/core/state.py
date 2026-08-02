@@ -1,4 +1,4 @@
-"""Shared application state — thread/async safe via component locks."""
+"""Shared application state - thread/async safe via component locks."""
 
 from __future__ import annotations
 

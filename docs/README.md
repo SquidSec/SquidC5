@@ -1,10 +1,9 @@
 # SquidC5 documentation
 
-<p align="center">
-  <img src="squidc5-banner.png" alt="SquidC5" width="100%">
+<p align="center"><img src="squidc5-banner.png" alt="SquidC5" width="100%">
 </p>
 
-**[SquidSec](https://squidoffense.com/)** open-source C5 — [GitHub](https://github.com/SquidSec/SquidC5) · [Releases](https://github.com/SquidSec/SquidC5/releases/latest)
+**[SquidSec](https://squidoffense.com/)** open-source C5 - [GitHub](https://github.com/SquidSec/SquidC5) - [Releases](https://github.com/SquidSec/SquidC5/releases/latest)
 
 > **Authorized use only.** Public OpenAPI is **not** served by the running server (`/docs` on the C2 stays off). These guides live in GitHub.
 
@@ -14,22 +13,22 @@
 
 | Need | Doc type | Where |
 |------|----------|--------|
-| Learn by doing | Tutorial / quickstart | [Root README](../README.md) · [Operator runbook](operator-runbook.md) |
-| Solve a job | How-to | [Operator runbook](operator-runbook.md) · [Deployment](deployment.md) |
-| Look up a feature | Reference | [User guide](user-guide.md) · [AGENTS.md](../AGENTS.md) (CLI surface) |
-| Understand design | Explanation | [Vision](squidc5-vision.md) · [Threat model](threat-model.md) |
+| Learn by doing | Tutorial / quickstart | [Root README](../README.md) - [Operator runbook](operator-runbook.md) |
+| Solve a job | How-to | [Operator runbook](operator-runbook.md) - [Deployment](deployment.md) |
+| Look up a feature | Reference | [User guide](user-guide.md) - [AGENTS.md](../AGENTS.md) (CLI surface) |
+| Understand design | Explanation | [Vision](squidc5-vision.md) - [Threat model](threat-model.md) |
 
 ### Section templates (consistency)
 
 **User guide** (every feature chapter):
 
 ```text
-## Feature name   ← match Ops nav label when possible
+## Feature name <- match Ops nav label when possible
 ### What
 ### Why
 ### How
 ### Example
-### Pitfalls     ← optional table
+### Pitfalls <- optional table
 ### See also
 ```
 
@@ -62,11 +61,11 @@
 
 | Audience | Start with |
 |----------|------------|
-| New operator | [User guide — Overview](user-guide.md#overview) → [Runbook — Connect CLI](operator-runbook.md#connect-cli-to-a-server) |
+| New operator | [User guide - Overview](user-guide.md#overview) -> [Runbook - Connect CLI](operator-runbook.md#connect-cli-to-a-server) |
 | Day-2 ops | [Operator runbook](operator-runbook.md) |
 | Deploy / upgrade | [Deployment](deployment.md) |
-| Security review | [Threat model](threat-model.md) · [SECURITY.md](../SECURITY.md) |
-| AI agents / contributors | [AGENTS.md](../AGENTS.md) · [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Security review | [Threat model](threat-model.md) - [SECURITY.md](../SECURITY.md) |
+| AI agents / contributors | [AGENTS.md](../AGENTS.md) - [CONTRIBUTING.md](../CONTRIBUTING.md) |
 
 ---
 
@@ -76,7 +75,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [User guide](user-guide.md) | Feature reference (What / Why / How / Example) — Ops UI, INKO, Profiles, Artifacts, OAST, CLI |
+| [User guide](user-guide.md) | Feature reference (What / Why / How / Example) - Ops UI, INKO, Profiles, Artifacts, OAST, CLI |
 | [Operator runbook](operator-runbook.md) | Day-2 procedures: shells, beacons, OAST, implants, collab |
 | [Deployment](deployment.md) | Docker lab, OAST, TLS, binary prod + systemd |
 
@@ -92,8 +91,8 @@
 
 | Document | Description |
 |----------|-------------|
-| [Roadmap 2026–2027](roadmap-2026-2027.md) | Long-range priorities (10 focus areas) |
-| [Five-star program](roadmap-five-star.md) | Pack A–E status toward category leadership |
+| [Roadmap 2026-2027](roadmap-2026-2027.md) | Long-range priorities (10 focus areas) |
+| [Five-star program](roadmap-five-star.md) | Pack A-E status toward category leadership |
 | [Prod readiness](prod-readiness-plan.md) | Phased security/ops execution checklist |
 
 ### Project
@@ -132,9 +131,9 @@ Nav labels in `/ops` (match [User guide](user-guide.md#ops-console-layout)):
 | Collab | [Multi-operator collab](user-guide.md#multi-operator-collab) |
 | INKO | [INKO](user-guide.md#inko-intelligent-neural-kinetic-operator) |
 | Observe | [Observability](user-guide.md#observability) |
-| Admin | [Tokens](user-guide.md#tokens) · [LLM connections](user-guide.md#llm-connections) · [Feature toggles](user-guide.md#feature-toggles) · [TLS certificates](user-guide.md#tls-certificate-library) |
+| Admin | [Tokens](user-guide.md#tokens) - [LLM connections](user-guide.md#llm-connections) - [Feature toggles](user-guide.md#feature-toggles) - [TLS certificates](user-guide.md#tls-certificate-library) |
 
-Top bar **◈ INKO** opens the chat flyout (same INKO stack as the nav page).
+Top bar **INKO** opens the chat flyout (same INKO stack as the nav page).
 
 ---
 

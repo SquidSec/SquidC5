@@ -55,7 +55,7 @@ def classify_inbound(data: bytes | str, *, min_bytes: int = 1) -> Classification
     Return whether inbound bytes look like a real reverse shell vs scanner noise.
 
     TLS ClientHello on 443 (e.g. mass scanners, SNI to random hosts) is the
-    common false positive — reject immediately.
+    common false positive - reject immediately.
     """
     if isinstance(data, str):
         raw = data.encode("utf-8", errors="surrogateescape")
@@ -63,7 +63,7 @@ def classify_inbound(data: bytes | str, *, min_bytes: int = 1) -> Classification
         raw = data
 
     if not raw:
-        # No data yet — indeterminate; treat as potential shell (wait for probe)
+        # No data yet - indeterminate; treat as potential shell (wait for probe)
         return Classification(True, "no_data_yet", 0.3)
 
     sample = raw[:512]
@@ -93,7 +93,7 @@ def classify_inbound(data: bytes | str, *, min_bytes: int = 1) -> Classification
     if sample.count(0) > max(4, len(sample) // 5):
         return Classification(False, "null_bytes", 0.8)
 
-    # Looks mostly text — likely interactive shell or OS probe response
+    # Looks mostly text - likely interactive shell or OS probe response
     if ratio >= 0.7:
         return Classification(True, "printable_text", 0.7)
 

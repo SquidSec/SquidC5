@@ -135,7 +135,7 @@ async def build_state(settings: Settings) -> AppState:
             token_file.chmod(0o600)
         except OSError:
             log.warning("Could not chmod 0600 on %s", token_file)
-        log.warning("Bootstrap admin token written to %s — store securely and rotate", token_file)
+        log.warning("Bootstrap admin token written to %s - store securely and rotate", token_file)
 
     from squidc5.engagement.policy import EngagementPolicy
     from squidc5.implants.crypto import resolve_implant_psk
@@ -228,7 +228,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         log.info("SquidC5 shutdown complete")
 
     # Hardened surface: no public Swagger/ReDoc/OpenAPI by default.
-    # (Military / red-team deployment — do not advertise the API map.)
+    # (Military / red-team deployment - do not advertise the API map.)
     app = FastAPI(
         title="SquidC5",
         description="Authorized operations only",
@@ -279,7 +279,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             host = (host_header or "").split(",")[0].strip()
             if host and o.netloc.lower() == host.lower():
                 return origin
-            # Loopback variants (local ops testing) — exact
+            # Loopback variants (local ops testing) - exact
             origin_host = (o.hostname or "").lower()
             host_name = host.split(":")[0].lower() if host else ""
             if origin_host in ("127.0.0.1", "localhost") and host_name in ("127.0.0.1", "localhost"):
@@ -363,7 +363,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(build_ws_router())
 
-    # Operator phone/desktop console (static) — works from source, Docker, frozen binary
+    # Operator phone/desktop console (static) - works from source, Docker, frozen binary
     wdir = web_dir()
     dash_file = wdir / "phone-dashboard.html"
     assets = wdir / "assets"
@@ -388,7 +388,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/")
     async def root() -> dict[str, str]:
-        # Minimal banner — no docs/OpenAPI pointers
+        # Minimal banner - no docs/OpenAPI pointers
         return {
             "service": "sc5",
             "status": "ok",
@@ -478,7 +478,7 @@ def cli() -> None:
         if created:
             log.warning(
                 "TLS is ON with a new self-signed cert. Use https://%s:%s/ops "
-                "(accept browser warning) — tokens on the wire are encrypted.",
+                "(accept browser warning) - tokens on the wire are encrypted.",
                 settings.host if settings.host not in ("0.0.0.0", "::") else "HOST",
                 settings.port,
             )
@@ -487,7 +487,7 @@ def cli() -> None:
     else:
         scheme = "http"
         log.warning(
-            "TLS disabled (SQUIDC5_TLS_ENABLED=false) — ops/API/MCP traffic is plaintext"
+            "TLS disabled (SQUIDC5_TLS_ENABLED=false) - ops/API/MCP traffic is plaintext"
         )
 
     log.info(

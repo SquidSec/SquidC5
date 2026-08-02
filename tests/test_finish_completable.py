@@ -92,7 +92,7 @@ async def test_plugin_catalog_and_install(client, admin_headers):
 
 @pytest.mark.asyncio
 async def test_lab_playbook_scenario_http_profile(client, admin_headers):
-    """Full lab scenario: profile → payload → check-in → task → result."""
+    """Full lab scenario: profile -> payload -> check-in -> task -> result."""
     await client.post(
         "/api/v1/profiles/prof_amazon_cdn/activate", headers=admin_headers
     )

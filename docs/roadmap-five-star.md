@@ -1,8 +1,8 @@
 # Five-star C5 program
 
-Goal: ★★★★★ across implants, traffic, post-ex, multi-player, AI, governance, CI.
+Goal: ***** across implants, traffic, post-ex, multi-player, AI, governance, CI.
 
-**Process:** feature branch → unit tests → PR → CI + SquidGate green → merge `master` → deploy **Release binary** to prod → repeat.
+**Process:** feature branch -> unit tests -> PR -> CI + SquidGate green -> merge `master` -> deploy **Release binary** to prod -> repeat.
 
 | Related | Link |
 |---------|------|
@@ -20,7 +20,7 @@ Goal: ★★★★★ across implants, traffic, post-ex, multi-player, AI, gover
 | **D** | AI capability pack + local Ollama path | **Landed** (15 caps; local LLM URL/model) |
 | **E** | CI proof, SBOM, audit verify, benchmarks | **Landed** (verify, cov, mypy, SBOM, agent CI) |
 
-## Implant maturity I1–I6
+## Implant maturity I1-I6
 
 | Pack | Focus | Status |
 |------|--------|--------|
@@ -52,16 +52,16 @@ Goal: ★★★★★ across implants, traffic, post-ex, multi-player, AI, gover
 
 ## Security hardening pack (landed)
 
-Token grant subset · policy admin-only · MCP=REST gates · HITL single-use · HTTP/DNS/WS implant AEAD · task session bind · claim on mutators · team lead RBAC · SOCKS loopback · LLM SSRF block · CORS null denied · stage-2 host sanitize · multi-page ops UI
+Token grant subset - policy admin-only - MCP=REST gates - HITL single-use - HTTP/DNS/WS implant AEAD - task session bind - claim on mutators - team lead RBAC - SOCKS loopback - LLM SSRF block - CORS null denied - stage-2 host sanitize - multi-page ops UI
 
-## Still climbing to full ★★★★★
+## Still climbing to full *****
 
-- Full Windows COFF **mapped execute** (research build)  
-- P2P / SMB / named pipe  
-- Per-implant keys (still global PSK)  
-- True SSE EventSource auth (today: metrics poll rail)  
-- Multi-host lab soak numbers (overnight)  
-- External security audit  
+- Full Windows COFF **mapped execute** (research build) 
+- P2P / SMB / named pipe 
+- Per-implant keys (still global PSK) 
+- True SSE EventSource auth (today: metrics poll rail) 
+- Multi-host lab soak numbers (overnight) 
+- External security audit 
 
 ## Links
 

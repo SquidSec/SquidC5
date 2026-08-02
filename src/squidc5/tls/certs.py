@@ -187,7 +187,7 @@ def ensure_instance_tls(
         instance_id=iid,
     )
     log.warning(
-        "Generated unique instance TLS certificate → %s (self-signed; browsers will warn)",
+        "Generated unique instance TLS certificate -> %s (self-signed; browsers will warn)",
         cert_path,
     )
     return cert_path, key_path, True

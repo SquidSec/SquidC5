@@ -1,4 +1,4 @@
-"""UDP DNS C2 + OAST — authoritative zone answers for authorized lab use."""
+"""UDP DNS C2 + OAST - authoritative zone answers for authorized lab use."""
 
 from __future__ import annotations
 
@@ -300,7 +300,7 @@ class DnsProtocol(asyncio.DatagramProtocol):
             return
 
         if is_c2 and self.mode == "oast":
-            # C2 labels ignored in oast-only mode — still log as OAST
+            # C2 labels ignored in oast-only mode - still log as OAST
             pass
 
         # OAST: any query under zone

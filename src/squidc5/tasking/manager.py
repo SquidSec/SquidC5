@@ -14,7 +14,7 @@ class TaskManager:
         self.db = db
         self.metrics = metrics
 
-    # Structured file-op commands (C05) — implants execute when recognized
+    # Structured file-op commands (C05) - implants execute when recognized
     FILE_OPS = frozenset({"file:list", "file:read", "file:write", "file:delete"})
 
     async def create(

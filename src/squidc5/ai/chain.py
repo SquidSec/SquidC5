@@ -6,7 +6,7 @@ from typing import Any
 
 from squidc5.ai.admin_ai import ALLOWED_CAPABILITIES, sanitize_untrusted
 
-# Fixed playbooks only — no free-form agent planning
+# Fixed playbooks only - no free-form agent planning
 PLAYBOOKS: dict[str, list[dict[str, str]]] = {
     "recon_then_classify": [
         {"capability": "recon_assist", "input_from": "user"},

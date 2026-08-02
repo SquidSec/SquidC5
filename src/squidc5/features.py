@@ -1,4 +1,4 @@
-"""Runtime feature flags — toggled by admin, enforced server-side."""
+"""Runtime feature flags - toggled by admin, enforced server-side."""
 
 from __future__ import annotations
 

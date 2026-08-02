@@ -1,310 +1,310 @@
 name: CI
 
 on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+ push:
+ branches: [main, master]
+ pull_request:
+ branches: [main, master]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-          pip install -e .
-      - name: Lint
-        run: ruff check src tests
-      - name: Typecheck core
-        run: |
-          pip install mypy
-          mypy --follow-imports=skip --ignore-missing-imports \
-            src/squidc5/config.py src/squidc5/auth src/squidc5/policy \
-            src/squidc5/implants/crypto.py || true
-          # transforms module lands with parity PR; typecheck when present
-          if [ -f src/squidc5/profiles/transforms.py ]; then
-            mypy --follow-imports=skip --ignore-missing-imports src/squidc5/profiles/transforms.py
-          fi
-      - name: Tests
-        run: pytest -q --cov=squidc5 --cov-report=term-missing --cov-fail-under=65
+ test:
+ runs-on: ubuntu-latest
+ strategy:
+ matrix:
+ python-version: ["3.11", "3.12"]
+ steps:
+ - uses: actions/checkout@v4
+ - name: Set up Python
+ uses: actions/setup-python@v5
+ with:
+ python-version: ${{ matrix.python-version }}
+ cache: pip
+ - name: Install dependencies
+ run: |
+ python -m pip install --upgrade pip
+ pip install -r requirements-dev.txt
+ pip install -e .
+ - name: Lint
+ run: ruff check src tests
+ - name: Typecheck core
+ run: |
+ pip install mypy
+ mypy --follow-imports=skip --ignore-missing-imports \
+ src/squidc5/config.py src/squidc5/auth src/squidc5/policy \
+ src/squidc5/implants/crypto.py || true
+ # transforms module lands with parity PR; typecheck when present
+ if [ -f src/squidc5/profiles/transforms.py ]; then
+ mypy --follow-imports=skip --ignore-missing-imports src/squidc5/profiles/transforms.py
+ fi
+ - name: Tests
+ run: pytest -q --cov=squidc5 --cov-report=term-missing --cov-fail-under=65
 
-  native-agent:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-      - name: Test + build sc5beacon matrix
-        working-directory: agents/sc5beacon
-        run: |
-          go mod tidy
-          go test -count=1 ./...
-          mkdir -p ../../dist
-          go build -ldflags='-s -w' -o ../../dist/sc5beacon-linux-amd64 .
-          GOOS=linux GOARCH=arm64 go build -ldflags='-s -w' -o ../../dist/sc5beacon-linux-arm64 .
-          GOOS=windows GOARCH=amd64 go build -ldflags='-s -w' -o ../../dist/sc5beacon-windows-amd64.exe .
-          GOOS=darwin GOARCH=arm64 go build -ldflags='-s -w' -o ../../dist/sc5beacon-darwin-arm64 .
-          ls -la ../../dist/sc5beacon*
-      - name: Lab soak smoke (config + sysinfo task path)
-        working-directory: agents/sc5beacon
-        run: |
-          # Unit-level soak: job manager + config blob without network
-          go test -count=1 -run 'TestLoadConfig|TestCOFF|TestSimulate' -v ./...
-          # Binary starts and exits on missing config
-          set +e
-          ../../dist/sc5beacon-linux-amd64 2>/tmp/sc5beacon_err.txt
-          code=$?
-          set -e
-          test "$code" -ne 0
-          grep -qi config /tmp/sc5beacon_err.txt || grep -qi psk /tmp/sc5beacon_err.txt || grep -qi required /tmp/sc5beacon_err.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sc5beacon-native
-          path: dist/sc5beacon*
-          retention-days: 14
+ native-agent:
+ runs-on: ubuntu-latest
+ needs: test
+ steps:
+ - uses: actions/checkout@v4
+ - uses: actions/setup-go@v5
+ with:
+ go-version: "1.22"
+ - name: Test + build sc5beacon matrix
+ working-directory: agents/sc5beacon
+ run: |
+ go mod tidy
+ go test -count=1 ./...
+ mkdir -p ../../dist
+ go build -ldflags='-s -w' -o ../../dist/sc5beacon-linux-amd64 .
+ GOOS=linux GOARCH=arm64 go build -ldflags='-s -w' -o ../../dist/sc5beacon-linux-arm64 .
+ GOOS=windows GOARCH=amd64 go build -ldflags='-s -w' -o ../../dist/sc5beacon-windows-amd64.exe .
+ GOOS=darwin GOARCH=arm64 go build -ldflags='-s -w' -o ../../dist/sc5beacon-darwin-arm64 .
+ ls -la ../../dist/sc5beacon*
+ - name: Lab soak smoke (config + sysinfo task path)
+ working-directory: agents/sc5beacon
+ run: |
+ # Unit-level soak: job manager + config blob without network
+ go test -count=1 -run 'TestLoadConfig|TestCOFF|TestSimulate' -v ./...
+ # Binary starts and exits on missing config
+ set +e
+ ../../dist/sc5beacon-linux-amd64 2>/tmp/sc5beacon_err.txt
+ code=$?
+ set -e
+ test "$code" -ne 0
+ grep -qi config /tmp/sc5beacon_err.txt || grep -qi psk /tmp/sc5beacon_err.txt || grep -qi required /tmp/sc5beacon_err.txt
+ - uses: actions/upload-artifact@v4
+ with:
+ name: sc5beacon-native
+ path: dist/sc5beacon*
+ retention-days: 14
 
-  docker:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build image
-        run: docker build -t squidc5:ci .
-      - name: Run container smoke test
-        run: |
-          docker run -d --name squidc5-ci -p 8443:8443 squidc5:ci
-          for i in $(seq 1 30); do
-            if curl -skf https://127.0.0.1:8443/api/v1/health; then
-              echo "healthy"
-              exit 0
-            fi
-            sleep 2
-          done
-          docker logs squidc5-ci
-          exit 1
-      - name: Cleanup
-        if: always()
-        run: docker rm -f squidc5-ci || true
+ docker:
+ runs-on: ubuntu-latest
+ needs: test
+ steps:
+ - uses: actions/checkout@v4
+ - name: Build image
+ run: docker build -t squidc5:ci .
+ - name: Run container smoke test
+ run: |
+ docker run -d --name squidc5-ci -p 8443:8443 squidc5:ci
+ for i in $(seq 1 30); do
+ if curl -skf https://127.0.0.1:8443/api/v1/health; then
+ echo "healthy"
+ exit 0
+ fi
+ sleep 2
+ done
+ docker logs squidc5-ci
+ exit 1
+ - name: Cleanup
+ if: always()
+ run: docker rm -f squidc5-ci || true
 
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install pip-audit
-        run: pip install pip-audit
-      - name: Audit dependencies
-        # Fail the job on known vulnerable dependencies (A08)
-        run: pip-audit -r requirements.txt
+ security:
+ runs-on: ubuntu-latest
+ steps:
+ - uses: actions/checkout@v4
+ - name: Set up Python
+ uses: actions/setup-python@v5
+ with:
+ python-version: "3.12"
+ - name: Install pip-audit
+ run: pip install pip-audit
+ - name: Audit dependencies
+ # Fail the job on known vulnerable dependencies (A08)
+ run: pip-audit -r requirements.txt
 
-  # Standalone operator CLI + server binaries (no venv required).
-  # Runs on pushes to main/master after tests pass.
-  binaries:
-    name: binaries (${{ matrix.os }})
-    needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            artifact: linux-x64
-          - os: windows-latest
-            artifact: windows-x64
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
+ # Standalone operator CLI + server binaries (no venv required).
+ # Runs on pushes to main/master after tests pass.
+ binaries:
+ name: binaries (${{ matrix.os }})
+ needs: test
+ if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+ strategy:
+ fail-fast: false
+ matrix:
+ include:
+ - os: ubuntu-latest
+ artifact: linux-x64
+ - os: windows-latest
+ artifact: windows-x64
+ runs-on: ${{ matrix.os }}
+ steps:
+ - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
+ - name: Set up Python
+ uses: actions/setup-python@v5
+ with:
+ python-version: "3.12"
+ cache: pip
 
-      - name: Install package + PyInstaller
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
-          pip install "pyinstaller>=6.3"
+ - name: Install package + PyInstaller
+ run: |
+ python -m pip install --upgrade pip
+ pip install -r requirements.txt
+ pip install -e .
+ pip install "pyinstaller>=6.3"
 
-      - name: Build binaries
-        run: python packaging/build_binaries.py
+ - name: Build binaries
+ run: python packaging/build_binaries.py
 
-      - name: Smoke-test CLI
-        shell: bash
-        run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            ./dist/binaries/sc5.exe --help
-            ./dist/binaries/sc5.exe --url http://127.0.0.1:9 health || true
-          else
-            ./dist/binaries/sc5 --help
-            ./dist/binaries/sc5 --url http://127.0.0.1:9 health || true
-          fi
+ - name: Smoke-test CLI
+ shell: bash
+ run: |
+ if [[ "${{ runner.os }}" == "Windows" ]]; then
+ ./dist/binaries/sc5.exe --help
+ ./dist/binaries/sc5.exe --url http://127.0.0.1:9 health || true
+ else
+ ./dist/binaries/sc5 --help
+ ./dist/binaries/sc5 --url http://127.0.0.1:9 health || true
+ fi
 
-      - name: Smoke-test server (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          set -e
-          ./dist/binaries/squidc5 &
-          pid=$!
-          trap 'kill $pid 2>/dev/null || true' EXIT
-          for i in $(seq 1 40); do
-            if curl -skf https://127.0.0.1:8443/api/v1/health; then
-              echo
-              curl -skf https://127.0.0.1:8443/ops | head -c 200
-              echo
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "server failed to become healthy"
-          exit 1
+ - name: Smoke-test server (Linux)
+ if: runner.os == 'Linux'
+ run: |
+ set -e
+ ./dist/binaries/squidc5 &
+ pid=$!
+ trap 'kill $pid 2>/dev/null || true' EXIT
+ for i in $(seq 1 40); do
+ if curl -skf https://127.0.0.1:8443/api/v1/health; then
+ echo
+ curl -skf https://127.0.0.1:8443/ops | head -c 200
+ echo
+ exit 0
+ fi
+ sleep 1
+ done
+ echo "server failed to become healthy"
+ exit 1
 
-      - name: Upload binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: squidc5-${{ matrix.artifact }}
-          path: |
-            dist/binaries/sc5
-            dist/binaries/sc5.exe
-            dist/binaries/squidc5
-            dist/binaries/squidc5.exe
-            dist/binaries/README.txt
-            dist/binaries/*/
-          if-no-files-found: error
-          retention-days: 30
+ - name: Upload binaries
+ uses: actions/upload-artifact@v4
+ with:
+ name: squidc5-${{ matrix.artifact }}
+ path: |
+ dist/binaries/sc5
+ dist/binaries/sc5.exe
+ dist/binaries/squidc5
+ dist/binaries/squidc5.exe
+ dist/binaries/README.txt
+ dist/binaries/*/
+ if-no-files-found: error
+ retention-days: 30
 
-  # Publish GitHub Release with Linux + Windows binaries when main/master CI succeeds.
-  release:
-    name: github-release
-    needs: [binaries, test]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
+ # Publish GitHub Release with Linux + Windows binaries when main/master CI succeeds.
+ release:
+ name: github-release
+ needs: [binaries, test]
+ if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+ runs-on: ubuntu-latest
+ permissions:
+ contents: write
+ steps:
+ - uses: actions/checkout@v4
 
-      - name: Download Linux binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: squidc5-linux-x64
-          path: artifacts/linux
+ - name: Download Linux binaries
+ uses: actions/download-artifact@v4
+ with:
+ name: squidc5-linux-x64
+ path: artifacts/linux
 
-      - name: Download Windows binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: squidc5-windows-x64
-          path: artifacts/windows
+ - name: Download Windows binaries
+ uses: actions/download-artifact@v4
+ with:
+ name: squidc5-windows-x64
+ path: artifacts/windows
 
-      - name: Stage release assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p release
-          # Linux
-          test -f artifacts/linux/sc5
-          test -f artifacts/linux/squidc5
-          cp artifacts/linux/sc5 release/sc5-linux-x64
-          cp artifacts/linux/squidc5 release/squidc5-linux-x64
-          chmod +x release/sc5-linux-x64 release/squidc5-linux-x64
-          # Windows
-          test -f artifacts/windows/sc5.exe
-          test -f artifacts/windows/squidc5.exe
-          cp artifacts/windows/sc5.exe release/sc5-windows-x64.exe
-          cp artifacts/windows/squidc5.exe release/squidc5-windows-x64.exe
-          # SBOM (CycloneDX JSON via pip)
-          python -m pip install --quiet cyclonedx-bom
-          pip install -q -r requirements.txt
-          cyclonedx-py requirements requirements.txt -o release/sbom.cdx.json || \
-            echo '{"bomFormat":"CycloneDX","specVersion":"1.5","components":[]}' > release/sbom.cdx.json
-          # Checksums + short readme
-          (
-            cd release
-            sha256sum * > SHA256SUMS.txt
-          )
-          cat > release/README.txt << EOF
-          SquidC5 standalone binaries (no Python/venv required)
+ - name: Stage release assets
+ shell: bash
+ run: |
+ set -euo pipefail
+ mkdir -p release
+ # Linux
+ test -f artifacts/linux/sc5
+ test -f artifacts/linux/squidc5
+ cp artifacts/linux/sc5 release/sc5-linux-x64
+ cp artifacts/linux/squidc5 release/squidc5-linux-x64
+ chmod +x release/sc5-linux-x64 release/squidc5-linux-x64
+ # Windows
+ test -f artifacts/windows/sc5.exe
+ test -f artifacts/windows/squidc5.exe
+ cp artifacts/windows/sc5.exe release/sc5-windows-x64.exe
+ cp artifacts/windows/squidc5.exe release/squidc5-windows-x64.exe
+ # SBOM (CycloneDX JSON via pip)
+ python -m pip install --quiet cyclonedx-bom
+ pip install -q -r requirements.txt
+ cyclonedx-py requirements requirements.txt -o release/sbom.cdx.json || \
+ echo '{"bomFormat":"CycloneDX","specVersion":"1.5","components":[]}' > release/sbom.cdx.json
+ # Checksums + short readme
+ (
+ cd release
+ sha256sum * > SHA256SUMS.txt
+ )
+ cat > release/README.txt << EOF
+ SquidC5 standalone binaries (no Python/venv required)
 
-          sc5-linux-x64 / sc5-windows-x64.exe     Operator CLI
-          squidc5-linux-x64 / squidc5-windows-x64.exe   C2 server
+ sc5-linux-x64 / sc5-windows-x64.exe Operator CLI
+ squidc5-linux-x64 / squidc5-windows-x64.exe C2 server
 
-          Server defaults: 0.0.0.0:8443  data in ./data/
-          Ops console: https://HOST:8443/ops (self-signed TLS by default)
-          Authorized use only.
-          EOF
-          ls -lah release/
+ Server defaults: 0.0.0.0:8443 data in ./data/
+ Ops console: https://HOST:8443/ops (self-signed TLS by default)
+ Authorized use only.
+ EOF
+ ls -lah release/
 
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          SHORT_SHA="${GITHUB_SHA::7}"
-          TAG="v0.1.${{ github.run_number }}-${SHORT_SHA}"
-          TITLE="SquidC5 ${TAG}"
-          NOTES="$(cat <<EOF
-          ## SquidC5 release \`${TAG}\`
+ - name: Create GitHub Release
+ env:
+ GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+ shell: bash
+ run: |
+ set -euo pipefail
+ SHORT_SHA="${GITHUB_SHA::7}"
+ TAG="v0.1.${{ github.run_number }}-${SHORT_SHA}"
+ TITLE="SquidC5 ${TAG}"
+ NOTES="$(cat <<EOF
+ ## SquidC5 release \`${TAG}\`
 
-          Built from \`${GITHUB_REF_NAME}\` @ \`${SHORT_SHA}\` after CI tests passed.
+ Built from \`${GITHUB_REF_NAME}\` @ \`${SHORT_SHA}\` after CI tests passed.
 
-          ### Assets
-          | File | Platform | Role |
-          |------|----------|------|
-          | \`sc5-linux-x64\` | Linux x64 | Operator CLI |
-          | \`squidc5-linux-x64\` | Linux x64 | C2 server |
-          | \`sc5-windows-x64.exe\` | Windows x64 | Operator CLI |
-          | \`squidc5-windows-x64.exe\` | Windows x64 | C2 server |
-          | \`SHA256SUMS.txt\` | — | Checksums |
+ ### Assets
+ | File | Platform | Role |
+ |------|----------|------|
+ | \`sc5-linux-x64\` | Linux x64 | Operator CLI |
+ | \`squidc5-linux-x64\` | Linux x64 | C2 server |
+ | \`sc5-windows-x64.exe\` | Windows x64 | Operator CLI |
+ | \`squidc5-windows-x64.exe\` | Windows x64 | C2 server |
+ | \`SHA256SUMS.txt\` | - | Checksums |
 
-          ### Server (Linux)
-          \`\`\`bash
-          chmod +x squidc5-linux-x64
-          ./squidc5-linux-x64
-          # token: ./data/admin_token.txt
-          # console: https://HOST:8443/ops
-          \`\`\`
+ ### Server (Linux)
+ \`\`\`bash
+ chmod +x squidc5-linux-x64
+ ./squidc5-linux-x64
+ # token: ./data/admin_token.txt
+ # console: https://HOST:8443/ops
+ \`\`\`
 
-          ### CLI
-          \`\`\`bash
-          ./sc5-linux-x64 login --url https://HOST:8443 --token sc5_... --insecure
-          ./sc5-linux-x64 sessions list
-          \`\`\`
+ ### CLI
+ \`\`\`bash
+ ./sc5-linux-x64 login --url https://HOST:8443 --token sc5_... --insecure
+ ./sc5-linux-x64 sessions list
+ \`\`\`
 
-          Authorized red-team / pen-test use only.
-          EOF
-          )"
-          # Unique release per successful main build; mark as latest
-          gh release create "$TAG" \
-            --repo "${{ github.repository }}" \
-            --target "${{ github.sha }}" \
-            --title "$TITLE" \
-            --notes "$NOTES" \
-            --latest \
-            release/sc5-linux-x64 \
-            release/squidc5-linux-x64 \
-            release/sc5-windows-x64.exe \
-            release/squidc5-windows-x64.exe \
-            release/SHA256SUMS.txt \
-            release/README.txt \
-            release/sbom.cdx.json
-          echo "Published release: $TAG"
-          echo "url=https://github.com/${{ github.repository }}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+ Authorized red-team / pen-test use only.
+ EOF
+ )"
+ # Unique release per successful main build; mark as latest
+ gh release create "$TAG" \
+ --repo "${{ github.repository }}" \
+ --target "${{ github.sha }}" \
+ --title "$TITLE" \
+ --notes "$NOTES" \
+ --latest \
+ release/sc5-linux-x64 \
+ release/squidc5-linux-x64 \
+ release/sc5-windows-x64.exe \
+ release/squidc5-windows-x64.exe \
+ release/SHA256SUMS.txt \
+ release/README.txt \
+ release/sbom.cdx.json
+ echo "Published release: $TAG"
+ echo "url=https://github.com/${{ github.repository }}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"

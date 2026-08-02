@@ -35,7 +35,7 @@ def test_engagement_bans_and_expiry():
 
 
 def test_ai_new_capabilities_offline():
-    # minimal mock — only offline path
+    # minimal mock - only offline path
     class _P:
         async def get_rules(self):
             return {"admin_ai": {"sandbox": True, "allowed_capabilities": list(ALLOWED_CAPABILITIES)}}

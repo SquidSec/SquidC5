@@ -1,4 +1,4 @@
-"""Implant maturity I1–I6: factory config blob, stagers, BOF catalog, build API."""
+"""Implant maturity I1-I6: factory config blob, stagers, BOF catalog, build API."""
 
 from __future__ import annotations
 

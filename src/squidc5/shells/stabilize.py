@@ -1,10 +1,10 @@
 """
 Auto-stabilize fragile reverse shells with platform stage-2 agents.
 
-Linux  → reconnecting command executor (reliable line-based)
-Windows → PowerShell reconnecting command executor
+Linux  -> reconnecting command executor (reliable line-based)
+Windows -> PowerShell reconnecting command executor
 
-Deterministic templates only — no free-form generation.
+Deterministic templates only - no free-form generation.
 """
 
 from __future__ import annotations
@@ -86,7 +86,7 @@ def _run_session(s):
         try:
             chunk = s.recv(8192)
         except socket.timeout:
-            # keepalive tick — stay connected
+            # keepalive tick - stay connected
             try:
                 s.sendall(b"")
             except Exception:

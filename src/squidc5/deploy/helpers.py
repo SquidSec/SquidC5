@@ -29,7 +29,7 @@ def nginx_redirector_config(
     }}""".rstrip()
         )
     locs = "\n".join(locations)
-    return f"""# SquidC5 redirector snippet — authorized lab only
+    return f"""# SquidC5 redirector snippet - authorized lab only
 # Place under /etc/nginx/sites-available/ and enable TLS with your certs.
 server {{
     listen {listen_port} ssl http2;
@@ -60,7 +60,7 @@ def caddy_redirector_config(
         f"\t}}"
         for u in uris
     )
-    return f"""# SquidC5 Caddy redirector — authorized lab only
+    return f"""# SquidC5 Caddy redirector - authorized lab only
 {server_name} {{
 \tencode gzip
 {handles}

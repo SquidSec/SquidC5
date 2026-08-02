@@ -1,4 +1,4 @@
-"""In-memory operator presence (M4) — who is online on this teamserver."""
+"""In-memory operator presence (M4) - who is online on this teamserver."""
 
 from __future__ import annotations
 

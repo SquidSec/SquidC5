@@ -149,5 +149,5 @@ async def test_default_features_secure(client, admin_headers):
     assert r.status_code == 200
     f = r.json()["features"]
     assert f["public_docs"] is False
-    # mcp may be True in test fixture after setup — public_docs always false
+    # mcp may be True in test fixture after setup - public_docs always false
     assert f["public_docs"] is False

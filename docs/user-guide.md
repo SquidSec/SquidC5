@@ -1,8 +1,8 @@
 # SquidC5 User Guide
 
-**Command · Control · Cognitive · Collaborative · Coordination**
+**Command - Control - Cognitive - Collaborative - Coordination**
 
-**Authorized red team / penetration testing only.**  
+**Authorized red team / penetration testing only.** 
 This guide lives in the GitHub repository. It is **not** served by the C2 process (`/docs` on the server stays disabled).
 
 **Source of truth:** [docs/user-guide.md](https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md) on branch `master`.
@@ -14,7 +14,7 @@ This guide lives in the GitHub repository. It is **not** served by the C2 proces
 | [Deployment](deployment.md) | Lab Docker + binary prod |
 | [Vision](squidc5-vision.md) | Architecture |
 | [Threat model](threat-model.md) | Trust boundaries |
-| [Roadmap 2026–2027](roadmap-2026-2027.md) | Planned work |
+| [Roadmap 2026-2027](roadmap-2026-2027.md) | Planned work |
 | [AGENTS.md](../AGENTS.md) | Full CLI surface |
 
 ### What C5 stands for
@@ -89,7 +89,7 @@ Background reading for industry meaning of terms (external). SquidC5 still only 
 
 ### What
 
-SquidC5 is a **security-first, AI-native C5** platform — **Command, Control, Cognitive, Collaborative, Coordination** — for **authorized** engagements. In industry language it is a command-and-control (C2) *team server*: the hub operators use to task implants, receive output, and manage listeners during a red-team or pen-test, with AI assist and multi-operator coordination under secure defaults.
+SquidC5 is a **security-first, AI-native C5** platform - **Command, Control, Cognitive, Collaborative, Coordination** - for **authorized** engagements. In industry language it is a command-and-control (C2) *team server*: the hub operators use to task implants, receive output, and manage listeners during a red-team or pen-test, with AI assist and multi-operator coordination under secure defaults.
 
 Operators use:
 
@@ -99,11 +99,11 @@ Operators use:
 
 ### Why
 
-- **Deny by default** — MCP off, public OpenAPI off, empty CORS, admin UI only after server-side scope check
-- **Deterministic implants** — templates and fixed generators over free-form agent loops
-- **Auditability** — operator, AI, MCP, and feature changes go through policy/audit
-- **Port flexibility** — no hard requirement for 80/443
-- **Dual AI** — external models stay on allow-listed MCP tools; INKO stays capability-gated and sanitizes untrusted input
+- **Deny by default** - MCP off, public OpenAPI off, empty CORS, admin UI only after server-side scope check
+- **Deterministic implants** - templates and fixed generators over free-form agent loops
+- **Auditability** - operator, AI, MCP, and feature changes go through policy/audit
+- **Port flexibility** - no hard requirement for 80/443
+- **Dual AI** - external models stay on allow-listed MCP tools; INKO stays capability-gated and sanitizes untrusted input
 
 ### How
 
@@ -121,11 +121,11 @@ Engagement lifecycle (mental model):
 
 ```text
 Operator (CLI /ops)
-    → API (scopes + policy)
-        → Sessions / Tasks / Listeners / Payloads / Profiles
-        → INKO + Admin AI (sandboxed) / MCP (allow-listed)
-        → SQLite data/ (local, never commit)
-Implants / reverse shells → Listeners → Sessions
+ -> API (scopes + policy)
+ -> Sessions / Tasks / Listeners / Payloads / Profiles
+ -> INKO + Admin AI (sandboxed) / MCP (allow-listed)
+ -> SQLite data/ (local, never commit)
+Implants / reverse shells -> Listeners -> Sessions
 ```
 
 ### See also
@@ -140,7 +140,7 @@ Implants / reverse shells → Listeners → Sessions
 
 ### What
 
-- **Tokens** `sc5_<urlsafe>` with scopes (`admin`, `sessions:read`, `shell:interact`, …)
+- **Tokens** `sc5_<urlsafe>` with scopes (`admin`, `sessions:read`, `shell:interact`, ...)
 - **Admin UI code** served only after the server validates an admin-scoped token
 - **INKO / Admin AI** sanitizes untrusted input; capabilities and chat tools are allow-listed
 - **MCP** tools are per-token allow-listed; feature often off by default
@@ -153,8 +153,8 @@ A compromised browser or leaked non-admin token must not receive admin control s
 ### How
 
 ```bash
-# Bootstrap token (first start) — store securely, rotate
-cat data/admin_token.txt   # local
+# Bootstrap token (first start) - store securely, rotate
+cat data/admin_token.txt # local
 # docker exec squidc5 cat /data/admin_token.txt
 
 # Default: HTTPS with unique self-signed cert (data/tls/)
@@ -164,9 +164,9 @@ sc5 whoami
 
 ### Transport encryption (TLS)
 
-New instances **generate a unique self-signed certificate** on first start (`data/tls/server.crt` + `server.key`) and serve **ops UI, API, and MCP** over HTTPS. Override with CA certs via `SQUIDC5_TLS_CERT_FILE` / `SQUIDC5_TLS_KEY_FILE`, or terminate TLS on a redirector. Manage PEMs in Ops → **Admin** → [TLS certificate library](#tls-certificate-library).
+New instances **generate a unique self-signed certificate** on first start (`data/tls/server.crt` + `server.key`) and serve **ops UI, API, and MCP** over HTTPS. Override with CA certs via `SQUIDC5_TLS_CERT_FILE` / `SQUIDC5_TLS_KEY_FILE`, or terminate TLS on a redirector. Manage PEMs in Ops -> **Admin** -> [TLS certificate library](#tls-certificate-library).
 
-See [Deployment — TLS](deployment.md#tls-https-default-on-new-instances).
+See [Deployment - TLS](deployment.md#tls-https-default-on-new-instances).
 
 ### Example
 
@@ -187,7 +187,7 @@ curl -sk https://127.0.0.1:8443/api/v1/health
 
 ### What
 
-Browser UI at `https://HOST:8443/ops` (HTTPS by default). Connection settings stay in **browser localStorage** only. Layout preferences are local — **never** persisted to the C2 server.
+Browser UI at `https://HOST:8443/ops` (HTTPS by default). Connection settings stay in **browser localStorage** only. Layout preferences are local - **never** persisted to the C2 server.
 
 ### Why
 
@@ -196,15 +196,15 @@ Operators need a phone-friendly and desktop console without shipping secrets bac
 ### How
 
 1. Open `/ops` on the C2 host (same-origin avoids CORS issues).
-2. Paste **API token** → **Save & Connect**.
+2. Paste **API token** -> **Save & Connect**.
 3. Connection panel collapses when a token is saved.
-4. Use left nav for workspaces; top-bar **◈ INKO** for chat flyout.
+4. Use left nav for workspaces; top-bar **INKO** for chat flyout.
 
 ### Example
 
 ```text
 https://127.0.0.1:8443/ops
-Token: sc5_… (from data/admin_token.txt)
+Token: sc5_... (from data/admin_token.txt)
 ```
 
 ### See also
@@ -222,15 +222,15 @@ The `/ops` console is an **app shell** (multi-page nav + context rail + dock).
 
 | Region | Purpose |
 |--------|---------|
-| **Top bar** | Host, online status, Connect, Refresh, **◈ INKO** flyout |
-| **Left nav** | Dashboard · Sessions · Listeners · Payloads · **Profiles** · **Artifacts** · Post-Ex · Collab · **INKO** · Observe · Admin |
+| **Top bar** | Host, online status, Connect, Refresh, **INKO** flyout |
+| **Left nav** | Dashboard - Sessions - Listeners - Payloads - **Profiles** - **Artifacts** - Post-Ex - Collab - **INKO** - Observe - Admin |
 | **Main** | Active workspace for the selected nav item |
 | **Right rail** | Selected session context (claim, shell, task) |
 | **Bottom dock** | Live event stream + command output (resizable) |
 
 ### Why
 
-Discoverability: pick **Sessions** → click a row → use the right rail. Admin-only tools live under **Admin** (server-gated).
+Discoverability: pick **Sessions** -> click a row -> use the right rail. Admin-only tools live under **Admin** (server-gated).
 
 ### How
 
@@ -242,13 +242,13 @@ Discoverability: pick **Sessions** → click a row → use the right rail. Admin
 ### Example
 
 ```text
-Sessions → click row → Context rail → Shell "whoami"
-Top bar → ◈ INKO → "list listeners"
+Sessions -> click row -> Context rail -> Shell "whoami"
+Top bar -> INKO -> "list listeners"
 ```
 
 ### See also
 
-- [Docs index — Ops console map](README.md#ops-console-map)
+- [Docs index - Ops console map](README.md#ops-console-map)
 - [INKO](#inko-intelligent-neural-kinetic-operator)
 
 ---
@@ -265,7 +265,7 @@ Least surprise: same token model for browser and CLI; secrets stay off the git t
 
 ### How
 
-- **UI:** Connect panel → URL + token → Save & Connect.
+- **UI:** Connect panel -> URL + token -> Save & Connect.
 - **CLI:** `sc5 login --url https://HOST:8443 --token sc5_... [--insecure]`
 - **Env overrides:** `SQUIDC5_URL` / `SC5_URL`, `SQUIDC5_TOKEN` / `SC5_TOKEN`
 
@@ -273,7 +273,7 @@ Least surprise: same token model for browser and CLI; secrets stay off the git t
 
 ```bash
 sc5 login --url https://127.0.0.1:8443 --token "$(cat data/admin_token.txt)" --insecure
-sc5 config --show-token   # local only
+sc5 config --show-token # local only
 ```
 
 ### See also
@@ -331,7 +331,7 @@ Open **Dashboard** after connect. Aggregates sessions, listeners, tasks, and met
 ### Example
 
 ```text
-Ops → Dashboard → tiles update on soft refresh
+Ops -> Dashboard -> tiles update on soft refresh
 ```
 
 ### See also
@@ -355,13 +355,13 @@ Confirm least privilege before operating; rename actors for multi-op audit clari
 
 ```bash
 sc5 whoami
-# API: PUT /api/v1/me  { "name": "alice" }
+# API: PUT /api/v1/me { "name": "alice" }
 ```
 
 ### Example
 
 ```text
-scopes: admin, sessions:read, shell:interact, …
+scopes: admin, sessions:read, shell:interact, ...
 ```
 
 ### See also
@@ -375,7 +375,7 @@ scopes: admin, sessions:read, shell:interact, …
 
 ### What
 
-All tracked implant/shell connections (beacons, reverse shells, closed). A **session** is SquidC5’s first-class object for “something on a target that can be tasked or shelled.”
+All tracked implant/shell connections (beacons, reverse shells, closed). A **session** is SquidC5's first-class object for "something on a target that can be tasked or shelled."
 
 ### Why
 
@@ -385,8 +385,8 @@ All tracked implant/shell connections (beacons, reverse shells, closed). A **ses
 
 ### How
 
-1. **Ops → Sessions** (or `sc5 sessions list`).
-2. Click a row → context rail (claim, shell, task).
+1. **Ops -> Sessions** (or `sc5 sessions list`).
+2. Click a row -> context rail (claim, shell, task).
 3. Prefer `verified: true` before interactive shell.
 4. Close or reap dead sessions when done.
 
@@ -438,7 +438,7 @@ Outbound connections often pass egress firewalls more easily during authorized t
 ### How
 
 1. Start a `reverse_shell` listener and get a verified session.
-2. **Ops → Sessions** → select → Context rail → run command, or CLI `sc5 shell`.
+2. **Ops -> Sessions** -> select -> Context rail -> run command, or CLI `sc5 shell`.
 3. Claim the session in multi-op environments before long interactive work.
 
 ### Example
@@ -461,12 +461,12 @@ Raw reverse shells die on network blips and often lack a clean line protocol. Au
 |---------|--------|
 | Listener not `running` | No connect |
 | Port not open / Docker bridge unpublished | Silent fail |
-| Using Shell on pure beacon | No interactive channel — use Tasks |
+| Using Shell on pure beacon | No interactive channel - use Tasks |
 
 ### See also
 
 - [Listeners](#listeners)
-- [Runbook — Reverse shell](operator-runbook.md#reverse-shell)
+- [Runbook - Reverse shell](operator-runbook.md#reverse-shell)
 
 ---
 
@@ -478,7 +478,7 @@ Async command queue for **beacon** implants (not interactive reverse shells). A 
 
 ### Why
 
-Beacons sleep between check-ins (interval + optional jitter via profiles). Tasks wait until the next poll — suitable for intermittent connectivity and reduced chatter.
+Beacons sleep between check-ins (interval + optional jitter via profiles). Tasks wait until the next poll - suitable for intermittent connectivity and reduced chatter.
 
 ### How
 
@@ -498,7 +498,7 @@ sc5 tasks get <task_id>
 
 ### Lifecycle detail
 
-`pending` → picked up by beacon → `running` / `completed` (or cancelled). HITL may gate high-risk commands per policy.
+`pending` -> picked up by beacon -> `running` / `completed` (or cancelled). HITL may gate high-risk commands per policy.
 
 ### See also
 
@@ -516,16 +516,16 @@ Inbound channels the teamserver binds: `http`, `https`, `tcp`, `reverse_shell`, 
 
 ### Why
 
-- **reverse_shell** — interactive capture
-- **http / https** — beacon check-in (https for TLS implant HTTP)
-- **dns / smtp** — beacon and/or [OAST](#oast-collaborator) callbacks
+- **reverse_shell** - interactive capture
+- **http / https** - beacon check-in (https for TLS implant HTTP)
+- **dns / smtp** - beacon and/or [OAST](#oast-collaborator) callbacks
 
 ### How
 
-1. **Ops → Listeners** (or CLI) → create name, kind, host, port.
+1. **Ops -> Listeners** (or CLI) -> create name, kind, host, port.
 2. **Start** the listener; confirm `running`.
 3. Generate payloads pointed at that host/port.
-4. For DNS, set **zone**. For OAST modes, see [Deployment — OAST](deployment.md#oast-collaborator-dns-http-smtp).
+4. For DNS, set **zone**. For OAST modes, see [Deployment - OAST](deployment.md#oast-collaborator-dns-http-smtp).
 
 ### Privileged ports
 
@@ -535,7 +535,7 @@ Ports &lt; 1024 need host sysctl when the process is non-root:
 sysctl -w net.ipv4.ip_unprivileged_port_start=0
 ```
 
-See [Deployment — Privileged ports](deployment.md#privileged-ports).
+See [Deployment - Privileged ports](deployment.md#privileged-ports).
 
 ### Example
 
@@ -551,13 +551,13 @@ sc5 listeners list
 |---------|--------|
 | Create fails port in use | Another listener or host process |
 | Start fails privilege | sysctl for low ports |
-| Flood of rejections | Scanners — false-shell filter working |
+| Flood of rejections | Scanners - false-shell filter working |
 
 ### See also
 
 - [Shell](#shell)
 - [OAST Collaborator](#oast-collaborator)
-- [Runbook — Reverse shell](operator-runbook.md#reverse-shell)
+- [Runbook - Reverse shell](operator-runbook.md#reverse-shell)
 
 ---
 
@@ -565,23 +565,23 @@ sc5 listeners list
 
 ### What
 
-**Payloads** are generated scripts/binaries you deliver to an authorized target. **Implants** are the resident agents those payloads become. Generators are **deterministic templates**: same inputs → reviewable output.
+**Payloads** are generated scripts/binaries you deliver to an authorized target. **Implants** are the resident agents those payloads become. Generators are **deterministic templates**: same inputs -> reviewable output.
 
-**UI:** Ops → **Payloads** (templates, profile select, custom template register, save artifact).
+**UI:** Ops -> **Payloads** (templates, profile select, custom template register, save artifact).
 
 ### Why
 
-- **Auditability** — know exactly what you executed
-- **Reproducibility** — regenerate for a new host/port
-- **Channel match** — reverse-shell templates need reverse-shell listeners; HTTP beacons need HTTP + profile shape
-- **OpSec** — pair with [C2 profiles](#c2-profiles-profiles)
+- **Auditability** - know exactly what you executed
+- **Reproducibility** - regenerate for a new host/port
+- **Channel match** - reverse-shell templates need reverse-shell listeners; HTTP beacons need HTTP + profile shape
+- **OpSec** - pair with [C2 profiles](#c2-profiles-profiles)
 
 ### How
 
 1. Prefer activating a **C2 profile** first for HTTP surface shape ([Profiles](#c2-profiles-profiles)).
 2. Choose **template** (builtin or custom).
 3. Set callback **host** and **port** (scheme/zone if needed).
-4. **Generate** → review → optional **Save artifact**.
+4. **Generate** -> review -> optional **Save artifact**.
 5. Stage via approved delivery (ROE only). Confirm check-in on Events / Sessions.
 
 Custom templates: register with placeholders `{host}` `{port}` `{path}` `{interval}` (Ops Payloads or INKO `register_payload_template`).
@@ -623,7 +623,7 @@ sc5 implants build --os linux --arch amd64 C2_HOST 8443
 - [Artifacts](#artifacts)
 - [C2 profiles (Profiles)](#c2-profiles-profiles)
 - [Native beacon](../agents/sc5beacon/README.md)
-- [Runbook — Implants](operator-runbook.md#implants)
+- [Runbook - Implants](operator-runbook.md#implants)
 
 ---
 
@@ -631,9 +631,9 @@ sc5 implants build --os linux --arch amd64 C2_HOST 8443
 
 ### What
 
-**Malleable C2 profiles** define the *shape* of implant traffic—especially HTTP(S): URI paths, headers, body wrapping, jitter, and decoy-friendly patterns. The *active* profile is the contract between **generators** and the **server parser**.
+**Malleable C2 profiles** define the *shape* of implant traffic-especially HTTP(S): URI paths, headers, body wrapping, jitter, and decoy-friendly patterns. The *active* profile is the contract between **generators** and the **server parser**.
 
-**UI:** Ops → **Profiles** (list, activate, create/save, push).
+**UI:** Ops -> **Profiles** (list, activate, create/save, push).
 
 ### Why
 
@@ -641,10 +641,10 @@ Default C2 fingerprints are easy to signature. Profiles change URI/header surfac
 
 ### How
 
-1. List profiles → **activate** one (or create/upsert then activate).
+1. List profiles -> **activate** one (or create/upsert then activate).
 2. Ensure an HTTP/HTTPS listener is up on the payload port.
 3. **Generate payload** matched to that profile (host/port + same paths/framing).
-4. After switching profiles mid-op, **regenerate** implants — old beacons keep old behavior until redeployed.
+4. After switching profiles mid-op, **regenerate** implants - old beacons keep old behavior until redeployed.
 5. Optional: **push** active profile to aligned implants when supported.
 
 ### Example
@@ -656,7 +656,7 @@ sc5 payloads generate http_beacon_python <HOST> 8443 --profile prof_amazon_cdn -
 ```
 
 ```text
-Ops → Profiles → activate → Payloads → Generate (profile selected)
+Ops -> Profiles -> activate -> Payloads -> Generate (profile selected)
 ```
 
 ### Pitfalls
@@ -671,7 +671,7 @@ Ops → Profiles → activate → Payloads → Generate (profile selected)
 
 - [Payloads and implants](#payloads-and-implants)
 - [Redirector and certificates](#redirector-and-certificates)
-- [Runbook — Malleable HTTP profiles](operator-runbook.md#malleable-http-profiles)
+- [Runbook - Malleable HTTP profiles](operator-runbook.md#malleable-http-profiles)
 
 ---
 
@@ -681,11 +681,11 @@ Ops → Profiles → activate → Payloads → Generate (profile selected)
 
 Saved operator assets: generated payloads, custom templates, profile snapshots, implant builds, and other blobs INKO or Ops store for reuse.
 
-**UI:** Ops → **Artifacts** (browse, copy, delete).
+**UI:** Ops -> **Artifacts** (browse, copy, delete).
 
 ### Why
 
-Engagement hygiene — archive what you ran; reuse custom templates without retyping; hand off assets between operators without chat paste-bin.
+Engagement hygiene - archive what you ran; reuse custom templates without retyping; hand off assets between operators without chat paste-bin.
 
 ### How
 
@@ -697,8 +697,8 @@ Engagement hygiene — archive what you ran; reuse custom templates without rety
 ### Example
 
 ```text
-Ops → Payloads → Generate → Save artifact
-Ops → Artifacts → filter kind=payload → Copy
+Ops -> Payloads -> Generate -> Save artifact
+Ops -> Artifacts -> filter kind=payload -> Copy
 ```
 
 API: `GET/POST/DELETE /api/v1/assets` (scoped).
@@ -714,9 +714,9 @@ API: `GET/POST/DELETE /api/v1/assets` (scoped).
 
 ### What
 
-Post-exploitation workspace: file ops, SOCKS pivot, modules — driven from the selected session context.
+Post-exploitation workspace: file ops, SOCKS pivot, modules - driven from the selected session context.
 
-**UI:** Ops → **Post-Ex** (and session context rail actions).
+**UI:** Ops -> **Post-Ex** (and session context rail actions).
 
 ### Why
 
@@ -727,21 +727,21 @@ Keep interactive post-ex next to the session without leaving the console; enforc
 1. Select a verified session (Sessions).
 2. Open **Post-Ex** or use context rail.
 3. **Files:** list / read / write / delete (`POST /api/v1/files/op`).
-4. **SOCKS:** start pivot (`POST /api/v1/pivot/socks`) — implant reverse-dial (default) or direct lab mode.
+4. **SOCKS:** start pivot (`POST /api/v1/pivot/socks`) - implant reverse-dial (default) or direct lab mode.
 
 ### Example
 
 ```bash
 # File list
 curl -sk -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
-  -d '{"session_id":"ses_...","op":"list","path":"/tmp"}' \
-  https://C2:8443/api/v1/files/op
+ -d '{"session_id":"ses_...","op":"list","path":"/tmp"}' \
+ https://C2:8443/api/v1/files/op
 ```
 
 ### See also
 
-- [Runbook — SOCKS pivot](operator-runbook.md#socks-pivot)
-- [Runbook — File ops](operator-runbook.md#file-ops)
+- [Runbook - SOCKS pivot](operator-runbook.md#socks-pivot)
+- [Runbook - File ops](operator-runbook.md#file-ops)
 - [Sessions](#sessions)
 
 ---
@@ -758,8 +758,8 @@ Confirm SSRF, blind XSS, and other OOB callbacks during authorized tests without
 
 ### How
 
-1. Deploy DNS/HTTP/(SMTP) listeners and zone per [Deployment — OAST](deployment.md#oast-collaborator-dns-http-smtp).
-2. Mint a token: `sc5 oast token create --note "…"`.
+1. Deploy DNS/HTTP/(SMTP) listeners and zone per [Deployment - OAST](deployment.md#oast-collaborator-dns-http-smtp).
+2. Mint a token: `sc5 oast token create --note "..."`.
 3. Use returned `dns_name` / `http_url` / `smtp_to` in the test payload.
 4. Poll hits: `sc5 oast hits --token T [--protocol dns|http|smtp]`.
 
@@ -781,8 +781,8 @@ sc5 --insecure oast hits --token <TOKEN>
 
 ### See also
 
-- [Deployment — OAST](deployment.md#oast-collaborator-dns-http-smtp)
-- [Runbook — OAST](operator-runbook.md#oast-collaborator-http-dns-smtp)
+- [Deployment - OAST](deployment.md#oast-collaborator-dns-http-smtp)
+- [Runbook - OAST](operator-runbook.md#oast-collaborator-http-dns-smtp)
 - [Listeners](#listeners)
 
 ---
@@ -799,14 +799,14 @@ Keep core binary small; add curated capabilities without open-ended remote code 
 
 ### How
 
-1. **Catalog** — list available modules.
+1. **Catalog** - list available modules.
 2. **Install + enable** by catalog name.
-3. **Installed** — review what is loaded.
+3. **Installed** - review what is loaded.
 
 ### Example
 
 ```text
-Ops → Admin / Plugins → Catalog → install → enable
+Ops -> Admin / Plugins -> Catalog -> install -> enable
 ```
 
 ### See also
@@ -829,7 +829,7 @@ Fronting C2 through a redirector/CDN reduces direct exposure of the team server 
 ### How
 
 1. Enter `server_name` and beacon URI paths (match [active profile](#c2-profiles-profiles)).
-2. Generate **nginx snippet** → deploy on redirector host.
+2. Generate **nginx snippet** -> deploy on redirector host.
 3. Use **cert plan** for issuance steps (does not auto-issue on the droplet).
 4. For teamserver PEMs, use [TLS certificate library](#tls-certificate-library).
 
@@ -838,14 +838,14 @@ Fronting C2 through a redirector/CDN reduces direct exposure of the team server 
 ```text
 server_name: cdn.lab.example
 uris: /jquery.js,/api/sync
-→ nginx location blocks pointing at team server
+-> nginx location blocks pointing at team server
 ```
 
 ### See also
 
 - [C2 profiles (Profiles)](#c2-profiles-profiles)
-- [Deployment — TLS](deployment.md#tls-https-default-on-new-instances)
-- [Runbook — Malleable HTTP profiles](operator-runbook.md#malleable-http-profiles)
+- [Deployment - TLS](deployment.md#tls-https-default-on-new-instances)
+- [Runbook - Malleable HTTP profiles](operator-runbook.md#malleable-http-profiles)
 
 ---
 
@@ -855,7 +855,7 @@ uris: /jquery.js,/api/sync
 
 Admin library of PEM certificate/key pairs. Activate a pair for the instance TLS material (ops UI + API). Activation copies PEMs into instance TLS paths; **restart the process** (`systemctl restart squidc5`) to serve the new material.
 
-**UI:** Ops → **Admin** → TLS certificates (admin scope).
+**UI:** Ops -> **Admin** -> TLS certificates (admin scope).
 
 ### Why
 
@@ -873,7 +873,7 @@ Env overrides still work: `SQUIDC5_TLS_CERT_FILE` / `SQUIDC5_TLS_KEY_FILE`.
 ### Example
 
 ```text
-Admin → TLS → Upload → Activate → systemctl restart squidc5
+Admin -> TLS -> Upload -> Activate -> systemctl restart squidc5
 ```
 
 ### Pitfalls
@@ -882,11 +882,11 @@ Admin → TLS → Upload → Activate → systemctl restart squidc5
 |---------|--------|
 | Activate without restart | Old cert still served |
 | Mismatched cert/key | TLS handshake failures |
-| Commit PEMs to git | Secret leak — never do this |
+| Commit PEMs to git | Secret leak - never do this |
 
 ### See also
 
-- [Deployment — TLS](deployment.md#tls-https-default-on-new-instances)
+- [Deployment - TLS](deployment.md#tls-https-default-on-new-instances)
 - [Security model](#security-model)
 
 ---
@@ -910,12 +910,12 @@ sc5 audit-verify --limit 500
 sc5 events
 ```
 
-UI: **Observe** → Metrics / Audit / timeline controls.
+UI: **Observe** -> Metrics / Audit / timeline controls.
 
 ### Example
 
 ```text
-Ops → Observe → Audit log → filter mine
+Ops -> Observe -> Audit log -> filter mine
 ```
 
 ### See also
@@ -946,13 +946,13 @@ sc5 report --raw > engagement-report.md
 ### Example
 
 ```text
-Ops → Observe → Export report
+Ops -> Observe -> Export report
 ```
 
 ### See also
 
 - [Observability](#observability)
-- [Runbook — Report export](operator-runbook.md#report-export)
+- [Runbook - Report export](operator-runbook.md#report-export)
 
 ---
 
@@ -964,25 +964,25 @@ Ops → Observe → Export report
 
 | Surface | Behavior |
 |---------|----------|
-| Top-bar **◈ INKO** | Right flyout (~440px desktop; full width mobile). Backdrop / Escape closes |
+| Top-bar **INKO** | Right flyout (~440px desktop; full width mobile). Backdrop / Escape closes |
 | Nav **INKO** | Full workspace: connection + **model** selects, status, tools, page chat |
-| Chat | Multi-turn; Enter send, Shift+Enter newline; “Thinking…” while pending |
+| Chat | Multi-turn; Enter send, Shift+Enter newline; "Thinking..." while pending |
 | History | Browser `localStorage`; New chat / Clear wipes thread |
 | Markdown | Safe render (escaped HTML; fenced code; https links; ordered/unordered lists; tables) |
-| Server | Sandboxed Admin AI — allow-listed tools, `sanitize_untrusted`, policy/HITL, audit |
+| Server | Sandboxed Admin AI - allow-listed tools, `sanitize_untrusted`, policy/HITL, audit |
 
-Structured Admin AI capabilities (`recon_assist`, `shell_classify`, …) remain via API/CLI. **INKO chat** is the primary operator surface.
+Structured Admin AI capabilities (`recon_assist`, `shell_classify`, ...) remain via API/CLI. **INKO chat** is the primary operator surface.
 
 On each chat turn the server system prompt includes C5 purpose, object model, workflows, and tool playbook so INKO answers in-product.
 
 ### Why
 
-Red team ops need AI that lives *inside* the C5 with the same scopes and audit as humans — not a browser tab that never saw your HITL policy.
+Red team ops need AI that lives *inside* the C5 with the same scopes and audit as humans - not a browser tab that never saw your HITL policy.
 
 ### How
 
-1. Configure a BYO LLM under **Admin** → [LLM connections](#llm-connections) (or `sc5 llm add`). Optional — offline intents still handle phrases like “list sessions”.
-2. Open **◈ INKO** (needs `ai:use` or `admin`).
+1. Configure a BYO LLM under **Admin** -> [LLM connections](#llm-connections) (or `sc5 llm add`). Optional - offline intents still handle phrases like "list sessions".
+2. Open **INKO** (needs `ai:use` or `admin`).
 3. Pick **connection** and **model** (models load from provider; switching can PATCH the connection default).
 4. Ask INKO to inspect or act. Approve HITL when required.
 5. Review audit for `ai.chat.tool.*` / `ai.admin.chat`.
@@ -995,11 +995,11 @@ Authorization: Bearer <token with ai:use|admin>
 Content-Type: application/json
 
 {
-  "message": "Setup a reverse shell listener on 4444 and start it",
-  "history": [{"role": "user", "content": "…"}, {"role": "assistant", "content": "…"}],
-  "llm_id": optional,
-  "model": optional,
-  "max_rounds": 6
+ "message": "Setup a reverse shell listener on 4444 and start it",
+ "history": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}],
+ "llm_id": optional,
+ "model": optional,
+ "max_rounds": 6
 }
 ```
 
@@ -1018,12 +1018,12 @@ sc5 llm list
 ```
 
 ```text
-Ops → ◈ INKO → connection grok-prod → model grok-4.5 → "list sessions"
+Ops -> INKO -> connection grok-prod -> model grok-4.5 -> "list sessions"
 ```
 
 ### Admin AI (structured capabilities)
 
-Capability runner behind INKO (`POST /api/v1/ai/run`). Fixed functions — not an open agent loop.
+Capability runner behind INKO (`POST /api/v1/ai/run`). Fixed functions - not an open agent loop.
 
 | Capability | Intent |
 |------------|--------|
@@ -1032,7 +1032,7 @@ Capability runner behind INKO (`POST /api/v1/ai/run`). Fixed functions — not a
 | `payload_template` | Template guidance |
 | `phishing_asset` | Authorized phishing content assist |
 | `doc_generate` | Engagement documentation drafts |
-| `session_triage` / `task_suggest` / `opsec_review` / … | Full allow-list in product |
+| `session_triage` / `task_suggest` / `opsec_review` / ... | Full allow-list in product |
 
 Phishing-related capabilities exist only for **authorized** engagements under ROE.
 
@@ -1047,8 +1047,8 @@ Phishing-related capabilities exist only for **authorized** engagements under RO
 ### See also
 
 - [LLM connections](#llm-connections)
-- [Runbook — INKO](operator-runbook.md#inko-intelligent-neural-kinetic-operator)
-- [Vision — Dual AI](squidc5-vision.md#dual-ai-architecture)
+- [Runbook - INKO](operator-runbook.md#inko-intelligent-neural-kinetic-operator)
+- [Vision - Dual AI](squidc5-vision.md#dual-ai-architecture)
 
 ---
 
@@ -1056,7 +1056,7 @@ Phishing-related capabilities exist only for **authorized** engagements under RO
 
 ### What
 
-BYO OpenAI-compatible endpoints (xAI Grok, OpenAI, Groq, OpenRouter, Ollama, …) stored **server-side** in `data/`. Keys encrypted at rest; **never** returned by status APIs.
+BYO OpenAI-compatible endpoints (xAI Grok, OpenAI, Groq, OpenRouter, Ollama, ...) stored **server-side** in `data/`. Keys encrypted at rest; **never** returned by status APIs.
 
 ### Why
 
@@ -1064,7 +1064,7 @@ INKO needs a model; keys must never land in git or browser responses.
 
 ### How
 
-**Ops UI:** **Admin** → Configure LLM → provider preset → paste key → **Refresh models** (server proxies `/models`, SSRF-guarded). INKO model switcher can PATCH default model without re-entering the key.
+**Ops UI:** **Admin** -> Configure LLM -> provider preset -> paste key -> **Refresh models** (server proxies `/models`, SSRF-guarded). INKO model switcher can PATCH default model without re-entering the key.
 
 **CLI:**
 
@@ -1078,13 +1078,13 @@ sc5 llm list
 | `GET/POST /api/v1/llm` | List / add connections |
 | `PATCH /api/v1/llm/{id}` | Switch default model (preserves key) |
 | `POST /api/v1/llm/models` | Probe models (`llm_id` for `ai:use`; raw URL needs manage scope) |
-| `GET /api/v1/ai/status` | Presence only — **no keys** |
+| `GET /api/v1/ai/status` | Presence only - **no keys** |
 
 ### Example
 
 ```text
-Admin → LLM → xAI → Refresh models → Save
-INKO flyout → connection + model selects
+Admin -> LLM -> xAI -> Refresh models -> Save
+INKO flyout -> connection + model selects
 ```
 
 ### See also
@@ -1107,7 +1107,7 @@ Least privilege: phone UI might only need `shell:interact` + `sessions:read`; ex
 ### How
 
 1. Choose preset (operator / read-only / listener / AI / admin / custom).
-2. **Mint** — raw `sc5_…` shown **once**.
+2. **Mint** - raw `sc5_...` shown **once**.
 3. Revoke from list if compromised.
 
 ### Example
@@ -1122,7 +1122,7 @@ sc5 tokens revoke <id>
 
 - [Identity](#identity)
 - [MCP tools](#mcp-tools)
-- [Runbook — Tokens](operator-runbook.md#tokens)
+- [Runbook - Tokens](operator-runbook.md#tokens)
 
 ---
 
@@ -1132,7 +1132,7 @@ sc5 tokens revoke <id>
 
 Teams, **session claim/lock**, handoff packs, spectator snapshots, operator presence, team-scoped chat, and per-operator audit filters.
 
-**UI:** Ops → **Collab**.
+**UI:** Ops -> **Collab**.
 
 ### Why
 
@@ -1142,7 +1142,7 @@ Two operators must not stomp the same shell; shift changes need context; leads n
 
 | Action | API / UI |
 |--------|----------|
-| Claim session | `POST /api/v1/sessions/{id}/claim` · Context → Claim |
+| Claim session | `POST /api/v1/sessions/{id}/claim` - Context -> Claim |
 | Release | `POST /api/v1/sessions/{id}/release` |
 | Handoff pack | `POST /api/v1/sessions/{id}/handoff` `{to, note}` |
 | Spectate | `GET /api/v1/sessions/{id}/spectator` |
@@ -1161,7 +1161,7 @@ sc5 teams create red-cell
 
 ### See also
 
-- [Runbook — Teams and collab](operator-runbook.md#teams-and-collab)
+- [Runbook - Teams and collab](operator-runbook.md#teams-and-collab)
 - [Identity](#identity)
 
 ---
@@ -1183,12 +1183,12 @@ curl -sk -H "Authorization: Bearer $TOK" https://HOST:8443/api/v1/features
 # PUT with admin to flip allowed flags
 ```
 
-UI: **Admin** → features → **Save**.
+UI: **Admin** -> features -> **Save**.
 
 ### Example
 
 ```text
-Admin → Features → smtp_oast on → Save (for SMTP OAST lab)
+Admin -> Features -> smtp_oast on -> Save (for SMTP OAST lab)
 ```
 
 ### See also
@@ -1206,13 +1206,13 @@ Risk / allow-deny engine: thresholds, HITL gates, chain limits for humans, MCP, 
 
 ### Why
 
-High-risk actions can require human approval or be denied outright — rails for AI and automation.
+High-risk actions can require human approval or be denied outright - rails for AI and automation.
 
 ### How
 
-1. **Get policy** — current JSON.
-2. Edit carefully → **Save policy**.
-3. Bad policy can lock operators out or weaken guardrails — treat as production config.
+1. **Get policy** - current JSON.
+2. Edit carefully -> **Save policy**.
+3. Bad policy can lock operators out or weaken guardrails - treat as production config.
 
 ### Example
 
@@ -1233,16 +1233,16 @@ sc5 policy hitl list
 
 ### What
 
-Bridge for **external** AI/tools using an allow-listed tool-call pattern (Model Context Protocol style). External models invoke *named tools* with JSON arguments; SquidC5 executes only tools on that token’s allow-list.
+Bridge for **external** AI/tools using an allow-listed tool-call pattern (Model Context Protocol style). External models invoke *named tools* with JSON arguments; SquidC5 executes only tools on that token's allow-list.
 
 ### Why
 
 External models must not get open-ended shell on the C2:
 
-- **Least privilege** — `mcp:connect` + explicit `mcp_tools`
-- **Determinism** — prefer single-step tools over autonomous multi-hop agents
-- **Audit** — each call is logged
-- **Default off** — feature flag until an engagement needs it
+- **Least privilege** - `mcp:connect` + explicit `mcp_tools`
+- **Determinism** - prefer single-step tools over autonomous multi-hop agents
+- **Audit** - each call is logged
+- **Default off** - feature flag until an engagement needs it
 
 ### How
 
@@ -1254,8 +1254,8 @@ External models must not get open-ended shell on the C2:
 
 ```bash
 sc5 tokens create ext-ai \
-  --scopes "mcp:connect,sessions:read,tasks:read,tasks:write,metrics:read" \
-  --mcp-tools "list_sessions,get_session,list_tasks,create_task,get_metrics"
+ --scopes "mcp:connect,sessions:read,tasks:read,tasks:write,metrics:read" \
+ --mcp-tools "list_sessions,get_session,list_tasks,create_task,get_metrics"
 sc5 mcp tools
 sc5 mcp call list_sessions --args-json '{}'
 ```
@@ -1272,7 +1272,7 @@ sc5 mcp call list_sessions --args-json '{}'
 
 - [INKO](#inko-intelligent-neural-kinetic-operator)
 - [Tokens](#tokens)
-- [Vision — Dual AI](squidc5-vision.md#dual-ai-architecture)
+- [Vision - Dual AI](squidc5-vision.md#dual-ai-architecture)
 
 ---
 
@@ -1321,7 +1321,7 @@ Visible on Dashboard / top status after connect. Soft refresh updates chips with
 ### Example
 
 ```text
-Dashboard → Signal chips tick after shell.verified / ai.admin.chat
+Dashboard -> Signal chips tick after shell.verified / ai.admin.chat
 ```
 
 ### See also
@@ -1364,7 +1364,7 @@ sc5 audit-verify
 sc5 report
 ```
 
-Config: `~/.config/squidc5/config.json` (never commit).  
+Config: `~/.config/squidc5/config.json` (never commit). 
 Env: `SQUIDC5_URL`, `SQUIDC5_TOKEN` (and `SC5_*` aliases).
 
 ### Example
@@ -1403,7 +1403,7 @@ docker exec squidc5 cat /data/admin_token.txt
 
 **Production (binary only):**
 
-1. PR → CI green → merge `master`
+1. PR -> CI green -> merge `master`
 2. CI builds `squidc5-linux-x64` + GitHub Release
 3. Deploy **that binary only**; keep `data/` intact
 
@@ -1426,14 +1426,14 @@ Common failure modes and first checks.
 
 ### Why
 
-C2 ops failures are often listener, network, or scope issues — not “the UI is broken.”
+C2 ops failures are often listener, network, or scope issues - not "the UI is broken."
 
 ### How
 
 | Symptom | Checks |
 |---------|--------|
 | Reverse shell never appears | Listener `running`? Firewall? Port publish (Docker bridge)? Privileged port sysctl? |
-| Shell listed but mute | Exec probe failed → reaped; false-shell filter / stage-2 |
+| Shell listed but mute | Exec probe failed -> reaped; false-shell filter / stage-2 |
 | Admin panels missing | Token scopes? Hard-refresh? Admin JS 403? |
 | CORS errors | Open `/ops` on the C2 host, not `file://` or wrong origin |
 | Beacon no tasks | Wrong session id? [Profile mismatch](#c2-profiles-profiles)? Listener kind `http`? |
@@ -1451,7 +1451,7 @@ sc5 health
 
 ### See also
 
-- [Runbook — If reverse shell fails](operator-runbook.md#if-reverse-shell-fails)
+- [Runbook - If reverse shell fails](operator-runbook.md#if-reverse-shell-fails)
 - [Deployment](deployment.md)
 
 ---

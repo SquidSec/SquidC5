@@ -34,7 +34,7 @@ func (w *wsChannel) connect() error {
 		HandshakeTimeout: 20 * time.Second,
 		TLSClientConfig:  &tls.Config{MinVersion: tls.VersionTLS12}, //nolint:gosec // verify on; system roots
 	}
-	// Always verify TLS — no InsecureSkipVerify
+	// Always verify TLS - no InsecureSkipVerify
 	hdr := http.Header{}
 	c, _, err := d.Dial(w.url, hdr)
 	if err != nil {
@@ -62,7 +62,7 @@ func (w *wsChannel) checkin(payload map[string]any) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Also tag type for older plaintext WS path if server peels type first —
+	// Also tag type for older plaintext WS path if server peels type first -
 	// sealed envelope has v/alg/n/c keys which process_beacon handles.
 	_ = w.c.SetWriteDeadline(time.Now().Add(30 * time.Second))
 	if err := w.c.WriteJSON(env); err != nil {
@@ -84,7 +84,7 @@ func (w *wsChannel) checkin(payload map[string]any) (map[string]any, error) {
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, err
 	}
-	// AEAD required — same as HTTP channel (no plaintext task path)
+	// AEAD required - same as HTTP channel (no plaintext task path)
 	return openEnv(w.psk, resp)
 }
 

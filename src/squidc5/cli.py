@@ -1,4 +1,4 @@
-"""SquidC5 operator CLI harness — local client for remote C2."""
+"""SquidC5 operator CLI harness - local client for remote C2."""
 
 from __future__ import annotations
 
@@ -268,7 +268,7 @@ def cmd_sessions_clear(args: argparse.Namespace, client: Client) -> None:
 
 
 def cmd_sessions_reap(args: argparse.Namespace, client: Client) -> None:
-    # Exec probe can take a bit with many sessions — raise timeout
+    # Exec probe can take a bit with many sessions - raise timeout
     old = client._client.timeout
     client._client.timeout = httpx.Timeout(120.0)
     try:
@@ -482,7 +482,7 @@ def _print_shell_result(data: dict[str, Any], *, json_mode: bool, verbose: bool,
     else:
         note = "no output (timeout)" if (data or {}).get("timed_out") else "no output"
         print(
-            f"[sc5] sent={data.get('sent')} interactive={data.get('interactive')} — {note}",
+            f"[sc5] sent={data.get('sent')} interactive={data.get('interactive')} - {note}",
             file=sys.stderr,
         )
     if verbose:
@@ -710,12 +710,12 @@ def cmd_config_show(args: argparse.Namespace) -> None:
     safe = dict(cfg)
     if "token" in safe and safe["token"] and not args.show_token:
         t = safe["token"]
-        safe["token"] = t[:8] + "…" + t[-4:] if len(t) > 16 else "***"
+        safe["token"] = t[:8] + "..." + t[-4:] if len(t) > 16 else "***"
     pp({"config_file": str(CONFIG_FILE), **safe})
 
 
 def cmd_repl(args: argparse.Namespace, client: Client) -> None:
-    print(f"SquidC5 REPL → {client.base}")
+    print(f"SquidC5 REPL -> {client.base}")
     print("Commands: sessions | tasks | listeners | metrics | audit | health | help | quit")
     print("Shortcuts: s <id> | t <session> <cmd> | g <template> <host> <port>")
     while True:
@@ -819,7 +819,7 @@ def cmd_repl(args: argparse.Namespace, client: Client) -> None:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="sc5",
-        description="SquidC5 operator CLI — control a remote C2 from your terminal",
+        description="SquidC5 operator CLI - control a remote C2 from your terminal",
     )
     p.add_argument("--url", help="C2 base URL (or SQUIDC5_URL / config)")
     p.add_argument("--token", help="API token (or SQUIDC5_TOKEN / config)")

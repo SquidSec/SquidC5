@@ -59,7 +59,7 @@ async def test_mcp_empty_allowlist_gets_nothing_dangerous(client, admin_headers)
     h = bearer(t["token"])
     tools = await client.get("/mcp/tools", headers=h)
     assert tools.status_code == 200
-    # empty allow-list: no tools (or only defaults if server applies DEFAULT — either way no shell)
+    # empty allow-list: no tools (or only defaults if server applies DEFAULT - either way no shell)
     names = {x["name"] for x in tools.json().get("tools", [])}
     assert "interact_shell" not in names
     assert "generate_payload" not in names

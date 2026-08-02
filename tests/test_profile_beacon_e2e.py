@@ -1,4 +1,4 @@
-"""Profile-aware HTTP beacon end-to-end: activate → generate → check-in."""
+"""Profile-aware HTTP beacon end-to-end: activate -> generate -> check-in."""
 
 from __future__ import annotations
 

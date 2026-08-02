@@ -355,7 +355,7 @@ def build_api_router() -> APIRouter:
         request: Request,
         auth: AuthContext = Depends(require_scope("metrics:read", "admin")),
     ) -> dict[str, Any]:
-        """Authenticated deep health — no secrets/tokens/keys."""
+        """Authenticated deep health - no secrets/tokens/keys."""
         from squidc5 import __version__
 
         state = get_state(request)
@@ -1375,7 +1375,7 @@ def build_api_router() -> APIRouter:
         mine: bool = False,
         auth: AuthContext = Depends(require_scope("audit:read", "admin")),
     ) -> list[dict[str, Any]]:
-        """M6: filter by actor / action; mine=true → current operator only."""
+        """M6: filter by actor / action; mine=true -> current operator only."""
         who = auth.name if mine else actor
         return await get_state(request).audit.list(
             limit=min(max(int(limit), 1), 500),
@@ -1457,7 +1457,7 @@ def build_api_router() -> APIRouter:
             require_scope("metrics:read", "sessions:read", "collab:use", "admin")
         ),
     ) -> StreamingResponse:
-        """U2/M3: SSE event rail — spectators with sessions:read get read-only events."""
+        """U2/M3: SSE event rail - spectators with sessions:read get read-only events."""
         state = get_state(request)
         queue = state.metrics.subscribe()
         # auto presence heartbeat on stream open
@@ -1675,7 +1675,7 @@ def build_api_router() -> APIRouter:
                     pass  # panels already gated by can(); still serve full JS for layout switcher
             # Prefer dedicated operator entry: wrap with role flag
             raw = (
-                "/* operator console — admin panels hidden server-side flag */\n"
+                "/* operator console - admin panels hidden server-side flag */\n"
                 "window.__SC5_UI_ROLE__='operator';\n"
                 + raw
             )
@@ -1739,7 +1739,7 @@ def build_api_router() -> APIRouter:
     ) -> dict[str, Any]:
         """List models from an OpenAI-compatible provider (SSRF-guarded proxy).
 
-        Operators with only ai:use may pass llm_id (stored key/url only) — never raw base_url+key.
+        Operators with only ai:use may pass llm_id (stored key/url only) - never raw base_url+key.
         """
         state = get_state(request)
         is_mgr = auth.has_scope("llm:manage") or auth.has_scope("admin")
@@ -1787,7 +1787,7 @@ def build_api_router() -> APIRouter:
         model = (body.model or "").strip()
         if not model or len(model) > 200:
             raise HTTPException(400, "model required")
-        # Direct DB update — do not re-validate base_url (avoids outbound DNS on switch)
+        # Direct DB update - do not re-validate base_url (avoids outbound DNS on switch)
         await state.db.upsert_llm(
             name=row["name"],
             provider=row.get("provider") or "openai",
@@ -1848,7 +1848,7 @@ def build_api_router() -> APIRouter:
         request: Request,
         auth: AuthContext = Depends(require_scope("ai:use", "admin")),
     ) -> dict[str, Any]:
-        """Operator chat with allow-listed C5 tools (sessions, listeners, payloads, …)."""
+        """Operator chat with allow-listed C5 tools (sessions, listeners, payloads, ...)."""
         state = get_state(request)
         if not await state.features.enabled("ai_enabled"):
             raise HTTPException(403, "Admin AI is disabled by feature flag")
@@ -2279,7 +2279,7 @@ def build_api_router() -> APIRouter:
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         plan["agent_files"] = agent_source_tree()
-        plan["psk_hint"] = "Read server data/implant_psk.txt — never commit"
+        plan["psk_hint"] = "Read server data/implant_psk.txt - never commit"
         await state.db.audit(
             actor=auth.name,
             actor_type=auth.actor_type,
@@ -2814,7 +2814,7 @@ def build_api_router() -> APIRouter:
         request: Request,
         auth: AuthContext = Depends(require_scope("collab:use", "sessions:write", "admin")),
     ) -> dict[str, str]:
-        """Legacy owner set — prefer /claim. Admin or claim-holder only."""
+        """Legacy owner set - prefer /claim. Admin or claim-holder only."""
         state = get_state(request)
         if not body.owner:
             raise HTTPException(400, "owner required")

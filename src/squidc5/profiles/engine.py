@@ -107,7 +107,7 @@ class ProfileEngine:
         headers = {k: _PLACEHOLDER.sub(_sub, v) for k, v in http.headers.items()}
         body = _PLACEHOLDER.sub(_sub, http.request_body_template)
         if "{beacon}" not in http.request_body_template and body == http.request_body_template:
-            # template had no placeholder — if still literal, wrap
+            # template had no placeholder - if still literal, wrap
             if body == "{beacon}" or not body:
                 body = beacon_json
         sleep = self.compute_sleep(http.sleep_sec, http.jitter_pct, r)

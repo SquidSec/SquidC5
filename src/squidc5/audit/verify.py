@@ -19,7 +19,7 @@ def compute_chain_hash(
     risk_score: int,
     allowed: int,
 ) -> str:
-    """Same formula as Database.audit() — stable float formatting."""
+    """Same formula as Database.audit() - stable float formatting."""
     ts_s = format(float(ts), ".12f")
     material = (
         f"{prev}|{ts_s}|{actor}|{actor_type}|{action}|{resource or ''}|"
@@ -59,7 +59,7 @@ def verify_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
         chain = (row.get("chain_hash") or "").strip()
         prev = (row.get("prev_hash") or "").strip()
         if not chain:
-            # legacy rows without chain — skip crypto check but track linkage gap
+            # legacy rows without chain - skip crypto check but track linkage gap
             checked += 1
             last_chain = ""
             continue

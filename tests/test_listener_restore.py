@@ -46,7 +46,7 @@ async def test_restore_running_listeners_on_startup(tmp_path):
             assert st.status_code == 200, st.text
             assert st.json()["status"] == "running"
 
-    # Second boot: same DB — must restore running listener
+    # Second boot: same DB - must restore running listener
     app2 = create_app(settings)
     async with app2.router.lifespan_context(app2):
         row = await app2.state.app_state.db.get_listener(lid)

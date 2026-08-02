@@ -6,7 +6,7 @@ from typing import Any
 
 
 def anti_analysis_checklist(platform: str = "linux") -> list[dict[str, str]]:
-    """Operator checklist — not automatic offensive action."""
+    """Operator checklist - not automatic offensive action."""
     common = [
         {"id": "sleep_jitter", "title": "Sleep with jitter", "detail": "Use profile jitter_pct; avoid fixed intervals"},
         {"id": "decoy", "title": "Decoy HTTP paths", "detail": "Enable profile decoy_paths to blend with site noise"},
