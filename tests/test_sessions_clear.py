@@ -16,7 +16,7 @@ async def test_sessions_clear_unverified(client, admin_headers):
 
     import asyncio
 
-    # silent connect — creates session until probe drops it
+    # silent connect - creates session until probe drops it
     reader, writer = await asyncio.open_connection("127.0.0.1", 19044)
     await asyncio.sleep(0.6)
     writer.close()

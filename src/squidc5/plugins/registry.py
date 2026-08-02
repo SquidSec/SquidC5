@@ -14,7 +14,7 @@ from typing import Any
 
 log = logging.getLogger("squidc5.plugins")
 
-# Legacy default — refused outside debug (see resolve_plugin_signing_secret).
+# Legacy default - refused outside debug (see resolve_plugin_signing_secret).
 LEGACY_DEV_PLUGIN_SECRET = b"sc5-dev-plugin-secret-change-me"
 PLUGIN_SECRET_FILENAME = "plugin_signing.secret"
 

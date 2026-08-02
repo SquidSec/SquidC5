@@ -146,7 +146,7 @@ def delete_cert(data_dir: Path, cert_id: str) -> bool:
 
 
 def resolve_listener_ssl_paths(data_dir: Path) -> tuple[Path, Path] | None:
-    """Paths for HTTPS listeners — prefer active library cert, else instance TLS."""
+    """Paths for HTTPS listeners - prefer active library cert, else instance TLS."""
     active = get_active_id(data_dir)
     if active:
         d = _lib_root(data_dir) / active

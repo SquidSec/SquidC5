@@ -20,7 +20,7 @@ _PATH_TOKEN_RE = re.compile(
 
 
 def mint_token(nbytes: int = 6) -> str:
-    """8–12 hex chars, dns/url-safe."""
+    """8-12 hex chars, dns/url-safe."""
     return secrets.token_hex(nbytes)
 
 

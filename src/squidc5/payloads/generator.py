@@ -129,7 +129,7 @@ class PayloadGenerator:
         path: str,
         interval: int,
     ) -> str:
-        """Safe placeholder expansion only — no code execution."""
+        """Safe placeholder expansion only - no code execution."""
         text = str(tmpl or "")
         replacements = {
             "{host}": str(host),
@@ -170,7 +170,7 @@ class PayloadGenerator:
         if scheme not in ("http", "https"):
             scheme = "https"
         return f'''#!/usr/bin/env python3
-# SquidC5 HTTP beacon — authorized testing only (profile-aware)
+# SquidC5 HTTP beacon - authorized testing only (profile-aware)
 # HTTPS verifies system CAs. For lab self-signed, terminate TLS on a redirector
 # or use scheme=http on an isolated lab network.
 import json, random, time, urllib.request, ssl
@@ -266,7 +266,7 @@ while True:
         if scheme not in ("http", "https"):
             scheme = "https"
         return f'''#!/bin/bash
-# SquidC5 HTTP beacon — authorized testing only (profile-aware path/UA)
+# SquidC5 HTTP beacon - authorized testing only (profile-aware path/UA)
 # HTTPS verifies system CAs (no curl -k). Use redirector or scheme=http in lab.
 C2="{scheme}://{host}:{port}{path}"
 UA="{ua}"

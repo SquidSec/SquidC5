@@ -273,7 +273,7 @@ jobs:
           | \`squidc5-linux-x64\` | Linux x64 | C2 server |
           | \`sc5-windows-x64.exe\` | Windows x64 | Operator CLI |
           | \`squidc5-windows-x64.exe\` | Windows x64 | C2 server |
-          | \`SHA256SUMS.txt\` | — | Checksums |
+          | \`SHA256SUMS.txt\` | - | Checksums |
 
           ### Server (Linux)
           \`\`\`bash

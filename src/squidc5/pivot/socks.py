@@ -64,7 +64,7 @@ class SocksBroker:
     ) -> dict[str, Any]:
         pid = f"socks_{secrets.token_hex(6)}"
         mode = mode if mode in ("implant", "direct") else "implant"
-        # H07: direct mode is C2-side SSRF — deny unless admin explicitly allows
+        # H07: direct mode is C2-side SSRF - deny unless admin explicitly allows
         if mode == "direct" and not allow_direct:
             raise PermissionError("SOCKS direct mode requires admin allow_direct")
         # H06: default bind loopback only

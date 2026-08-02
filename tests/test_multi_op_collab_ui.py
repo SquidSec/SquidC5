@@ -1,4 +1,4 @@
-"""Multi-op collab M1–M6 + ops UI markers."""
+"""Multi-op collab M1-M6 + ops UI markers."""
 
 from __future__ import annotations
 
@@ -128,7 +128,7 @@ async def test_claim_lock_and_handoff_pack(tmp_path):
             assert "pack" in body
             assert body["pack"].get("session")
 
-            # B now claimed — can task
+            # B now claimed - can task
             t2 = await client.post(
                 "/api/v1/tasks",
                 headers=hb,
@@ -153,7 +153,7 @@ async def test_claim_lock_and_handoff_pack(tmp_path):
             assert pl.status_code == 200
             assert pl.json()["count"] >= 1
 
-            # team chat — creator is lead member; B not member → denied
+            # team chat - creator is lead member; B not member -> denied
             team = await client.post("/api/v1/teams", headers=ha, json={"name": "red"})
             assert team.status_code == 200
             tid = team.json()["id"]

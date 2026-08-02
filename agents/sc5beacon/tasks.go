@@ -50,7 +50,7 @@ func runTask(cmd string, args map[string]any) string {
 			path, _ = args["dir"].(string)
 		}
 		if path == "" && len(args) == 0 {
-			// allow "cd /tmp" as shell-style in command — handled below
+			// allow "cd /tmp" as shell-style in command - handled below
 		}
 		return jobs.setCwd(path)
 	}
@@ -94,7 +94,7 @@ func runTask(cmd string, args map[string]any) string {
 		}
 		return jobs.start(c)
 	}
-	// args.async == true → background job
+	// args.async == true -> background job
 	if asyncFlag(args) {
 		return jobs.start(cmd)
 	}

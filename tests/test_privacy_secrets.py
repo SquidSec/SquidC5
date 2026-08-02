@@ -27,7 +27,7 @@ def _assert_no_secrets(obj, path: str = "$") -> None:
             if "api_key" in kl or kl in ("password", "secret", "token_hash", "private_key"):
                 # values must not look like live secrets
                 if isinstance(v, str) and len(v) > 8 and not v.startswith("sc5_"):
-                    # token fields in mint response are intentional — skip named checks elsewhere
+                    # token fields in mint response are intentional - skip named checks elsewhere
                     if kl == "token":
                         continue
                     pytest.fail(f"suspicious secret field {path}.{k}={v!r}")

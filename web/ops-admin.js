@@ -1,4 +1,4 @@
-/* SquidC5 ops console — app-shell views (loaded after auth) */
+/* SquidC5 ops console - app-shell views (loaded after auth) */
 (function () {
   const api = window.__SC5_API__ || window.__SC5_api;
   const $ = window.__SC5_$;
@@ -29,7 +29,7 @@
 
   function el(id) { return document.getElementById(id); }
   function tools(html) { const t = el("viewTools"); if (t) t.innerHTML = html || ""; }
-  function shortId(id) { return (id || "").length > 14 ? id.slice(0, 12) + "…" : (id || ""); }
+  function shortId(id) { return (id || "").length > 14 ? id.slice(0, 12) + "..." : (id || ""); }
   function metaOf(s) {
     let m = s && s.metadata;
     if (typeof m === "string") { try { m = JSON.parse(m); } catch (_) { m = {}; } }
@@ -38,7 +38,7 @@
   function docHref(anchor) {
     return DOCS + (anchor ? "#" + anchor : "");
   }
-  /** Per-page doc menus (single button in header — no spam links in body) */
+  /** Per-page doc menus (single button in header - no spam links in body) */
   const PAGE_DOCS = {
     dashboard: [
       { a: "status-overview", t: "Status overview" },
@@ -162,19 +162,19 @@
           <input id="${prefix}Base" placeholder="https://api.x.ai/v1" value="https://api.x.ai/v1" />
         </div>
         <div class="full"><label>API key</label>
-          <input id="${prefix}Key" type="password" placeholder="xai-… / sk-… (never shown again)" autocomplete="off" />
+          <input id="${prefix}Key" type="password" placeholder="xai-... / sk-... (never shown again)" autocomplete="off" />
           <div class="row" style="margin-top:6px">
-            <button type="button" id="${prefix}KeyLink" title="Open provider API keys page">Get API key ↗</button>
+            <button type="button" id="${prefix}KeyLink" title="Open provider API keys page">Get API key -></button>
           </div>
         </div>
         <div class="full" id="${prefix}ModelWrap">
           <label>Model</label>
           <select id="${prefix}ModelSel" disabled>
-            <option value="">Paste API key to load models…</option>
+            <option value="">Paste API key to load models...</option>
           </select>
           <input id="${prefix}Model" class="hidden" placeholder="custom-model-id" />
           <label class="chk-inline" style="margin-top:8px;text-transform:none;letter-spacing:0;font-size:0.78rem;color:var(--text);font-weight:500">
-            <input type="checkbox" id="${prefix}ModelOverride" /> Override — type model name manually
+            <input type="checkbox" id="${prefix}ModelOverride" /> Override - type model name manually
           </label>
           <div class="row" style="margin-top:6px">
             <button type="button" id="${prefix}FetchModels" disabled>Refresh models</button>
@@ -186,7 +186,7 @@
         <button type="button" class="primary" id="${prefix}Save" ${canSave ? "" : "disabled"}>Save LLM</button>
         <button type="button" id="${prefix}List">List saved</button>
       </div>
-      <div class="outbox empty" id="${prefix}Out">—</div>`;
+      <div class="outbox empty" id="${prefix}Out">-</div>`;
   }
   function bindLlmForm(prefix) {
     const applyProvider = () => {
@@ -234,7 +234,7 @@
       const hint = el(prefix + "ModelHint");
       const sel = el(prefix + "ModelSel");
       try {
-        if (hint) hint.textContent = "Loading models…";
+        if (hint) hint.textContent = "Loading models...";
         const body = {
           base_url: (el(prefix + "Base")?.value || "").trim() || null,
           api_key: (el(prefix + "Key")?.value || "").trim() || null,
@@ -247,7 +247,7 @@
         if (!models.length) {
           sel.innerHTML = `<option value="">(no models returned)</option>`;
           sel.disabled = true;
-          if (hint) hint.textContent = "No models — use override";
+          if (hint) hint.textContent = "No models - use override";
           return;
         }
         sel.innerHTML = models.map((m) =>
@@ -262,7 +262,7 @@
         if (hint) hint.textContent = models.length + " model(s)";
         updateModelUi();
       } catch (e) {
-        if (hint) hint.textContent = "Fetch failed — use override";
+        if (hint) hint.textContent = "Fetch failed - use override";
         showError(String(e.message || e));
         // enable override path
         if (el(prefix + "ModelOverride")) {
@@ -285,7 +285,7 @@
       const go = () => {
         const id = el(prefix + "Provider")?.value || "";
         const u = (LLM_PROVIDER_MAP[id] || {}).keyUrl;
-        if (!u) return showError("No key page for this provider — use their console");
+        if (!u) return showError("No key page for this provider - use their console");
         window.open(u, "_blank", "noopener,noreferrer");
       };
       el(prefix + "KeyLink").onclick = go;
@@ -355,7 +355,7 @@
       return;
     }
     sel.disabled = true;
-    sel.innerHTML = '<option value="">Loading models…</option>';
+    sel.innerHTML = '<option value="">Loading models...</option>';
     try {
       const r = await api("POST", "/api/v1/llm/models", { llm_id: llmId });
       const models = r.models || [];
@@ -363,7 +363,7 @@
       if (!models.length) {
         sel.innerHTML = pref
           ? `<option value="${esc(pref)}">${esc(pref)}</option>`
-          : '<option value="">(no models — type via override in Admin)</option>';
+          : '<option value="">(no models - type via override in Admin)</option>';
         sel.disabled = !pref;
         if (pref) sel.value = pref;
         return;
@@ -423,20 +423,20 @@
     if (!sel) return;
     const list = Array.isArray(llms) ? llms : [];
     if (!list.length) {
-      sel.innerHTML = `<option value="">(no LLM configured — use Configure panel)</option>`;
+      sel.innerHTML = `<option value="">(no LLM configured - use Configure panel)</option>`;
       sel.disabled = true;
       return;
     }
     sel.disabled = false;
     sel.innerHTML = list.map((L) => {
       const id = L.id || L.name;
-      const label = `${L.name || id} · ${L.model || "?"} · ${L.provider || "?"}`;
+      const label = `${L.name || id}  /  ${L.model || "?"}  /  ${L.provider || "?"}`;
       return `<option value="${esc(id)}">${esc(label)}</option>`;
     }).join("");
     if (selected && list.some((L) => (L.id || L.name) === selected)) sel.value = selected;
   }
 
-  /* —— Context rail —— */
+  /* -- Context rail -- */
   let ctxBoundSid = null;
   function bindCtxChrome() {
     if (el("ctxClose")) el("ctxClose").onclick = () => openCtxSheet(false);
@@ -512,10 +512,10 @@
         <div class="chips" style="margin-bottom:10px">
           <span class="chip">${esc(s.kind || "?")}</span>
           <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
-          ${m.claimed_by ? `<span class="chip warn">🔒 ${esc(m.claimed_by)}</span>` : '<span class="chip">unlocked</span>'}
+          ${m.claimed_by ? `<span class="chip warn">${esc(m.claimed_by)}</span>` : '<span class="chip">unlocked</span>'}
         </div>
         <div class="muted" style="font-size:0.78rem;margin-bottom:8px">
-          User: ${esc(s.username || "—")}<br/>OS: ${esc(s.os_info || "—")}<br/>Addr: ${esc(s.remote_addr || "—")}
+          User: ${esc(s.username || "-")}<br/>OS: ${esc(s.os_info || "-")}<br/>Addr: ${esc(s.remote_addr || "-")}
         </div>`;
       return;
     }
@@ -537,7 +537,7 @@
         <input id="ctxTask" placeholder="id / sysinfo / pwd" />
         <div class="row"><button type="button" class="primary" id="ctxTaskBtn">Queue task</button></div>
       ` : ""}
-      <div class="outbox empty" id="ctxOut">—</div>
+      <div class="outbox empty" id="ctxOut">-</div>
     `;
     ctxBoundSid = selectedId;
     // fill meta
@@ -549,10 +549,10 @@
         <div class="chips" style="margin-bottom:10px">
           <span class="chip">${esc(s.kind || "?")}</span>
           <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
-          ${m.claimed_by ? `<span class="chip warn">🔒 ${esc(m.claimed_by)}</span>` : '<span class="chip">unlocked</span>'}
+          ${m.claimed_by ? `<span class="chip warn">${esc(m.claimed_by)}</span>` : '<span class="chip">unlocked</span>'}
         </div>
         <div class="muted" style="font-size:0.78rem;margin-bottom:8px">
-          User: ${esc(s.username || "—")}<br/>OS: ${esc(s.os_info || "—")}<br/>Addr: ${esc(s.remote_addr || "—")}
+          User: ${esc(s.username || "-")}<br/>OS: ${esc(s.os_info || "-")}<br/>Addr: ${esc(s.remote_addr || "-")}
         </div>`;
     }
     bindContextHandlers();
@@ -588,11 +588,11 @@
         box.textContent = JSON.stringify(s, null, 2);
         box.classList.remove("empty");
       } else if (!selectedId) {
-        box.textContent = "Select a session…";
+        box.textContent = "Select a session...";
         box.classList.add("empty");
       }
     }
-    if (el("pxSid")) el("pxSid").textContent = selectedId || "(none — pick in Sessions)";
+    if (el("pxSid")) el("pxSid").textContent = selectedId || "(none - pick in Sessions)";
     renderContext();
     openCtxSheet(!!selectedId);
     if (el("tskList")) loadTasksPanel();
@@ -613,9 +613,9 @@
     tbody.innerHTML = rows.map((s) => {
       const m = metaOf(s);
       return `<tr data-sid="${esc(s.id)}" class="${s.id === selectedId ? "selected" : ""}">
-        <td class="mono">${esc(shortId(s.id))}${m.claimed_by ? " 🔒" : ""}</td>
+        <td class="mono">${esc(shortId(s.id))}${m.claimed_by ? " [locked]" : ""}</td>
         <td>${esc(s.kind || "")}</td>
-        <td>${esc(s.hostname || s.remote_addr || "—")}</td>
+        <td>${esc(s.hostname || s.remote_addr || "-")}</td>
       </tr>`;
     }).join("");
     tbody.querySelectorAll("tr[data-sid]").forEach((tr) => {
@@ -632,7 +632,7 @@
     }
   }
 
-  /* —— Sessions view —— */
+  /* -- Sessions view -- */
   function renderSessionsView(force) {
     const root = el("view-sessions");
     if (!root) return;
@@ -665,7 +665,7 @@
               Click a row to load the <strong>context rail</strong>. Claim before multi-op tasking.
               Shell = verified reverse shells; Tasks = beacons.
             </p>
-            <div id="sesDetail" class="outbox empty" style="margin-top:12px">Select a session…</div>
+            <div id="sesDetail" class="outbox empty" style="margin-top:12px">Select a session...</div>
             <div class="wp-head" style="margin-top:12px;border-top:1px solid var(--border);padding-top:8px">
               Pending tasks
             </div>
@@ -677,7 +677,7 @@
             <div id="tskList" class="lp-body" style="max-height:180px;border:1px solid var(--border);border-radius:6px;margin-top:6px"></div>
             <label for="tskCmd">Edit command (pending only)</label>
             <input id="tskCmd" placeholder="select a pending task" />
-            <p class="muted mono" id="tskHint" style="font-size:0.7rem;margin:4px 0 0">—</p>
+            <p class="muted mono" id="tskHint" style="font-size:0.7rem;margin:4px 0 0">-</p>
           </div>
         </div>
       </div>
@@ -763,8 +763,8 @@
           const t = tasks.find((x) => x.id === selectedTaskId);
           if (t && el("tskCmd")) el("tskCmd").value = t.command || "";
           if (el("tskHint")) el("tskHint").textContent = t
-            ? `Editing ${t.id} (${t.status}) · session ${t.session_id}`
-            : "—";
+            ? `Editing ${t.id} (${t.status})  /  session ${t.session_id}`
+            : "-";
         };
       });
     } catch (e) {
@@ -791,7 +791,7 @@
     } catch (e) { showError(String(e.message || e)); }
   }
 
-  /* —— Listeners —— */
+  /* -- Listeners -- */
   function fillListenerRows(tbody) {
     if (!tbody) return;
     const rows = cache.listeners || [];
@@ -799,7 +799,7 @@
       <td>${esc(l.name || shortId(l.id))}</td>
       <td class="mono">${esc(l.port)}</td>
       <td>${esc(l.kind)}</td>
-      <td><span class="chip ${l.status === "running" ? "ok" : ""}">${esc(l.status || "—")}</span></td>
+      <td><span class="chip ${l.status === "running" ? "ok" : ""}">${esc(l.status || "-")}</span></td>
     </tr>`).join("") || '<tr><td colspan="4" class="muted">None</td></tr>';
     tbody.querySelectorAll("tr[data-lid]").forEach((tr) => {
       tr.onclick = () => {
@@ -820,7 +820,7 @@
     if (el("lisKind")) el("lisKind").value = l.kind || "reverse_shell";
     const cfg = l.config || {};
     if (el("lisZone")) el("lisZone").value = cfg.zone || cfg.dns_zone || "";
-    if (el("lisIdHint")) el("lisIdHint").textContent = "Selected: " + (l.id || "") + " · " + (l.status || "");
+    if (el("lisIdHint")) el("lisIdHint").textContent = "Selected: " + (l.id || "") + "  /  " + (l.status || "");
   }
 
 
@@ -868,7 +868,7 @@
                 <button type="button" id="lisClear">Clear form</button>
               </div>
             ` : '<p class="muted">Read-only token</p>'}
-            <div class="outbox empty" id="lisOut">—</div>
+            <div class="outbox empty" id="lisOut">-</div>
           </div>
         </div>
       </div>
@@ -890,7 +890,7 @@
       const kind = el("lisKind").value;
       const zone = (el("lisZone").value || "").trim();
       if (!name) throw new Error("Name required");
-      if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Port must be an integer 1–65535");
+      if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Port must be an integer 1-65535");
       const taken = (cache.listeners || []).find((L) => Number(L.port) === port && (L.host || "0.0.0.0") === "0.0.0.0");
       if (taken) throw new Error("Port " + port + " already used by " + (taken.name || taken.id));
       const config = kind === "dns" && zone ? { zone } : {};
@@ -933,7 +933,7 @@
     };
   }
 
-  /* —— Payloads —— */
+  /* -- Payloads -- */
   function renderPayloadsView(force) {
     const root = el("view-payloads");
     if (!root) return;
@@ -946,7 +946,7 @@
           ${can("payloads:generate") ? `
             <div class="form-grid">
               <div class="full"><label>Template</label>
-                <select id="payTpl"><option value="">Loading…</option></select>
+                <select id="payTpl"><option value="">Loading...</option></select>
               </div>
               <div class="full"><label>C2 profile (optional)</label>
                 <select id="payProfile"><option value="">(active profile)</option></select>
@@ -971,7 +971,7 @@
               <div class="row"><button type="button" id="payTplReg">Register template</button></div>
             </details>
           ` : '<p class="muted">Need payloads:generate scope</p>'}
-          <div class="outbox empty" id="payOut">—</div>
+          <div class="outbox empty" id="payOut">-</div>
         </div>
       </div>
     `;
@@ -995,7 +995,7 @@
           const rows = prof.profiles || [];
           const act = prof.active_id || "";
           el("payProfile").innerHTML = `<option value="">(active${act ? ": " + esc(act) : ""})</option>` +
-            rows.map((p) => `<option value="${esc(p.id)}">${esc(p.name || p.id)}${p.id === act ? " ★" : ""}</option>`).join("");
+            rows.map((p) => `<option value="${esc(p.id)}">${esc(p.name || p.id)}${p.id === act ? " *" : ""}</option>`).join("");
         }
       } catch (e) { /* ignore */ }
     })();
@@ -1025,7 +1025,7 @@
     if (el("paySave")) el("paySave").onclick = async () => {
       try {
         const text = el("payOut")?.dataset?.raw || el("payOut")?.textContent || "";
-        if (!text || text === "—") return showError("Generate first");
+        if (!text || text === "-") return showError("Generate first");
         const name = (el("payTpl").value || "payload") + "-" + Date.now().toString(36);
         await api("POST", "/api/v1/assets", {
           kind: "payload",
@@ -1049,14 +1049,14 @@
     };
   }
 
-  /* —— Post-ex —— */
+  /* -- Post-ex -- */
   function renderPostexView(force) {
     const root = el("view-postex");
     if (!root) return;
     if (!force && viewBuilt.postex && root.children.length) return;
     root.innerHTML = `
       <p class="muted" style="margin:0 0 10px;font-size:0.85rem">
-        Target session: <strong class="mono" id="pxSid">${esc(selectedId || "(none — pick in Sessions)")}</strong>
+        Target session: <strong class="mono" id="pxSid">${esc(selectedId || "(none - pick in Sessions)")}</strong>
       </p>
       <div class="form-grid">
         <div class="work-panel">
@@ -1081,7 +1081,7 @@
             <label>BOF module</label>
             <input id="pxBof" value="whoami" />
             <div class="row"><button type="button" id="pxBofRun" ${can("shell:interact") ? "" : "disabled"}>Queue bof:run</button></div>
-            <div class="outbox empty" id="pxOut">—</div>
+            <div class="outbox empty" id="pxOut">-</div>
           </div>
         </div>
       </div>
@@ -1127,7 +1127,7 @@
     };
   }
 
-  /* —— Collab —— */
+  /* -- Collab -- */
   function renderCollabView(force) {
     const root = el("view-collab");
     if (!root) return;
@@ -1140,12 +1140,12 @@
             <label>Team channel (optional id)</label>
             <input id="chTeam" placeholder="leave empty for global" />
             <label>Message</label>
-            <input id="chMsg" placeholder="status update…" />
+            <input id="chMsg" placeholder="status update..." />
             <div class="row">
               <button type="button" class="primary" id="chSend" ${can("collab:use") || can("admin") ? "" : "disabled"}>Send</button>
               <button type="button" id="chReload">Reload</button>
             </div>
-            <div class="outbox empty" id="chOut">—</div>
+            <div class="outbox empty" id="chOut">-</div>
           </div>
         </div>
         <div class="work-panel">
@@ -1163,7 +1163,7 @@
             <label>Note</label>
             <textarea id="tmNote" rows="2"></textarea>
             <div class="row"><button type="button" id="tmHandoff">Handoff selected session</button></div>
-            <div class="outbox empty" id="tmOut">—</div>
+            <div class="outbox empty" id="tmOut">-</div>
           </div>
         </div>
       </div>
@@ -1224,7 +1224,7 @@
     loadChat().catch(() => {});
   }
 
-  /* —— Observe —— */
+  /* -- Observe -- */
   function renderObserveView(force) {
     const root = el("view-observe");
     if (!root) return;
@@ -1237,7 +1237,7 @@
         <button type="button" id="obReport">Report</button>
         <button type="button" id="obAnom">Anomalies</button>
       </div>
-      <div class="outbox empty" id="obOut" style="max-height:480px">—</div>
+      <div class="outbox empty" id="obOut" style="max-height:480px">-</div>
     `;
     viewBuilt.observe = true;
     const out = async (path) => {
@@ -1254,8 +1254,8 @@
     if (el("obAnom")) el("obAnom").onclick = () => out("/api/v1/observability/anomalies");
   }
 
-  /* —— Admin —— */
-  /* —— AI / INKO tab —— */
+  /* -- Admin -- */
+  /* -- AI / INKO tab -- */
   const AI_HIST_KEY = "sc5_inko_chat_v1";
   const AI_HIST_MAX = 40;
   let aiBusy = false;
@@ -1289,7 +1289,7 @@
       .replace(/'/g, "&#39;");
   }
 
-  /** Minimal safe markdown → HTML (escape first; no raw HTML passthrough). */
+  /** Minimal safe markdown -> HTML (escape first; no raw HTML passthrough). */
   function renderMarkdownSafe(src) {
     let s = String(src ?? "").replace(/\r\n/g, "\n");
     const fences = [];
@@ -1301,7 +1301,7 @@
       );
       return `\u0000FENCE${i}\u0000`;
     });
-    // GFM tables on raw text — escape each cell at HTML build time (XSS-safe)
+    // GFM tables on raw text - escape each cell at HTML build time (XSS-safe)
     s = s.replace(/(?:^[ \t]*\|.+\|[ \t]*\n){2,}/gm, (block) => {
       const lines = block.trim().split("\n").map((l) => l.trim()).filter(Boolean);
       if (lines.length < 2) return block;
@@ -1340,7 +1340,7 @@
       tables.push(`<div class="md-table-wrap"><table class="md-table"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table></div>`);
       return `\u0000TABLE${i}\u0000\n\n`;
     });
-    // Lists from raw text with per-item escapeHtml (greedy + → one <ol>/<ul>).
+    // Lists from raw text with per-item escapeHtml (greedy + -> one <ol>/<ul>).
     // Non-greedy +? previously made each line its own <ol> (displayed 1. 1. 1.).
     const lists = [];
     const stashList = (html) => {
@@ -1419,7 +1419,7 @@
     div.className = "ai-msg bot pending";
     div.dataset.aiPending = "1";
     div.innerHTML =
-      '<div class="who">INKO</div><div class="ai-typing"><span class="ai-typing-dots" aria-hidden="true"><span></span><span></span><span></span></span><span>Thinking…</span></div>';
+      '<div class="who">INKO</div><div class="ai-typing"><span class="ai-typing-dots" aria-hidden="true"><span></span><span></span><span></span></span><span>Thinking...</span></div>';
     parent.appendChild(div);
     parent.scrollTop = parent.scrollHeight;
     return div;
@@ -1453,7 +1453,7 @@
       toolTrace.forEach((t) => {
         const chip = document.createElement("span");
         chip.className = "tool-chip " + (t.ok ? "ok" : "bad");
-        chip.textContent = (t.ok ? "✓ " : "✗ ") + (t.tool || "?") + (t.summary ? " · " + t.summary : "");
+        chip.textContent = (t.ok ? "ok: " : "err: ") + (t.tool || "?") + (t.summary ? "  /  " + t.summary : "");
         row.appendChild(chip);
       });
       div.appendChild(row);
@@ -1619,12 +1619,12 @@
       <div class="form-grid" style="align-items:stretch">
         <div class="work-panel">
           <div class="wp-head" style="flex-wrap:wrap;gap:6px">
-            <span class="inko-brand">◈ INKO</span>
+            <span class="inko-brand">INKO</span>
             <span class="muted" style="margin-left:4px;font-size:0.75rem;font-weight:600;text-transform:none;letter-spacing:0">Intelligent Neural Kinetic Operator</span>
           </div>
           <div class="wp-body">
             <p class="muted" style="font-size:0.82rem;margin:0 0 10px;line-height:1.45">
-              Chat lives in the top-bar <strong>INKO</strong> flyout — not on this page.
+              Chat lives in the top-bar <strong>INKO</strong> flyout - not on this page.
               Here you pick the default LLM, review what INKO can do, and inspect status / tool catalog.
               Configure providers under <strong>Admin</strong>.
             </p>
@@ -1633,9 +1633,9 @@
               <button type="button" id="aiClearPage">Clear chat history</button>
             </div>
             <label>LLM connection</label>
-            <select id="aiLlmPick"><option value="">Loading…</option></select>
+            <select id="aiLlmPick"><option value="">Loading...</option></select>
             <label>Model</label>
-            <select id="aiModelPick" disabled><option value="">Select connection…</option></select>
+            <select id="aiModelPick" disabled><option value="">Select connection...</option></select>
             <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Models load from the provider for the selected connection. Switching model updates the connection default.</p>
             <h3 style="margin:16px 0 6px;font-size:0.85rem;color:var(--text)">What INKO can do</h3>
             <div class="inko-cap-grid">
@@ -1644,7 +1644,7 @@
               `).join("")}
             </div>
             <p class="muted" style="font-size:0.75rem;margin:8px 0 0">
-              Example: <em>“setup reverse shell on 4444”</em> · <em>“list active sessions”</em> · <em>“show recent events”</em>
+              Example: <em>"setup reverse shell on 4444"</em>  /  <em>"list active sessions"</em>  /  <em>"show recent events"</em>
             </p>
           </div>
         </div>
@@ -1655,7 +1655,7 @@
               <button type="button" class="primary" id="aiStatus">AI status</button>
               <button type="button" id="aiTools">Tool catalog</button>
             </div>
-            <div class="outbox empty inko-outbox" id="aiOut">Run Status or Tools — output appears here (scrollable).</div>
+            <div class="outbox empty inko-outbox" id="aiOut">Run Status or Tools - output appears here (scrollable).</div>
           </div>
         </div>
       </div>
@@ -1685,8 +1685,8 @@
         const tools = (r && r.tools) || [];
         if (tools.length) {
           el("aiOut").textContent = tools.map((t) =>
-            `${t.name}\n  ${t.description || ""}\n  scopes: ${(t.scopes || []).join(", ") || "—"}\n  policy: ${t.policy_action || "—"}`
-          ).join("\n\n") + (r.note ? `\n\n—\n${r.note}` : "");
+            `${t.name}\n  ${t.description || ""}\n  scopes: ${(t.scopes || []).join(", ") || "-"}\n  policy: ${t.policy_action || "-"}`
+          ).join("\n\n") + (r.note ? `\n\n-\n${r.note}` : "");
         } else {
           el("aiOut").textContent = JSON.stringify(r, null, 2);
         }
@@ -1877,7 +1877,7 @@
                 <button type="button" id="adFeat">Features</button>
                 <button type="button" id="adTokList">List tokens</button>
               </div>
-              <div class="outbox empty" id="adOut" style="max-height:min(420px,50vh);flex:1">—</div>
+              <div class="outbox empty" id="adOut" style="max-height:min(420px,50vh);flex:1">-</div>
             </div>
           </div>
         </div>
@@ -1904,7 +1904,7 @@
               <button type="button" class="primary" id="tlsUpload">Upload</button>
               <button type="button" id="tlsRefresh">Refresh list</button>
             </div>
-            <div class="outbox empty" id="tlsOut" style="max-height:240px">—</div>
+            <div class="outbox empty" id="tlsOut" style="max-height:240px">-</div>
           </div>
         </div>` : ""}
         ${(can("llm:manage") || can("admin")) ? `
@@ -1917,7 +1917,7 @@
           <div class="wp-head">Saved assets (INKO / payloads)</div>
           <div class="wp-body">
             <div class="row"><button type="button" id="astRefresh">List assets</button></div>
-            <div class="outbox empty" id="astOut" style="max-height:280px">—</div>
+            <div class="outbox empty" id="astOut" style="max-height:280px">-</div>
           </div>
         </div>` : ""}
       </div>
@@ -1965,7 +1965,7 @@
             try {
               const r2 = await api("POST", `/api/v1/tls/certs/${b.getAttribute("data-tls-act")}/activate`);
               el("tlsOut").textContent = JSON.stringify(r2, null, 2);
-              showOk("Activated — restart squidc5 to serve new TLS");
+              showOk("Activated - restart squidc5 to serve new TLS");
               loadTls();
             } catch (e) { showError(String(e.message || e)); }
           };
@@ -2024,7 +2024,7 @@
         const r = await api("POST", "/api/v1/tokens", { name: el("adName").value.trim() || "op", scopes });
         el("adMintOut").textContent = r.token || JSON.stringify(r, null, 2);
         el("adMintOut").classList.remove("empty");
-        showOk("Token minted — copy now");
+        showOk("Token minted - copy now");
       } catch (e) { showError(String(e.message || e)); }
     };
     const dump = async (path) => {
@@ -2040,7 +2040,7 @@
   }
 
 
-  /* —— Profiles —— */
+  /* -- Profiles -- */
   function renderProfilesView(force) {
     const root = el("view-profiles");
     if (!root) return;
@@ -2069,7 +2069,7 @@
                 <button type="button" id="profPush">Push active</button>
               </div>
             ` : '<p class="muted">Need profiles:write</p>'}
-            <div class="outbox empty" id="profOut">—</div>
+            <div class="outbox empty" id="profOut">-</div>
           </div>
         </div>
       </div>
@@ -2087,7 +2087,7 @@
           <tr data-pid="${esc(p.id)}" class="${p.id === act ? "selected" : ""}">
             <td>${esc(p.name || p.id)}</td>
             <td>${esc(p.channel || "http")}</td>
-            <td>${p.id === act || p.active ? "★" : ""}</td>
+            <td>${p.id === act || p.active ? "*" : ""}</td>
           </tr>`).join("") || '<tr><td colspan="3" class="muted">No profiles</td></tr>';
         tb.querySelectorAll("tr[data-pid]").forEach((tr) => {
           tr.onclick = () => {
@@ -2104,7 +2104,7 @@
             }
           };
         });
-        el("profOut").textContent = "active: " + (act || "none") + " · " + rows.length + " profiles";
+        el("profOut").textContent = "active: " + (act || "none") + "  /  " + rows.length + " profiles";
         el("profOut").classList.remove("empty");
       } catch (e) { showError(String(e.message || e)); }
     }
@@ -2151,7 +2151,7 @@
     loadProfs();
   }
 
-  /* —— Artifacts —— */
+  /* -- Artifacts -- */
   function renderArtifactsView(force) {
     const root = el("view-artifacts");
     if (!root) return;
@@ -2180,7 +2180,7 @@
               <button type="button" id="astCopy">Copy</button>
               <button type="button" class="danger" id="astDel">Delete</button>
             </div>
-            <div class="outbox empty" id="astPreview" style="max-height:min(60vh,520px);min-height:200px">Select an artifact…</div>
+            <div class="outbox empty" id="astPreview" style="max-height:min(60vh,520px);min-height:200px">Select an artifact...</div>
           </div>
         </div>
       </div>
@@ -2199,8 +2199,8 @@
           <tr data-aid="${esc(a.id)}">
             <td>${esc(a.name)}</td>
             <td>${esc(a.kind)}</td>
-            <td class="mono">${esc(a.created_by || "—")}</td>
-          </tr>`).join("") || '<tr><td colspan="3" class="muted">No artifacts yet — generate from Payloads or INKO</td></tr>';
+            <td class="mono">${esc(a.created_by || "-")}</td>
+          </tr>`).join("") || '<tr><td colspan="3" class="muted">No artifacts yet - generate from Payloads or INKO</td></tr>';
         tb.querySelectorAll("tr[data-aid]").forEach((tr) => {
           tr.onclick = async () => {
             selectedAst = tr.getAttribute("data-aid");
@@ -2227,7 +2227,7 @@
         await api("DELETE", `/api/v1/assets/${encodeURIComponent(selectedAst)}`);
         selectedAst = null;
         selectedContent = "";
-        el("astPreview").textContent = "Select an artifact…";
+        el("astPreview").textContent = "Select an artifact...";
         el("astPreview").classList.add("empty");
         showOk("Deleted");
         loadAst();
@@ -2237,9 +2237,9 @@
   }
 
 
-  /* —— View router —— */
+  /* -- View router -- */
   function renderView(name) {
-    // Soft by default — preserve form focus/values; only build once per view
+    // Soft by default - preserve form focus/values; only build once per view
     switch (name) {
       case "sessions": renderSessionsView(false); break;
       case "listeners": renderListenersView(false); break;
@@ -2273,13 +2273,13 @@
     const typing = ae && (
       ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || ae.isContentEditable
     );
-    // Soft update — never rebuild forms; skip panels while user is typing
+    // Soft update - never rebuild forms; skip panels while user is typing
     if (currentIs("sessions")) {
       renderSessionsView(false);
       if (el("tskList") && !typing) loadTasksPanel();
     }
     if (currentIs("listeners")) renderListenersView(false);
-    if (el("pxSid") && !typing) el("pxSid").textContent = selectedId || "(none — pick in Sessions)";
+    if (el("pxSid") && !typing) el("pxSid").textContent = selectedId || "(none - pick in Sessions)";
     document.querySelectorAll("tr[data-sid]").forEach((tr) => {
       tr.classList.toggle("selected", tr.getAttribute("data-sid") === selectedId);
     });

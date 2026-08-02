@@ -18,7 +18,7 @@ ENVELOPE_KEYS = frozenset({"v", "n", "c", "alg"})
 
 
 def derive_key(psk: str | bytes) -> bytes:
-    """SHA256(psk) — must match agents/sc5beacon crypto.go."""
+    """SHA256(psk) - must match agents/sc5beacon crypto.go."""
     raw = psk.encode("utf-8") if isinstance(psk, str) else psk
     return hashlib.sha256(raw).digest()
 

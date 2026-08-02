@@ -211,7 +211,7 @@ CREATE INDEX IF NOT EXISTS idx_hitl_status ON hitl_requests(status);
 CREATE INDEX IF NOT EXISTS idx_hitl_actor ON hitl_requests(actor);
 """
 
-# (version, description, sql) — versions must be contiguous starting at 1
+# (version, description, sql) - versions must be contiguous starting at 1
 AUDIT_INTEGRITY_SQL = """
 ALTER TABLE audit_log ADD COLUMN chain_hash TEXT NOT NULL DEFAULT '';
 ALTER TABLE audit_log ADD COLUMN prev_hash TEXT NOT NULL DEFAULT '';

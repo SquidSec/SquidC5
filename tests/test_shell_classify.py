@@ -28,7 +28,7 @@ def test_accept_stable_banner():
 
 def test_accept_empty_pending():
     v = classify_inbound(b"")
-    assert v.is_shell is True  # indeterminate — wait for probe
+    assert v.is_shell is True  # indeterminate - wait for probe
 
 
 def test_detect_os_linux():

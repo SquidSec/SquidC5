@@ -1,4 +1,4 @@
-# sc5beacon — SquidC5 native implant v3
+# sc5beacon - SquidC5 native implant v3
 
 **Authorized red team / lab use only.**
 
@@ -16,7 +16,7 @@ GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o sc5beacon-arm64 .
 
 ## Configure
 
-Priority: `SC5_CONFIG_B64` JSON blob → individual env vars → link-time `bakedConfigJSON`.
+Priority: `SC5_CONFIG_B64` JSON blob -> individual env vars -> link-time `bakedConfigJSON`.
 
 | Env | Required | Meaning |
 |-----|----------|---------|
@@ -28,14 +28,14 @@ Priority: `SC5_CONFIG_B64` JSON blob → individual env vars → link-time `bake
 | `SC5_SLEEP` / `SC5_JITTER` | no | Sleep seconds / jitter % |
 | `SC5_KILL_DATE` | no | Unix epoch exit |
 | `SC5_MAX_MISS` | no | Exit after N failed check-ins |
-| `SC5_WORK_START` / `SC5_WORK_END` | no | Working hours 0–23 |
+| `SC5_WORK_START` / `SC5_WORK_END` | no | Working hours 0-23 |
 | `SC5_SLEEP_MASK` | no | `jitter` \| `timer` \| `ekko` |
 | `SC5_ALLOW_INJECT` | no | `1` enables lab inject stubs |
 | `SC5_ALLOW_BOF` | no | `1` enables BOF host / catalog simulate |
 
 TLS always verifies system roots. **No** skip-verify flag.
 
-## Features (I1–I5)
+## Features (I1-I5)
 
 - Config blob + factory stagers (bash / PowerShell stage0)
 - Jobs: `job:start`, `job:list`, `job:get`, `job:kill`, `async` args

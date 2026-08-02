@@ -1,4 +1,4 @@
-/* SquidC5 lab BOF — net (authorized only) */
+/* SquidC5 lab BOF - net (authorized only) */
 #ifdef _WIN32
 #include <windows.h>
 #endif

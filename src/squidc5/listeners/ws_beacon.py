@@ -51,7 +51,7 @@ async def _ws_loop(websocket: WebSocket) -> None:
     try:
         while True:
             msg: dict[str, Any] = await websocket.receive_json()
-            # C06: sealed envelopes put type inside ciphertext — unwrap first
+            # C06: sealed envelopes put type inside ciphertext - unwrap first
             from squidc5.implants.crypto import is_envelope, open_envelope
 
             inner = msg

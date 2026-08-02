@@ -191,7 +191,7 @@ def test_ordered_list_single_ol() -> None:
     """Consecutive 1. lines must become one <ol> (not four restarting at 1)."""
     md = (
         "Operator workflow (short)\n"
-        "1. **Upsert**/select profile → activate it.\n"
+        "1. **Upsert**/select profile -> activate it.\n"
         "1. Ensure **HTTP/HTTPS listener** is up.\n"
         "1. Generate payload that matches that profile.\n"
         "1. If you switch active profile mid-op, old implants keep old behavior.\n"

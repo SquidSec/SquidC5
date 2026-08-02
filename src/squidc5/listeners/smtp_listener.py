@@ -1,4 +1,4 @@
-"""Minimal SMTP OAST listener — log MAIL/RCPT/DATA only; never relay."""
+"""Minimal SMTP OAST listener - log MAIL/RCPT/DATA only; never relay."""
 
 from __future__ import annotations
 

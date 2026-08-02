@@ -256,7 +256,7 @@ class SessionManager:
         row["verified"] = verified
         if kind in ("reverse_shell", "tcp") and status == "active" and not interactive:
             row["dead"] = True
-            row["note"] = "TCP channel gone — session is stale (use a live reconnect)"
+            row["note"] = "TCP channel gone - session is stale (use a live reconnect)"
         elif kind in ("reverse_shell", "tcp") and status == "active" and interactive and not verified:
             row["note"] = "connected but not yet verified (exec probe pending/failed)"
         return row

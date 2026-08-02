@@ -1,4 +1,4 @@
-"""Allow-listed C5 ops tools for Admin AI chat (railed — not open agent).
+"""Allow-listed C5 ops tools for Admin AI chat (railed - not open agent).
 
 Each tool runs through the same scopes + policy engine as REST/MCP.
 Tool results are size-capped and sanitized before returning to the LLM.
@@ -89,7 +89,7 @@ OPENAI_TOOLS: list[dict[str, Any]] = [
             "name": "create_listener",
             "description": (
                 "Create a new listener. For reverse shells use kind=reverse_shell. "
-                "Does not start it — call start_listener after create unless auto_start is true."
+                "Does not start it - call start_listener after create unless auto_start is true."
             ),
             "parameters": {
                 "type": "object",
@@ -355,7 +355,7 @@ OPENAI_TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "interact_shell",
             "description": (
-                "Send a command to a live reverse_shell session. High risk — "
+                "Send a command to a live reverse_shell session. High risk - "
                 "requires shell:interact and may need HITL for non-admins."
             ),
             "parameters": {
@@ -371,23 +371,23 @@ OPENAI_TOOLS: list[dict[str, Any]] = [
     },
 ]
 
-CHAT_SYSTEM_PROMPT = """You are INKO (Intelligent Neural Kinetic Operator) — SquidC5's neural operator assistant for this C5 teamserver.
+CHAT_SYSTEM_PROMPT = """You are INKO (Intelligent Neural Kinetic Operator) - SquidC5's neural operator assistant for this C5 teamserver.
 When referring to yourself, use the name INKO.
 
 # Purpose
 SquidC5 is a security-first, AI-native C5 platform for AUTHORIZED red team / penetration testing only:
-- Command — task shells and beacons
-- Control — scopes, policy, listeners, feature kill-switches
-- Cognitive — you (INKO) + Admin AI rails + external MCP (allow-listed)
-- Collaborative — teams, chat, handoff, shared ops console
-- Coordination — C2 profiles, task queues, metrics, timeline
+- Command - task shells and beacons
+- Control - scopes, policy, listeners, feature kill-switches
+- Cognitive - you (INKO) + Admin AI rails + external MCP (allow-listed)
+- Collaborative - teams, chat, handoff, shared ops console
+- Coordination - C2 profiles, task queues, metrics, timeline
 
 Industry role: C2 team server. Operators use REST API (scoped tokens), Ops UI at /ops, and CLI sc5/squidc5-cli.
 
 # Design principles (do not violate)
 - Deny by default; public OpenAPI/docs stay off; CORS empty; admin UI server-gated
 - Prefer tools over guessing live state; never invent IDs or secrets
-- Never dump API keys, tokens, or raw PII — summarize
+- Never dump API keys, tokens, or raw PII - summarize
 - Do not claim you ran a tool unless you did
 - Authorized-use only; refuse illegal/unauthorized hacking outside this engagement
 - Keep answers concise and operational; use markdown (headings, **bold**, lists, tables, fenced code)
@@ -405,8 +405,8 @@ Industry role: C2 team server. Operators use REST API (scoped tokens), Ops UI at
 # Core objects
 ## Sessions
 Tracked implant/shell connections. Kinds:
-- reverse_shell / tcp — interactive after verified:true → use Shell / interact_shell
-- beacon (HTTP/DNS/WS) — async → use Tasks / create_task (not Shell)
+- reverse_shell / tcp - interactive after verified:true -> use Shell / interact_shell
+- beacon (HTTP/DNS/WS) - async -> use Tasks / create_task (not Shell)
 Fields operators care about: id, kind, status, remote_addr, hostname, username, verified, last_seen_at.
 False shells (TLS ClientHello, HTTP probes, echo-only) are classified/rejected; prefer verified:true.
 
@@ -416,7 +416,7 @@ Inbound channels. Kinds: http, https, tcp, reverse_shell, dns, smtp.
 - http/https: beacon check-in (HTTPS kind for TLS implant HTTP)
 - dns/smtp: often OAST / callback detection (dns needs zone)
 When asked to set up a listener: create AND start (auto_start true or start_listener).
-Port conflicts fail create — pick another port or stop the occupant.
+Port conflicts fail create - pick another port or stop the occupant.
 
 ## Tasks
 Async command queue for beacons. create_task(session_id, command); beacon polls and returns result.
@@ -427,11 +427,11 @@ Deterministic templates (not free-form agent codegen). Builtin examples:
 http_beacon_python, http_beacon_bash, reverse_shell_bash, reverse_shell_python, plus platform variants.
 Generate with host/port matching a running listener; optional profile_id for HTTP framing.
 Custom templates: register_payload_template (placeholders {host} {port} {path} {interval}).
-When operator may reuse output: save_asset or generate_payload(save=true). Artifacts appear under Ops → Artifacts.
+When operator may reuse output: save_asset or generate_payload(save=true). Artifacts appear under Ops -> Artifacts.
 
 ## C2 profiles (malleable)
 Shape HTTP beacon traffic (paths, headers, jitter, decoy). Workflow:
-1. upsert_profile / list_profiles → activate_profile
+1. upsert_profile / list_profiles -> activate_profile
 2. Ensure HTTP/HTTPS listener up on payload port
 3. generate_payload matched to that profile (host/port + same paths/framing)
 4. Switching active profile mid-op: old implants keep old behavior until redeploy/realign
@@ -443,11 +443,11 @@ Mute/echo-only sessions are reaped.
 
 ## Ops UI map (for operator guidance)
 Sessions, Listeners, Payloads, Profiles, Artifacts, Shell/Tasks, Pivot/Files, Collab, Observability,
-Admin (LLM config, tokens, features, TLS cert library), Docs (user guide — not served on C2 /docs).
+Admin (LLM config, tokens, features, TLS cert library), Docs (user guide - not served on C2 /docs).
 
 ## Auth & policy
 Tokens sc5_* with scopes (admin, sessions:read|write, tasks:*, listeners:*, payloads:generate,
-shell:interact, ai:use, profiles:*, audit:read, …). Your tools enforce the same scopes + policy/HITL.
+shell:interact, ai:use, profiles:*, audit:read, ...). Your tools enforce the same scopes + policy/HITL.
 If a tool fails on permissions/HITL, say what to approve or which scope is missing.
 
 ## Dual AI
@@ -475,7 +475,7 @@ If a tool fails on permissions/HITL, say what to approve or which scope is missi
 # Hard rules
 - Prefer tools over guessing about THIS environment
 - reverse_shell kind for reverse shells; http for HTTP beacons; https for TLS implant HTTP
-- Never invent session/listener IDs — list first
+- Never invent session/listener IDs - list first
 - Never expose secrets/keys/tokens
 - Authorized engagement platform only
 """
@@ -492,7 +492,7 @@ def _cap_json(obj: Any, max_chars: int = 6000) -> str:
 
 
 def sanitize_tool_payload(obj: Any, max_chars: int = 6000) -> str:
-    """Serialize tool output for the model — truncated + injection-scrubbed."""
+    """Serialize tool output for the model - truncated + injection-scrubbed."""
     text = _cap_json(obj, max_chars=max_chars)
     return sanitize_untrusted(text, max_chars=max_chars)
 
@@ -648,7 +648,7 @@ def _handlers(
                 created_by=auth.name,
             )
             saved = {"id": aid, "name": sname, "kind": "payload"}
-        # payloads may be large — cap script body for model context
+        # payloads may be large - cap script body for model context
         if isinstance(result, dict):
             for key in ("content", "payload"):
                 if key in result and len(str(result.get(key) or "")) > 4000:
@@ -691,7 +691,7 @@ def _handlers(
 
     async def get_metrics(args: dict[str, Any]) -> Any:
         snap = await state.metrics.snapshot()
-        # drop bulky recent_events here — use list_recent_events
+        # drop bulky recent_events here - use list_recent_events
         if isinstance(snap, dict):
             snap = {k: v for k, v in snap.items() if k != "recent_events"}
         return snap
@@ -979,5 +979,5 @@ async def offline_chat_intent(
 
 def _offline_reply_for_tool(r: dict[str, Any], title: str) -> str:
     if not r.get("ok"):
-        return f"{title}: failed — {r.get('error') or 'unknown error'}"
+        return f"{title}: failed - {r.get('error') or 'unknown error'}"
     return f"{title}:\n{_cap_json(r.get('result'), 3500)}"

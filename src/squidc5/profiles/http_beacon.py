@@ -129,7 +129,7 @@ async def process_beacon_result(state: AppState, payload: dict[str, Any]) -> dic
         raise ValueError("task_id required")
     session_id = payload.get("session_id")
     if not session_id:
-        # C07: bind result to session — look up task and require match when provided
+        # C07: bind result to session - look up task and require match when provided
         t = await state.tasks.get(str(task_id))
         if not t:
             raise PermissionError("Unknown task")

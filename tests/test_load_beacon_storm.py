@@ -1,4 +1,4 @@
-"""Beacon storm load smoke (D04) — lab only."""
+"""Beacon storm load smoke (D04) - lab only."""
 
 from __future__ import annotations
 

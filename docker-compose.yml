@@ -18,13 +18,13 @@ services:
       SQUIDC5_SHELL_AUTO_STABILIZE: ${SQUIDC5_SHELL_AUTO_STABILIZE:-true}
       SQUIDC5_EXPOSE_HEALTH_DETAILS: ${SQUIDC5_EXPOSE_HEALTH_DETAILS:-false}
       SQUIDC5_SECURITY_HEADERS: ${SQUIDC5_SECURITY_HEADERS:-true}
-      # Stage-2 reconnect callback host — set in .env (never commit real IPs)
+      # Stage-2 reconnect callback host - set in .env (never commit real IPs)
       SQUIDC5_PUBLIC_HOST: ${SQUIDC5_PUBLIC_HOST:-}
-      # CORS empty by default — /ops is same-origin
+      # CORS empty by default - /ops is same-origin
     volumes:
       - squidc5-data:/data
     healthcheck:
-      # TLS is on by default — match Dockerfile (unverified localhost probe)
+      # TLS is on by default - match Dockerfile (unverified localhost probe)
       test:
         [
           "CMD",

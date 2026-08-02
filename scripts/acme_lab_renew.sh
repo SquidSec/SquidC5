@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lab ACME helper — authorized environments only. Does not commit secrets.
+# Lab ACME helper - authorized environments only. Does not commit secrets.
 # Requires: certbot (or compatible), nginx/caddy already on the host.
 set -euo pipefail
 

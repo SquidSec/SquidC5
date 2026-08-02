@@ -11,8 +11,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | Yes (current alpha line) |
-| < 0.1   | No |
+| 0.1.x | Yes (current alpha line) |
+| < 0.1 | No |
 
 After **1.0.0**, only the latest minor of the current major is supported with security fixes.
 See CHANGELOG for OPSEC-relevant release notes.

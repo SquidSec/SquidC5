@@ -347,7 +347,7 @@ class Database:
         return cur.rowcount > 0
 
     async def consume_hitl_request(self, request_id: str) -> bool:
-        """H01: single-use — approved → consumed after one successful authorization."""
+        """H01: single-use - approved -> consumed after one successful authorization."""
         cur = await self.execute(
             """UPDATE hitl_requests SET status = 'consumed', resolved_at = COALESCE(resolved_at, ?)
                WHERE id = ? AND status = 'approved'""",

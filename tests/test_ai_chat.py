@@ -1,4 +1,4 @@
-"""Admin AI operator chat — railed tools + offline intents."""
+"""Admin AI operator chat - railed tools + offline intents."""
 
 from __future__ import annotations
 

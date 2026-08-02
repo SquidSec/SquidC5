@@ -1,4 +1,4 @@
-"""Application configuration — env-driven, minimal footprint."""
+"""Application configuration - env-driven, minimal footprint."""
 
 from __future__ import annotations
 
@@ -30,10 +30,10 @@ class Settings(BaseSettings):
     max_body_bytes: int = 1_048_576
     event_buffer_size: int = 500
     default_listener_port: int = 4444
-    # MCP off by default — enable explicitly when external AI is required
+    # MCP off by default - enable explicitly when external AI is required
     mcp_enabled: bool = False
     ai_enabled: bool = True
-    # Local LLM (Ollama-compatible) — only when explicitly enabled
+    # Local LLM (Ollama-compatible) - only when explicitly enabled
     local_llm_enabled: bool = False
     local_llm_base_url: str = "http://127.0.0.1:11434/v1"
     local_llm_model: str = "llama3.2"
@@ -97,7 +97,7 @@ class Settings(BaseSettings):
                 raise ValueError(f"TLS key file not found: {key}")
         if self.shell_auto_stabilize and not (self.public_host or "").strip() and not self.debug:
             # Warn-level only at runtime; hard fail would break many lab installs.
-            # Production operators should set public_host — enforced as soft check in validate().
+            # Production operators should set public_host - enforced as soft check in validate().
             pass
         if self.audit_retention_days < 1:
             raise ValueError("audit_retention_days must be >= 1")
@@ -113,7 +113,7 @@ class Settings(BaseSettings):
         warnings: list[str] = []
         if self.shell_auto_stabilize and not (self.public_host or "").strip():
             warnings.append(
-                "SQUIDC5_PUBLIC_HOST is empty while shell_auto_stabilize is on — "
+                "SQUIDC5_PUBLIC_HOST is empty while shell_auto_stabilize is on - "
                 "stage-2 implants may reconnect to the wrong host"
             )
         if self.tls_enabled and self.tls_cert_file and self.tls_key_file:

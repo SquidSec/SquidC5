@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Skip cleanly until Settings → Secrets → Actions → LLM_API_KEY is set.
+      # Skip cleanly until Settings -> Secrets -> Actions -> LLM_API_KEY is set.
       - name: SquidGate
         if: env.LLM_API_KEY != ''
         uses: SquidSec/SquidGate@v1.0.0-build.4

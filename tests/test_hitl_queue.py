@@ -58,7 +58,7 @@ async def test_client_hitl_approved_does_not_bypass(client, admin_headers):
     )
     assert r_wrong.status_code == 403
 
-    # Same command as original — gets past policy (then 404 no live shell)
+    # Same command as original - gets past policy (then 404 no live shell)
     r2 = await client.post(
         "/api/v1/shell/command",
         headers=headers,

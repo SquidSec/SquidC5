@@ -1,7 +1,7 @@
 # Changelog
 
-All notable changes to SquidC5 are documented here.  
-Format inspired by [Keep a Changelog](https://keepachangelog.com/).  
+All notable changes to SquidC5 are documented here. 
+Format inspired by [Keep a Changelog](https://keepachangelog.com/). 
 **OPSEC notes** call out changes that affect detection surface or defaults.
 
 ## [Unreleased]
