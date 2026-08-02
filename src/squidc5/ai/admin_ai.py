@@ -589,6 +589,260 @@ class AdminAI:
                     ids.append(str(item["name"]))
         return sorted(set(ids), key=str.lower)
 
+    async def chat(
+        self,
+        *,
+        message: str,
+        history: list[dict[str, str]] | None = None,
+        actor: str = "admin",
+        llm_id: str | None = None,
+        state: Any = None,
+        auth: Any = None,
+        max_rounds: int = 6,
+    ) -> dict[str, Any]:
+        """Multi-turn operator chat with allow-listed C5 tool calling.
+
+        Rails: fixed tool catalog, policy/scopes per tool, sanitized I/O,
+        bounded rounds (no open-ended autonomous agent).
+        """
+        import time as _time
+
+        from squidc5.ai.ops_tools import (
+            CHAT_SYSTEM_PROMPT,
+            OPENAI_TOOLS,
+            execute_ops_tool,
+            offline_chat_intent,
+            sanitize_tool_payload,
+        )
+
+        if state is None or auth is None:
+            raise ValueError("chat requires app state and auth context")
+
+        rules = await self.policy.get_rules()
+        admin_ai_rules = rules.get("admin_ai") or {}
+        if not admin_ai_rules.get("sandbox", True):
+            raise RuntimeError("Admin AI sandbox disabled — refusing to run")
+
+        max_chars = int(admin_ai_rules.get("max_untrusted_chars", 4000))
+        max_chars = max(512, min(max_chars, 8000))
+        max_rounds = max(1, min(int(max_rounds or 6), 8))
+        max_tools = 12
+
+        safe_msg = sanitize_untrusted(message or "", max_chars=max_chars)
+        if not safe_msg.strip():
+            raise ValueError("message required")
+
+        t0 = _time.time()
+        self._busy = True
+        self._last.update(
+            {
+                "status": "running",
+                "capability": "chat",
+                "actor": actor,
+                "ok": None,
+                "error": None,
+                "ts": t0,
+                "input_len": len(message or ""),
+                "sanitized_len": len(safe_msg),
+                "result_preview": None,
+            }
+        )
+        await self.db.audit(
+            actor=actor,
+            actor_type="admin_ai",
+            action="ai.admin.chat",
+            details={"input_len": len(message or ""), "history_len": len(history or [])},
+            risk_score=3,
+        )
+        await self.metrics.incr("ai.admin.chat")
+
+        tool_trace: list[dict[str, Any]] = []
+        try:
+            llm = await self._select_llm(llm_id, "recon_assist")
+            if llm is None:
+                offline = await offline_chat_intent(state, auth, safe_msg)
+                if offline:
+                    out = {
+                        "mode": "offline",
+                        "reply": offline["reply"],
+                        "tool_trace": offline.get("tool_trace") or [],
+                    }
+                    self._finish_ok(out, mode="offline", llm=None, t0=t0)
+                    return out
+                out = {
+                    "mode": "offline",
+                    "reply": (
+                        "No LLM configured. Configure a provider under AI → Configure LLM, "
+                        "then I can chat and drive listeners/sessions/payloads with tools.\n\n"
+                        "Offline I can still handle simple phrases like:\n"
+                        "• list sessions / list listeners\n"
+                        "• setup reverse shell listener on 4444\n"
+                        "• metrics / events"
+                    ),
+                    "tool_trace": [],
+                }
+                self._finish_ok(out, mode="offline", llm=None, t0=t0)
+                return out
+
+            messages: list[dict[str, Any]] = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}]
+            for h in (history or [])[-12:]:
+                role = (h.get("role") or "").strip()
+                content = sanitize_untrusted(str(h.get("content") or ""), max_chars=2000)
+                if role in ("user", "assistant") and content.strip():
+                    messages.append({"role": role, "content": content})
+            messages.append({"role": "user", "content": safe_msg})
+
+            tools_used = 0
+            final_text = ""
+            for _round in range(max_rounds):
+                data = await self._call_llm_chat(llm, messages, tools=OPENAI_TOOLS)
+                choice = (data.get("choices") or [{}])[0]
+                msg = choice.get("message") or {}
+                tool_calls = msg.get("tool_calls") or []
+                content = msg.get("content") or ""
+
+                if tool_calls and tools_used < max_tools:
+                    # Append assistant turn with tool_calls
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": content or None,
+                            "tool_calls": tool_calls,
+                        }
+                    )
+                    for tc in tool_calls:
+                        if tools_used >= max_tools:
+                            break
+                        fn = tc.get("function") or {}
+                        name = str(fn.get("name") or "")
+                        raw_args = fn.get("arguments") or "{}"
+                        try:
+                            args = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
+                        except json.JSONDecodeError:
+                            args = {}
+                        if not isinstance(args, dict):
+                            args = {}
+                        result = await execute_ops_tool(state, auth, name, args)
+                        tools_used += 1
+                        tool_trace.append(
+                            {
+                                "tool": name,
+                                "ok": bool(result.get("ok")),
+                                "error": result.get("error"),
+                                "summary": _tool_summary(result),
+                            }
+                        )
+                        tid = tc.get("id") or f"call_{tools_used}"
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tid,
+                                "content": sanitize_tool_payload(result, max_chars=5000),
+                            }
+                        )
+                    continue
+
+                final_text = (content or "").strip()
+                if not final_text and tool_trace:
+                    final_text = "Done. " + "; ".join(
+                        f"{t['tool']}: {'ok' if t['ok'] else t.get('error') or 'fail'}"
+                        for t in tool_trace
+                    )
+                break
+            else:
+                final_text = final_text or (
+                    "Reached tool-round limit. Partial results:\n"
+                    + json.dumps(tool_trace, default=str)[:2000]
+                )
+
+            # Never leave empty
+            if not final_text:
+                final_text = "No response from model."
+
+            await self.db.audit(
+                actor=actor,
+                actor_type="admin_ai",
+                action="ai.admin.chat.completed",
+                details={
+                    "llm_id": llm.get("id"),
+                    "model": llm.get("model"),
+                    "tools_used": tools_used,
+                    "tools": [t.get("tool") for t in tool_trace],
+                },
+                risk_score=3,
+            )
+            await self.metrics.incr("ai.admin.chat_ok")
+            out = {
+                "mode": "llm",
+                "reply": final_text[:12000],
+                "tool_trace": tool_trace,
+                "llm_id": llm.get("id"),
+                "model": llm.get("model"),
+                "provider": llm.get("provider"),
+            }
+            self._finish_ok(out, mode="llm", llm=llm, t0=t0)
+            return out
+        except Exception as exc:
+            await self.metrics.incr("ai.admin.errors")
+            latency = int((_time.time() - t0) * 1000)
+            self._last.update(
+                {
+                    "status": "error",
+                    "ok": False,
+                    "error": str(exc)[:500],
+                    "latency_ms": latency,
+                    "mode": "error",
+                    "capability": "chat",
+                }
+            )
+            self._push_history(dict(self._last))
+            raise
+        finally:
+            self._busy = False
+
+    async def _call_llm_chat(
+        self,
+        llm: dict[str, Any],
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """OpenAI-compatible chat completion (optional tools). Returns raw API JSON."""
+        from squidc5.security.ssrf import validate_llm_base_url
+
+        raw_base = (llm.get("base_url") or "https://api.openai.com/v1").rstrip("/")
+        try:
+            base = validate_llm_base_url(raw_base, allow_private=False)
+        except ValueError as e:
+            raise PermissionError(f"LLM base_url blocked: {e}") from e
+        base = _ensure_openai_compat_root(base, provider=str(llm.get("provider") or ""))
+        model = llm["model"]
+        raw_key = llm.get("api_key_enc") or ""
+        if self.secrets is not None and raw_key:
+            api_key = self.secrets.decrypt(raw_key) or ""
+        else:
+            api_key = raw_key
+
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.35,
+            "max_tokens": 1600,
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+        url = f"{base}/chat/completions"
+        async with httpx.AsyncClient(timeout=90.0, follow_redirects=False) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+            resp.raise_for_status()
+            return resp.json()
+
     def _offline_fallback(self, capability: str, safe_data: str) -> dict[str, Any]:
         if capability == "payload_template":
             choice = "http_beacon_python"
@@ -708,3 +962,18 @@ class AdminAI:
                 "suggestions": ["Compare to profile sleep/jitter", "Check max_missed_checkins"],
             }
         return {"error": "unknown capability"}
+
+
+def _tool_summary(result: dict[str, Any]) -> str:
+    if not result.get("ok"):
+        return str(result.get("error") or "failed")[:200]
+    r = result.get("result")
+    if isinstance(r, dict):
+        if "count" in r:
+            return f"count={r.get('count')}"
+        if "created" in r:
+            c = r.get("created") or {}
+            return f"created id={c.get('id')} port={c.get('port')} status={c.get('status')}"
+        if "id" in r:
+            return f"id={r.get('id')}"
+    return "ok"

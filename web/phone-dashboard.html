@@ -400,7 +400,8 @@
     .ai-fab:hover { background: rgba(233,30,140,0.4); }
     .ai-drawer {
       position: fixed; right: 16px; bottom: calc(var(--bottom-h) + 68px); z-index: 41;
-      width: min(380px, calc(100vw - 24px)); height: min(420px, 50vh);
+      width: min(440px, calc(100vw - 24px));
+      height: min(580px, calc(100dvh - var(--bottom-h) - 90px));
       background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px;
       display: flex; flex-direction: column; box-shadow: 0 16px 48px rgba(0,0,0,0.5);
       overflow: hidden;
@@ -408,17 +409,27 @@
     .ai-drawer.hidden, .ai-fab.hidden { display: none !important; }
     .ai-drawer-head {
       display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-      border-bottom: 1px solid var(--border); font-size: 0.85rem;
+      border-bottom: 1px solid var(--border); font-size: 0.85rem; flex-shrink: 0;
     }
     .ai-drawer-body {
-      flex: 1; overflow: auto; padding: 10px; font-size: 0.8rem; min-height: 0;
+      flex: 1; overflow: auto; padding: 10px; font-size: 0.82rem; min-height: 0;
     }
-    .ai-msg { margin-bottom: 10px; padding: 8px 10px; border-radius: 8px; line-height: 1.4; }
+    .ai-msg { margin-bottom: 10px; padding: 8px 10px; border-radius: 8px; line-height: 1.45; }
     .ai-msg.user { background: rgba(255,255,255,0.04); border: 1px solid var(--border); }
     .ai-msg.bot { background: rgba(233,30,140,0.08); border: 1px solid rgba(233,30,140,0.25); }
     .ai-msg .who { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .ai-msg .tools-used {
+      margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px;
+    }
+    .ai-msg .tool-chip {
+      font: 600 0.62rem/1 var(--mono); padding: 3px 6px; border-radius: 999px;
+      background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--muted);
+    }
+    .ai-msg .tool-chip.ok { color: var(--ok); border-color: rgba(52,211,153,0.35); }
+    .ai-msg .tool-chip.bad { color: var(--bad); border-color: rgba(248,113,113,0.35); }
     .ai-drawer-foot {
       border-top: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 6px;
+      flex-shrink: 0;
     }
     .ai-drawer-foot select, .ai-drawer-foot textarea { width: 100%; }
     @media (max-width: 900px) {
@@ -600,9 +611,11 @@
       <div class="ai-drawer-body" id="aiChatLog"></div>
       <div class="ai-drawer-foot">
         <select id="aiLlmGlobal" title="LLM connection"></select>
-        <select id="aiCapGlobal" title="Capability"></select>
-        <textarea id="aiPromptGlobal" rows="2" placeholder="Ask the sandboxed Admin AI…"></textarea>
-        <button type="button" class="primary" id="aiSendGlobal">Send</button>
+        <textarea id="aiPromptGlobal" rows="3" placeholder="Ask anything — e.g. list sessions, setup reverse shell on 4444…"></textarea>
+        <div class="row" style="margin:0;gap:6px">
+          <button type="button" class="primary" id="aiSendGlobal" style="flex:1">Send</button>
+          <button type="button" id="aiClearGlobal" title="Clear chat">Clear</button>
+        </div>
       </div>
     </div>
 
