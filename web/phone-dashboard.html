@@ -297,6 +297,17 @@
       width: min(420px, 100%); padding: 16px; max-height: 90dvh; overflow: auto;
     }
     .modal h3 { margin: 0 0 8px; font-size: 1rem; }
+    .qr-wrap {
+      background: #fff; border-radius: 12px; padding: 14px;
+      width: fit-content; margin: 12px auto; min-height: 200px; min-width: 200px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .qr-wrap img, .qr-wrap canvas { display: block; max-width: 100%; }
+    .share-url {
+      font: 0.65rem/1.35 var(--mono); color: var(--muted); word-break: break-all;
+      background: #0e0e14; border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px 10px; margin: 8px 0; max-height: 72px; overflow: auto;
+    }
     .empty-state {
       text-align: center; padding: 32px 16px; color: var(--muted);
     }
@@ -345,6 +356,7 @@
       <div class="spacer"></div>
       <span class="pill" id="statusBadge">offline</span>
       <span class="pill live hidden" id="roleBadge">—</span>
+      <button type="button" id="btnPhoneQr" title="Phone QR — scan to open ops and auto-connect">Phone QR</button>
       <button type="button" id="btnConnect" title="Connection settings">Connect</button>
       <button type="button" id="btnRefresh" title="Refresh data">↻</button>
     </header>
@@ -441,6 +453,26 @@
       </div>
     </div>
   </div>
+
+  <div class="modal-bg" id="qrModal" role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+    <div class="modal">
+      <h3 id="qrTitle">Phone QR</h3>
+      <p class="muted" style="font-size:0.85rem;margin:0">
+        Scan with your phone camera. Opens <code>/ops</code> and auto-fills server URL + token (hash only — not sent to the server).
+      </p>
+      <div class="qr-wrap" id="qrBox"><span class="muted">Generating…</span></div>
+      <div class="share-url mono" id="qrUrl" title="Share URL"></div>
+      <p class="muted" style="font-size:0.75rem;margin:0 0 8px">
+        Treat like a password. Anyone with this QR can use your token until you revoke it.
+      </p>
+      <div class="row">
+        <button type="button" class="primary" id="qrCopy">Copy link</button>
+        <button type="button" id="qrClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/ops/assets/qrcode.min.js"></script>
 
   <!-- Bridge mount for legacy hooks; content lives in views -->
   <div id="adminMount" class="hidden" aria-hidden="true"></div>
@@ -739,21 +771,98 @@
     return h + "h " + m + "m";
   }
 
-  // Hash import for phone QR
+  // Hash import for phone QR — auto-connect
+  let importedFromQr = false;
   try {
     if (location.hash && location.hash.indexOf("sc5=") >= 0) {
       const raw = location.hash.replace(/^#/, "").replace(/^sc5=/, "");
-      const json = JSON.parse(decodeURIComponent(escape(atob(raw.replace(/-/g, "+").replace(/_/g, "/")))));
+      let b64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      const json = JSON.parse(decodeURIComponent(escape(atob(b64))));
       if (json.url) localStorage.setItem(KEYS.url, String(json.url).replace(/\/$/, ""));
-      if (json.token) localStorage.setItem(KEYS.token, json.token);
+      if (json.token) localStorage.setItem(KEYS.token, String(json.token));
+      if (json.refresh) localStorage.setItem(KEYS.refresh, String(json.refresh));
+      importedFromQr = !!(json.url && json.token);
       history.replaceState(null, "", location.pathname + location.search);
     }
   } catch (_) {}
+
+  function b64urlEncode(obj) {
+    const s = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+    return s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+  function buildPhoneShareUrl() {
+    const c = cfg();
+    const base = (apiBase() || c.url || "").replace(/\/$/, "");
+    if (!base) throw new Error("Set server URL first (Connect)");
+    if (!c.token) throw new Error("Set API token first (Connect)");
+    // Prefer same-origin /ops path so phone hits this teamserver
+    let opsBase = base;
+    try {
+      const u = new URL(base);
+      opsBase = u.origin;
+    } catch (_) {}
+    const payload = {
+      url: base,
+      token: c.token,
+      refresh: c.refresh || 10,
+    };
+    return opsBase + "/ops#sc5=" + b64urlEncode(payload);
+  }
+  function openQrModal() {
+    const box = $("qrBox");
+    const urlEl = $("qrUrl");
+    box.innerHTML = '<span class="muted">Generating…</span>';
+    urlEl.textContent = "";
+    try {
+      const share = buildPhoneShareUrl();
+      urlEl.textContent = share;
+      box.innerHTML = "";
+      if (typeof QRCode === "undefined") {
+        box.innerHTML = '<span class="muted">QR library missing — copy the link below.</span>';
+      } else {
+        // qrcodejs clears and renders into element
+        // eslint-disable-next-line no-new
+        new QRCode(box, {
+          text: share,
+          width: 220,
+          height: 220,
+          colorDark: "#0b0b0f",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+      }
+      $("qrModal").classList.add("show");
+    } catch (e) {
+      showError(String(e.message || e));
+      openModal();
+    }
+  }
+  function closeQrModal() { $("qrModal").classList.remove("show"); }
+  $("btnPhoneQr").onclick = openQrModal;
+  $("qrClose").onclick = closeQrModal;
+  $("qrModal").addEventListener("click", (e) => { if (e.target === $("qrModal")) closeQrModal(); });
+  $("qrCopy").onclick = async () => {
+    try {
+      const t = $("qrUrl").textContent || buildPhoneShareUrl();
+      await navigator.clipboard.writeText(t);
+      showOk("Link copied");
+    } catch (_) {
+      try {
+        const t = $("qrUrl").textContent || "";
+        const ta = document.createElement("textarea");
+        ta.value = t; document.body.appendChild(ta); ta.select();
+        document.execCommand("copy"); document.body.removeChild(ta);
+        showOk("Link copied");
+      } catch (e2) { showError("Copy failed"); }
+    }
+  };
 
   loadForm();
   const savedView = (() => { try { return localStorage.getItem("sc5_ops_view"); } catch (_) { return null; } })();
   if (cfg().token) {
     connect().then(() => {
+      if (importedFromQr) showOk("Phone link applied — connected");
       if (savedView && VIEWS[savedView]) setView(savedView);
     }).catch(() => openModal());
   } else {
@@ -763,6 +872,7 @@
   // Expose for ops-admin
   window.__SC5_api = api;
   window.__SC5_setView = setView;
+  window.__SC5_buildPhoneShareUrl = buildPhoneShareUrl;
 })();
   </script>
 </body>
