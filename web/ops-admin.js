@@ -113,19 +113,19 @@
 
   /** OpenAI-compatible providers (chat/completions + /models) */
   const LLM_PROVIDERS = [
-    { id: "xai", label: "xAI (Grok)", base: "https://api.x.ai/v1", model: "grok-3", needKey: true },
-    { id: "openai", label: "OpenAI", base: "https://api.openai.com/v1", model: "gpt-4o-mini", needKey: true },
-    { id: "groq", label: "Groq", base: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile", needKey: true },
-    { id: "openrouter", label: "OpenRouter", base: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", needKey: true },
-    { id: "together", label: "Together AI", base: "https://api.together.xyz/v1", model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", needKey: true },
-    { id: "deepseek", label: "DeepSeek", base: "https://api.deepseek.com/v1", model: "deepseek-chat", needKey: true },
-    { id: "mistral", label: "Mistral", base: "https://api.mistral.ai/v1", model: "mistral-small-latest", needKey: true },
-    { id: "fireworks", label: "Fireworks", base: "https://api.fireworks.ai/inference/v1", model: "accounts/fireworks/models/llama-v3p1-8b-instruct", needKey: true },
-    { id: "perplexity", label: "Perplexity", base: "https://api.perplexity.ai", model: "sonar", needKey: true },
-    { id: "gemini", label: "Google Gemini (OpenAI compat)", base: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash", needKey: true },
-    { id: "ollama", label: "Ollama (localhost)", base: "http://127.0.0.1:11434/v1", model: "llama3.2", needKey: false },
-    { id: "lmstudio", label: "LM Studio (localhost)", base: "http://127.0.0.1:1234/v1", model: "local-model", needKey: false },
-    { id: "custom", label: "Custom OpenAI-compatible", base: "", model: "", needKey: true },
+    { id: "xai", label: "xAI (Grok)", base: "https://api.x.ai/v1", model: "grok-3", needKey: true, keyUrl: "https://console.x.ai/" },
+    { id: "openai", label: "OpenAI", base: "https://api.openai.com/v1", model: "gpt-4o-mini", needKey: true, keyUrl: "https://platform.openai.com/api-keys" },
+    { id: "groq", label: "Groq", base: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile", needKey: true, keyUrl: "https://console.groq.com/keys" },
+    { id: "openrouter", label: "OpenRouter", base: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", needKey: true, keyUrl: "https://openrouter.ai/keys" },
+    { id: "together", label: "Together AI", base: "https://api.together.xyz/v1", model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", needKey: true, keyUrl: "https://api.together.xyz/settings/api-keys" },
+    { id: "deepseek", label: "DeepSeek", base: "https://api.deepseek.com/v1", model: "deepseek-chat", needKey: true, keyUrl: "https://platform.deepseek.com/api_keys" },
+    { id: "mistral", label: "Mistral", base: "https://api.mistral.ai/v1", model: "mistral-small-latest", needKey: true, keyUrl: "https://console.mistral.ai/api-keys/" },
+    { id: "fireworks", label: "Fireworks", base: "https://api.fireworks.ai/inference/v1", model: "accounts/fireworks/models/llama-v3p1-8b-instruct", needKey: true, keyUrl: "https://fireworks.ai/account/api-keys" },
+    { id: "perplexity", label: "Perplexity", base: "https://api.perplexity.ai", model: "sonar", needKey: true, keyUrl: "https://www.perplexity.ai/settings/api" },
+    { id: "gemini", label: "Google Gemini (OpenAI compat)", base: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash", needKey: true, keyUrl: "https://aistudio.google.com/apikey" },
+    { id: "ollama", label: "Ollama (localhost)", base: "http://127.0.0.1:11434/v1", model: "llama3.2", needKey: false, keyUrl: "" },
+    { id: "lmstudio", label: "LM Studio (localhost)", base: "http://127.0.0.1:1234/v1", model: "local-model", needKey: false, keyUrl: "" },
+    { id: "custom", label: "Custom OpenAI-compatible", base: "", model: "", needKey: true, keyUrl: "" },
   ];
   const LLM_PROVIDER_MAP = Object.fromEntries(LLM_PROVIDERS.map((p) => [p.id, p]));
 
@@ -149,6 +149,9 @@
         </div>
         <div class="full"><label>API key</label>
           <input id="${prefix}Key" type="password" placeholder="xai-… / sk-… (never shown again)" autocomplete="off" />
+          <div class="row" style="margin-top:6px">
+            <button type="button" id="${prefix}KeyLink" title="Open provider API keys page">Get API key ↗</button>
+          </div>
         </div>
         <div class="full" id="${prefix}ModelWrap">
           <label>Model</label>
@@ -263,6 +266,15 @@
         const prov = el(prefix + "Provider").value;
         if (key || (LLM_PROVIDER_MAP[prov] || {}).needKey === false) fetchModels();
       };
+    }
+    if (el(prefix + "KeyLink")) {
+      const go = () => {
+        const id = el(prefix + "Provider")?.value || "";
+        const u = (LLM_PROVIDER_MAP[id] || {}).keyUrl;
+        if (!u) return showError("No key page for this provider — use their console");
+        window.open(u, "_blank", "noopener,noreferrer");
+      };
+      el(prefix + "KeyLink").onclick = go;
     }
     if (el(prefix + "Key")) {
       let t = null;
@@ -759,8 +771,10 @@
                   <select id="lisKind">
                     <option value="reverse_shell">reverse_shell</option>
                     <option value="http">http</option>
+                    <option value="https">https (TLS)</option>
                     <option value="tcp">tcp</option>
                     <option value="dns">dns</option>
+                    <option value="smtp">smtp</option>
                   </select>
                 </div>
                 <div class="full"><label>DNS zone (dns only)</label><input id="lisZone" placeholder="oast.example.com" /></div>
@@ -794,7 +808,10 @@
       const port = Number(el("lisPort").value);
       const kind = el("lisKind").value;
       const zone = (el("lisZone").value || "").trim();
-      if (!name || !port) throw new Error("Name and port required");
+      if (!name) throw new Error("Name required");
+      if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Port must be an integer 1–65535");
+      const taken = (cache.listeners || []).find((L) => Number(L.port) === port && (L.host || "0.0.0.0") === "0.0.0.0");
+      if (taken) throw new Error("Port " + port + " already used by " + (taken.name || taken.id));
       const config = kind === "dns" && zone ? { zone } : {};
       const created = await api("POST", "/api/v1/listeners", { name, port, kind, host: "0.0.0.0", config });
       await api("POST", `/api/v1/listeners/${created.id}/start`);
@@ -836,9 +853,10 @@
   }
 
   /* —— Payloads —— */
-  function renderPayloadsView() {
+  function renderPayloadsView(force) {
     const root = el("view-payloads");
     if (!root) return;
+    if (!force && viewBuilt.payloads && root.querySelector("#payTpl")) return;
     const host = (() => { try { return location.hostname || "127.0.0.1"; } catch (_) { return "127.0.0.1"; } })();
     root.innerHTML = `
       <div class="work-panel" style="min-height:360px">
@@ -867,6 +885,7 @@
         </div>
       </div>
     `;
+    viewBuilt.payloads = true;
     if (el("payGen")) el("payGen").onclick = async () => {
       try {
         const r = await api("POST", "/api/v1/payloads/generate", {
@@ -889,9 +908,10 @@
   }
 
   /* —— Post-ex —— */
-  function renderPostexView() {
+  function renderPostexView(force) {
     const root = el("view-postex");
     if (!root) return;
+    if (!force && viewBuilt.postex && root.children.length) return;
     root.innerHTML = `
       <p class="muted" style="margin:0 0 10px;font-size:0.85rem">
         Target session: <strong class="mono" id="pxSid">${esc(selectedId || "(none — pick in Sessions)")}</strong>
@@ -924,6 +944,7 @@
         </div>
       </div>
     `;
+    viewBuilt.postex = true;
     const needSid = () => {
       if (!selectedId) throw new Error("Select a session in Sessions first");
       return selectedId;
@@ -965,9 +986,10 @@
   }
 
   /* —— Collab —— */
-  function renderCollabView() {
+  function renderCollabView(force) {
     const root = el("view-collab");
     if (!root) return;
+    if (!force && viewBuilt.collab && root.children.length) return;
     root.innerHTML = `
       <div class="form-grid">
         <div class="work-panel">
@@ -1004,6 +1026,7 @@
         </div>
       </div>
     `;
+    viewBuilt.collab = true;
     const out = (id, r) => {
       const n = el(id);
       n.textContent = typeof r === "string" ? r : JSON.stringify(r, null, 2);
@@ -1060,9 +1083,10 @@
   }
 
   /* —— Observe —— */
-  function renderObserveView() {
+  function renderObserveView(force) {
     const root = el("view-observe");
     if (!root) return;
+    if (!force && viewBuilt.observe && root.children.length) return;
     root.innerHTML = `
       <div class="toolbar">
         <button type="button" class="primary" id="obMetrics">Metrics</button>
@@ -1073,6 +1097,7 @@
       </div>
       <div class="outbox empty" id="obOut" style="max-height:480px">—</div>
     `;
+    viewBuilt.observe = true;
     const out = async (path) => {
       try {
         const r = await api("GET", path);
@@ -1300,10 +1325,49 @@
 
   function rebuildAiChatDom() {
     if (el("aiChatLog")) el("aiChatLog").innerHTML = "";
+    if (!aiChatHistory.length) {
+      renderInkoStarters();
+      return;
+    }
     aiChatHistory.forEach((m) => {
       const who = m.role === "user" ? "user" : "bot";
       appendAiChat(who, m.content, m.tools || null);
     });
+  }
+
+
+  const INKO_STARTERS = [
+    { t: "Sessions", q: "List my active sessions and summarize kind, host, and verified status." },
+    { t: "Listeners", q: "List all listeners with port, kind, and running status." },
+    { t: "Setup rev shell", q: "Setup a reverse shell listener on port 4444 and start it." },
+    { t: "Events", q: "Show recent events from the live buffer." },
+    { t: "Metrics", q: "Give me a quick metrics snapshot of this teamserver." },
+    { t: "Payloads", q: "List payload templates I can generate." },
+    { t: "Audit", q: "Show the latest audit log entries." },
+    { t: "Save tip", q: "When you generate a payload, save it to the asset library with save=true so I can reuse it." },
+  ];
+
+  function renderInkoStarters() {
+    const log = el("aiChatLog");
+    if (!log) return;
+    if (aiChatHistory.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "inko-starters";
+    wrap.id = "inkoStarters";
+    INKO_STARTERS.forEach((s) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "inko-starter";
+      b.innerHTML = "<strong></strong><span></span>";
+      b.querySelector("strong").textContent = s.t;
+      b.querySelector("span").textContent = s.q;
+      b.onclick = async () => {
+        if (aiBusy) return;
+        await runAiChat(s.q);
+      };
+      wrap.appendChild(b);
+    });
+    log.appendChild(wrap);
   }
 
   function clearAiChat() {
@@ -1312,7 +1376,8 @@
     persistAiHistory();
     removeAiPending();
     if (el("aiChatLog")) el("aiChatLog").innerHTML = "";
-    showOk("Chat cleared");
+    renderInkoStarters();
+    showOk("New chat");
   }
 
   function takeInputValue(textareaId) {
@@ -1365,11 +1430,13 @@
     }
   }
 
-  function renderAiView() {
+  function renderAiView(force) {
     const root = el("view-ai");
     if (!root) return;
+    if (!force && viewBuilt.ai && root.children.length) return;
     if (!can("ai:use") && !can("admin")) {
       root.innerHTML = `<div class="empty-state"><strong>INKO locked</strong>Need <code>ai:use</code> scope.</div>`;
+      viewBuilt.ai = true;
       return;
     }
     const CAP_CARDS = [
@@ -1522,6 +1589,53 @@
       if (e.key === "Escape" && drawer.classList.contains("open")) openAiDrawer(false);
     });
     if (el("aiClearGlobal")) el("aiClearGlobal").onclick = () => clearAiChat();
+    if (el("aiNewChat")) el("aiNewChat").onclick = () => clearAiChat();
+    // Resize INKO drawer width
+    (function bindInkoResize() {
+      const handle = el("aiDrawerResize");
+      const drawer = el("aiDrawer");
+      if (!handle || !drawer || handle.dataset.bound) return;
+      handle.dataset.bound = "1";
+      try {
+        const w = parseInt(localStorage.getItem("sc5_inko_w") || "", 10);
+        if (w >= 320 && w <= Math.min(900, window.innerWidth)) {
+          document.documentElement.style.setProperty("--inko-w", w + "px");
+        }
+      } catch (_) {}
+      let active = false;
+      const start = (e) => {
+        if (window.matchMedia("(max-width: 900px)").matches) return;
+        active = true;
+        handle.classList.add("dragging");
+        e.preventDefault();
+        const move = (ev) => {
+          if (!active) return;
+          const pt = ev.touches ? ev.touches[0] : ev;
+          const w = Math.max(320, Math.min(window.innerWidth - 80, window.innerWidth - pt.clientX));
+          document.documentElement.style.setProperty("--inko-w", Math.round(w) + "px");
+        };
+        const end = () => {
+          active = false;
+          handle.classList.remove("dragging");
+          window.removeEventListener("mousemove", move);
+          window.removeEventListener("mouseup", end);
+          window.removeEventListener("touchmove", move);
+          window.removeEventListener("touchend", end);
+          try {
+            const cur = getComputedStyle(document.documentElement).getPropertyValue("--inko-w").trim();
+            const n = parseInt(cur, 10);
+            if (n) localStorage.setItem("sc5_inko_w", String(n));
+          } catch (_) {}
+        };
+        window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", end);
+        window.addEventListener("touchmove", move, { passive: false });
+        window.addEventListener("touchend", end);
+      };
+      handle.addEventListener("mousedown", start);
+      handle.addEventListener("touchstart", start, { passive: false });
+    })();
+
     const sendGlobal = async () => {
       if (aiBusy) return;
       const prompt = takeInputValue("aiPromptGlobal");
@@ -1540,9 +1654,10 @@
     }
   }
 
-  function renderAdminView() {
+  function renderAdminView(force) {
     const root = el("view-admin");
     if (!root) return;
+    if (!force && viewBuilt.admin && root.children.length) return;
     if (!can("admin") && !can("tokens:manage") && !can("policy:manage")) {
       root.innerHTML = '<div class="empty-state"><strong>Admin area</strong>Requires admin or manage scopes.</div>';
       return;
@@ -1594,13 +1709,48 @@
             </div>
           </div>
         </div>
+        <div class="work-panel">
+          <div class="wp-head">Your actor name</div>
+          <div class="wp-body">
+            <p class="muted" style="font-size:0.78rem;margin:0 0 8px">Shown in collab, audit, and the ops chrome. Renames this API token.</p>
+            <label>Actor / display name</label>
+            <input id="adActorName" placeholder="operator-1" value="${esc(state.actor || "")}" />
+            <div class="row"><button type="button" class="primary" id="adActorSave">Save name</button></div>
+          </div>
+        </div>
+        ${can("admin") ? `
+        <div class="work-panel">
+          <div class="wp-head">TLS certificates</div>
+          <div class="wp-body">
+            <p class="muted" style="font-size:0.78rem;margin:0 0 8px">Upload PEM fullchain + private key. Activate copies to server TLS material (restart required).</p>
+            <label>Label</label><input id="tlsLabel" placeholder="letsencrypt-prod" />
+            <label>Certificate PEM (fullchain)</label>
+            <textarea id="tlsCert" rows="4" placeholder="-----BEGIN CERTIFICATE-----" class="mono" style="font-size:0.72rem"></textarea>
+            <label>Private key PEM</label>
+            <textarea id="tlsKey" rows="4" placeholder="-----BEGIN PRIVATE KEY-----" class="mono" style="font-size:0.72rem"></textarea>
+            <div class="row">
+              <button type="button" class="primary" id="tlsUpload">Upload</button>
+              <button type="button" id="tlsRefresh">Refresh list</button>
+            </div>
+            <div class="outbox empty" id="tlsOut" style="max-height:240px">—</div>
+          </div>
+        </div>` : ""}
         ${(can("llm:manage") || can("admin")) ? `
         <div class="work-panel admin-llm">
           <div class="wp-head">Configure LLM (BYO)</div>
           <div class="wp-body">${llmFormHtml("adLlm")}</div>
         </div>` : ""}
+        ${(can("payloads:generate") || can("admin")) ? `
+        <div class="work-panel">
+          <div class="wp-head">Saved assets (INKO / payloads)</div>
+          <div class="wp-body">
+            <div class="row"><button type="button" id="astRefresh">List assets</button></div>
+            <div class="outbox empty" id="astOut" style="max-height:280px">—</div>
+          </div>
+        </div>` : ""}
       </div>
     `;
+    viewBuilt.admin = true;
     if (can("llm:manage") || can("admin")) {
       bindLlmForm("adLlm");
       window.__SC5_refreshLlms = async () => {
@@ -1609,6 +1759,78 @@
         fillLlmSelect(el("aiLlmPick"), llms, loadSel("sc5_ops_llm") || "");
       };
     }
+    if (el("adActorSave")) el("adActorSave").onclick = async () => {
+      try {
+        const name = (el("adActorName").value || "").trim();
+        if (!name) return showError("Name required");
+        const r = await api("PUT", "/api/v1/me", { name });
+        state.actor = r.actor || name;
+        if (el("roleBadge")) el("roleBadge").textContent = can("admin") ? "admin" : state.actor;
+        showOk("Actor name updated");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    async function loadTls() {
+      if (!el("tlsOut")) return;
+      try {
+        const r = await api("GET", "/api/v1/tls/certs");
+        const certs = r.certs || [];
+        el("tlsOut").classList.remove("empty");
+        if (!certs.length) {
+          el("tlsOut").textContent = "No uploaded certificates yet.";
+          return;
+        }
+        el("tlsOut").innerHTML = certs.map((c) => `
+          <div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+            <strong>${esc(c.label || c.id)}</strong> ${c.active ? '<span class="pill ok">active</span>' : ""}
+            <span class="mono muted" style="font-size:0.7rem"> ${esc(c.id)}</span>
+            <div class="row" style="margin-top:4px">
+              ${!c.active ? `<button type="button" data-tls-act="${esc(c.id)}" class="primary">Activate</button>` : ""}
+              ${!c.active ? `<button type="button" data-tls-del="${esc(c.id)}" class="danger">Delete</button>` : ""}
+            </div>
+          </div>`).join("");
+        el("tlsOut").querySelectorAll("[data-tls-act]").forEach((b) => {
+          b.onclick = async () => {
+            try {
+              const r2 = await api("POST", `/api/v1/tls/certs/${b.getAttribute("data-tls-act")}/activate`);
+              el("tlsOut").textContent = JSON.stringify(r2, null, 2);
+              showOk("Activated — restart squidc5 to serve new TLS");
+              loadTls();
+            } catch (e) { showError(String(e.message || e)); }
+          };
+        });
+        el("tlsOut").querySelectorAll("[data-tls-del]").forEach((b) => {
+          b.onclick = async () => {
+            try {
+              await api("DELETE", `/api/v1/tls/certs/${b.getAttribute("data-tls-del")}`);
+              showOk("Deleted");
+              loadTls();
+            } catch (e) { showError(String(e.message || e)); }
+          };
+        });
+      } catch (e) { showError(String(e.message || e)); }
+    }
+    if (el("tlsUpload")) el("tlsUpload").onclick = async () => {
+      try {
+        const r = await api("POST", "/api/v1/tls/certs", {
+          label: (el("tlsLabel").value || "uploaded").trim(),
+          cert_pem: el("tlsCert").value || "",
+          key_pem: el("tlsKey").value || "",
+        });
+        showOk("Certificate uploaded: " + (r.id || ""));
+        if (el("tlsCert")) el("tlsCert").value = "";
+        if (el("tlsKey")) el("tlsKey").value = "";
+        loadTls();
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("tlsRefresh")) el("tlsRefresh").onclick = () => loadTls();
+    if (can("admin")) loadTls();
+    if (el("astRefresh")) el("astRefresh").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/assets?limit=50");
+        el("astOut").classList.remove("empty");
+        el("astOut").textContent = JSON.stringify(r.assets || r, null, 2);
+      } catch (e) { showError(String(e.message || e)); }
+    };
     function selectedScopes() {
       return Array.from(document.querySelectorAll(".ad-scope:checked")).map((c) => c.value);
     }
@@ -1647,15 +1869,16 @@
 
   /* —— View router —— */
   function renderView(name) {
+    // Soft by default — preserve form focus/values; only build once per view
     switch (name) {
-      case "sessions": renderSessionsView(true); break;
-      case "listeners": renderListenersView(true); break;
-      case "payloads": renderPayloadsView(); break;
-      case "postex": renderPostexView(); break;
-      case "collab": renderCollabView(); break;
-      case "ai": renderAiView(); break;
-      case "observe": renderObserveView(); break;
-      case "admin": renderAdminView(); break;
+      case "sessions": renderSessionsView(false); break;
+      case "listeners": renderListenersView(false); break;
+      case "payloads": renderPayloadsView(false); break;
+      case "postex": renderPostexView(false); break;
+      case "collab": renderCollabView(false); break;
+      case "ai": renderAiView(false); break;
+      case "observe": renderObserveView(false); break;
+      case "admin": renderAdminView(false); break;
       default: break;
     }
     setPageDocs(name || "dashboard");
@@ -1674,22 +1897,28 @@
   window.__SC5_onRefresh = (data) => {
     if (data.sessions) cache.sessions = data.sessions;
     if (data.listeners) cache.listeners = data.listeners;
-    // Soft update — do not wipe selection or rebuild forms
+    const ae = document.activeElement;
+    const typing = ae && (
+      ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || ae.isContentEditable
+    );
+    // Soft update — never rebuild forms; skip panels while user is typing
     if (currentIs("sessions")) {
       renderSessionsView(false);
-      if (el("tskList")) loadTasksPanel();
+      if (el("tskList") && !typing) loadTasksPanel();
     }
     if (currentIs("listeners")) renderListenersView(false);
-    if (el("pxSid")) el("pxSid").textContent = selectedId || "(none — pick in Sessions)";
-    // Restore row highlights without full context rebuild if possible
+    if (el("pxSid") && !typing) el("pxSid").textContent = selectedId || "(none — pick in Sessions)";
     document.querySelectorAll("tr[data-sid]").forEach((tr) => {
       tr.classList.toggle("selected", tr.getAttribute("data-sid") === selectedId);
     });
     document.querySelectorAll("tr[data-lid]").forEach((tr) => {
       tr.classList.toggle("selected", tr.getAttribute("data-lid") === selectedListenerId);
     });
-    // Only refresh context metadata if selection still valid
-    if (selectedId) renderContext(false);
+    // Context metadata only when not focused inside context form
+    if (selectedId) {
+      const inCtx = ae && el("ctxBody") && el("ctxBody").contains(ae);
+      if (!inCtx && !typing) renderContext(false);
+    }
   };
   function currentIs(name) {
     const v = el("view-" + name);

@@ -520,7 +520,8 @@
     .ai-backdrop.show { display: block; }
     .ai-drawer {
       position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
-      width: min(440px, 100vw);
+      width: var(--inko-w, min(440px, 100vw));
+      max-width: 100vw;
       height: 100dvh; height: 100svh;
       background: var(--bg2); border-left: 1px solid var(--border2); border-radius: 0;
       display: flex; flex-direction: column;
@@ -535,10 +536,42 @@
       pointer-events: auto;
     }
     .ai-drawer.hidden { display: none !important; }
+    .ai-drawer-resize {
+      position: absolute; left: 0; top: 0; bottom: 0; width: 8px;
+      cursor: ew-resize; z-index: 2; touch-action: none;
+    }
+    .ai-drawer-resize::after {
+      content: ""; position: absolute; left: 2px; top: 50%;
+      width: 3px; height: 40px; margin-top: -20px; border-radius: 999px;
+      background: rgba(233,30,140,0.4);
+    }
+    .ai-drawer-resize:hover::after, .ai-drawer-resize.dragging::after {
+      background: rgba(244,114,182,0.9);
+    }
     .ai-drawer-head {
       display: flex; align-items: flex-start; gap: 8px; padding: 12px 12px 10px;
       border-bottom: 1px solid var(--border); font-size: 0.85rem; flex-shrink: 0;
       padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    }
+    .inko-starters {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 4px 0 8px;
+    }
+    .inko-starter {
+      text-align: left; padding: 10px; border-radius: 10px;
+      border: 1px solid var(--border); background: rgba(233,30,140,0.08);
+      font-size: 0.75rem; line-height: 1.35; color: var(--text);
+    }
+    .inko-starter strong { display: block; color: var(--pink2); margin-bottom: 4px; font-size: 0.78rem; }
+    .inko-starter:hover { border-color: rgba(233,30,140,0.45); background: rgba(233,30,140,0.14); }
+    body.kb-open .main-body,
+    body.kb-open .ctx-body {
+      padding-bottom: calc(24px + var(--kb-inset, 0px));
+    }
+    body.kb-open .ai-drawer-foot {
+      padding-bottom: calc(12px + var(--kb-inset, 0px));
+    }
+    body.kb-open .ai-drawer-body {
+      padding-bottom: 8px;
     }
     .ai-drawer-head .inko-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .ai-drawer-body {
@@ -990,23 +1023,25 @@
     <!-- INKO — Intelligent Neural Kinetic Operator (top-bar flyout) -->
     <div id="aiBackdrop" class="ai-backdrop" hidden aria-hidden="true"></div>
     <aside id="aiDrawer" class="ai-drawer hidden" aria-label="INKO chat" aria-hidden="true">
+      <div class="ai-drawer-resize" id="aiDrawerResize" title="Drag to resize INKO" role="separator" aria-orientation="vertical"></div>
       <div class="ai-drawer-head">
         <div class="inko-titles">
           <strong class="inko-brand-full"><span class="inko-acronym">◈ INKO</span></strong>
           <span class="muted" style="font-size:0.72rem;font-weight:600;line-height:1.25">Intelligent Neural Kinetic Operator</span>
         </div>
+        <button type="button" id="aiNewChat" title="Start a new chat" style="flex-shrink:0">New chat</button>
         <a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#inko-intelligent-neural-kinetic-operator" target="_blank" rel="noopener noreferrer" style="font-size:0.7rem;flex-shrink:0">Docs</a>
         <button type="button" id="aiDrawerClose" style="margin-left:4px;flex-shrink:0" title="Close INKO" aria-label="Close INKO">✕</button>
       </div>
       <div class="ai-drawer-body" id="aiChatLog"></div>
-      <div class="ai-drawer-foot">
+      <div class="ai-drawer-foot" id="aiDrawerFoot">
         <select id="aiLlmGlobal" title="LLM connection"></select>
         <textarea id="aiPromptGlobal" rows="3" placeholder="Ask INKO anything - list sessions, spin up a listener…"></textarea>
         <div class="row" style="margin:0;gap:6px">
           <button type="button" class="primary" id="aiSendGlobal" style="flex:1">Send</button>
           <button type="button" id="aiClearGlobal" title="Clear chat">Clear</button>
         </div>
-        <p class="muted" style="margin:0;font-size:0.62rem">Enter to send · Shift+Enter newline</p>
+        <p class="muted" style="margin:0;font-size:0.62rem">Enter to send · Shift+Enter newline · drag left edge to resize</p>
       </div>
     </aside>
 
@@ -1049,6 +1084,8 @@
       <input id="url" type="url" placeholder="https://HOST:8443" autocomplete="off" />
       <label for="token">API token</label>
       <input id="token" type="password" placeholder="sc5_…" autocomplete="off" />
+      <label for="actorName">Actor display name (optional)</label>
+      <input id="actorName" type="text" placeholder="Leave blank to keep token name" autocomplete="nickname" />
       <label for="refresh">Poll interval (sec)</label>
       <input id="refresh" type="number" min="5" max="120" value="10" />
       <div class="row" style="margin-top:14px">
@@ -1382,6 +1419,16 @@
       if (timer) clearInterval(timer);
       timer = setInterval(() => refresh().catch(() => {}), c.refresh * 1000);
       showOk("Connected as " + state.actor);
+
+    const wantActor = ($("actorName") && $("actorName").value || "").trim();
+    if (wantActor && wantActor !== state.actor) {
+      try {
+        const ren = await api("PUT", "/api/v1/me", { name: wantActor });
+        state.actor = ren.actor || wantActor;
+        if ($("roleBadge") && !can("admin")) $("roleBadge").textContent = state.actor;
+      } catch (e) { console.warn("actor rename", e); }
+    }
+
     } catch (e) {
       $("statusBadge").textContent = "error";
       $("statusBadge").className = "pill bad";
@@ -1631,6 +1678,26 @@
   window.__SC5_setView = setView;
   window.__SC5_buildPhoneShareUrl = buildPhoneShareUrl;
 })();
-  </script>
+  
+  /* Mobile keyboard: keep focused inputs above keyboard */
+  (function () {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const apply = () => {
+      const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      document.documentElement.style.setProperty("--kb-inset", kb + "px");
+      document.body.classList.toggle("kb-open", kb > 60);
+      const a = document.activeElement;
+      if (kb > 60 && a && (a.tagName === "TEXTAREA" || a.tagName === "INPUT" || a.tagName === "SELECT")) {
+        try { a.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (_) {}
+      }
+    };
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
+    window.addEventListener("focusin", () => setTimeout(apply, 50));
+    window.addEventListener("focusout", () => setTimeout(apply, 100));
+  })();
+
+</script>
 </body>
 </html>

@@ -115,6 +115,7 @@ async def build_state(settings: Settings) -> AppState:
     listeners.oast = oast if settings.oast_enabled else None
     listeners.oast_zone = settings.oast_zone
     listeners.public_ip = settings.public_ip or settings.public_host
+    listeners.data_dir = settings.data_dir
     sessions.interactive_check = listeners.is_live
     sessions.verified_check = listeners.is_verified
     sessions.exec_probe = listeners.probe_exec

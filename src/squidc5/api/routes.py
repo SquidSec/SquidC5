@@ -34,7 +34,7 @@ class TokenCreate(BaseModel):
 
 class ListenerCreate(BaseModel):
     name: str
-    kind: str = "http"  # http | tcp | reverse_shell | dns | smtp
+    kind: str = "http"  # http | https | tcp | reverse_shell | dns | smtp
     host: str = "0.0.0.0"
     port: int
     config: dict[str, Any] = Field(default_factory=dict)
@@ -108,6 +108,24 @@ class AIChatRequest(BaseModel):
     history: list[AIChatMessage] = Field(default_factory=list)
     llm_id: str | None = None
     max_rounds: int | None = None
+
+
+class MeUpdate(BaseModel):
+    name: str
+
+
+class TlsUpload(BaseModel):
+    label: str = "uploaded"
+    cert_pem: str
+    key_pem: str
+    note: str = ""
+
+
+class AssetCreate(BaseModel):
+    kind: str  # payload | profile | implant | other
+    name: str
+    content: str
+    meta: dict[str, Any] | None = None
 
 
 class ShellCommand(BaseModel):
@@ -380,6 +398,30 @@ def build_api_router() -> APIRouter:
             "actor_type": auth.actor_type,
             "token_id": auth.token_id,
         }
+
+    @api.put("/me")
+    async def update_me(
+        payload: MeUpdate,
+        request: Request,
+        auth: AuthContext = Depends(get_auth),
+    ) -> dict[str, Any]:
+        """Rename the current token actor (display name used in collab/audit)."""
+        state = get_state(request)
+        try:
+            ok = await state.tokens.rename(auth.token_id, payload.name)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        if not ok:
+            raise HTTPException(404, "token not found")
+        await state.db.audit(
+            actor=payload.name.strip(),
+            actor_type=auth.actor_type,
+            action="token.rename_self",
+            resource=auth.token_id,
+            details={"from": auth.name, "to": payload.name.strip()},
+            risk_score=2,
+        )
+        return {"ok": True, "actor": payload.name.strip(), "token_id": auth.token_id}
 
     # ----- Tokens -----
 
@@ -711,8 +753,8 @@ def build_api_router() -> APIRouter:
         auth: AuthContext = Depends(require_scope("listeners:write", "admin")),
     ) -> dict[str, Any]:
         state = get_state(request)
-        if body.kind == "http" and not await state.features.enabled("http_listeners"):
-            raise HTTPException(403, "HTTP listeners disabled by feature flag")
+        if body.kind in ("http", "https") and not await state.features.enabled("http_listeners"):
+            raise HTTPException(403, "HTTP/HTTPS listeners disabled by feature flag")
         if body.kind == "dns" and not await state.features.enabled("dns_listeners"):
             raise HTTPException(403, "DNS listeners disabled by feature flag")
         if body.kind == "smtp" and not await state.features.enabled("smtp_oast"):
@@ -1748,6 +1790,182 @@ def build_api_router() -> APIRouter:
                 }
             )
         return {"tools": tools, "note": "Railed tool-calling; policy + scopes enforced per call"}
+
+    # ----- TLS certificate library -----
+
+    @api.get("/tls/certs")
+    async def tls_list_certs(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("admin")),
+    ) -> dict[str, Any]:
+        from squidc5.tls.library import list_certs
+
+        state = get_state(request)
+        return {"certs": list_certs(state.settings.data_dir)}
+
+    @api.post("/tls/certs")
+    async def tls_upload_cert(
+        payload: TlsUpload,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("admin")),
+    ) -> dict[str, Any]:
+        from squidc5.tls.library import upload_cert
+
+        state = get_state(request)
+        try:
+            row = upload_cert(
+                state.settings.data_dir,
+                label=payload.label,
+                cert_pem=payload.cert_pem,
+                key_pem=payload.key_pem,
+                note=payload.note,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="tls.cert_upload",
+            resource=row.get("id"),
+            details={"label": payload.label},
+            risk_score=5,
+        )
+        return row
+
+    @api.post("/tls/certs/{cert_id}/activate")
+    async def tls_activate_cert(
+        cert_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("admin")),
+    ) -> dict[str, Any]:
+        from squidc5.tls.library import activate_cert
+
+        state = get_state(request)
+        try:
+            row = activate_cert(state.settings.data_dir, cert_id)
+        except FileNotFoundError:
+            raise HTTPException(404, "certificate not found") from None
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="tls.cert_activate",
+            resource=cert_id,
+            details={"restart_required": True},
+            risk_score=6,
+        )
+        return row
+
+    @api.delete("/tls/certs/{cert_id}")
+    async def tls_delete_cert(
+        cert_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("admin")),
+    ) -> dict[str, Any]:
+        from squidc5.tls.library import delete_cert
+
+        state = get_state(request)
+        try:
+            ok = delete_cert(state.settings.data_dir, cert_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        if not ok:
+            raise HTTPException(404, "certificate not found")
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="tls.cert_delete",
+            resource=cert_id,
+            risk_score=4,
+        )
+        return {"ok": True, "id": cert_id}
+
+    # ----- Operator assets (saved payloads / profiles / implants) -----
+
+    @api.get("/assets")
+    async def list_assets(
+        request: Request,
+        kind: str | None = None,
+        limit: int = 100,
+        auth: AuthContext = Depends(require_scope("payloads:generate", "profiles:read", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        rows = await state.db.list_operator_assets(kind=kind, limit=limit)
+        for r in rows:
+            if isinstance(r.get("meta"), str):
+                try:
+                    r["meta"] = json.loads(r["meta"])
+                except Exception:
+                    r["meta"] = {}
+        return {"assets": rows}
+
+    @api.post("/assets")
+    async def create_asset(
+        payload: AssetCreate,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("payloads:generate", "profiles:write", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        kind = (payload.kind or "other").strip().lower()
+        if kind not in ("payload", "profile", "implant", "other"):
+            raise HTTPException(400, "kind must be payload|profile|implant|other")
+        name = (payload.name or "").strip()
+        if not name or len(name) > 120:
+            raise HTTPException(400, "name required (max 120)")
+        if not (payload.content or "").strip():
+            raise HTTPException(400, "content required")
+        aid = await state.db.create_operator_asset(
+            kind=kind,
+            name=name,
+            content=payload.content,
+            meta=payload.meta,
+            created_by=auth.name,
+        )
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="assets.create",
+            resource=aid,
+            details={"kind": kind, "name": name},
+            risk_score=3,
+        )
+        return {"id": aid, "kind": kind, "name": name}
+
+    @api.get("/assets/{asset_id}")
+    async def get_asset(
+        asset_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("payloads:generate", "profiles:read", "admin")),
+    ) -> dict[str, Any]:
+        row = await get_state(request).db.get_operator_asset(asset_id)
+        if not row:
+            raise HTTPException(404, "asset not found")
+        if isinstance(row.get("meta"), str):
+            try:
+                row["meta"] = json.loads(row["meta"])
+            except Exception:
+                row["meta"] = {}
+        return row
+
+    @api.delete("/assets/{asset_id}")
+    async def delete_asset(
+        asset_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("payloads:generate", "admin")),
+    ) -> dict[str, Any]:
+        state = get_state(request)
+        ok = await state.db.delete_operator_asset(asset_id)
+        if not ok:
+            raise HTTPException(404, "asset not found")
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="assets.delete",
+            resource=asset_id,
+            risk_score=3,
+        )
+        return {"ok": True}
 
     # ----- Malleable C2 profiles -----
 

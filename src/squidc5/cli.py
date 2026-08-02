@@ -982,7 +982,7 @@ def build_parser() -> argparse.ArgumentParser:
     l_create.add_argument(
         "--kind",
         default="http",
-        choices=["http", "tcp", "reverse_shell", "dns", "smtp"],
+        choices=["http", "https", "tcp", "reverse_shell", "dns", "smtp"],
     )
     l_create.add_argument("--zone", default=None, help="DNS zone when kind=dns")
     l_create.add_argument(

@@ -121,6 +121,57 @@ class Database:
     async def touch_token(self, token_id: str) -> None:
         await self.execute("UPDATE tokens SET last_used_at = ? WHERE id = ?", (_now(), token_id))
 
+    async def rename_token(self, token_id: str, name: str) -> bool:
+        cur = await self.execute(
+            "UPDATE tokens SET name = ? WHERE id = ? AND revoked = 0",
+            (name, token_id),
+        )
+        return cur.rowcount > 0
+
+    # --- Operator assets (saved payloads/profiles/implants) ---
+
+    async def create_operator_asset(
+        self,
+        *,
+        kind: str,
+        name: str,
+        content: str,
+        meta: dict[str, Any] | None = None,
+        created_by: str | None = None,
+    ) -> str:
+        aid = _uid("ast_")
+        await self.execute(
+            "INSERT INTO operator_assets (id, kind, name, content, meta, created_by, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (aid, kind, name, content[:2_000_000], json.dumps(meta or {}), created_by, _now()),
+        )
+        return aid
+
+    async def list_operator_assets(
+        self, *, kind: str | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        lim = min(max(int(limit), 1), 500)
+        if kind:
+            return await self.fetchall(
+                "SELECT id, kind, name, meta, created_by, created_at, "
+                "length(content) AS content_len FROM operator_assets "
+                "WHERE kind = ? ORDER BY created_at DESC LIMIT ?",
+                (kind, lim),
+            )
+        return await self.fetchall(
+            "SELECT id, kind, name, meta, created_by, created_at, "
+            "length(content) AS content_len FROM operator_assets "
+            "ORDER BY created_at DESC LIMIT ?",
+            (lim,),
+        )
+
+    async def get_operator_asset(self, asset_id: str) -> dict[str, Any] | None:
+        return await self.fetchone("SELECT * FROM operator_assets WHERE id = ?", (asset_id,))
+
+    async def delete_operator_asset(self, asset_id: str) -> bool:
+        cur = await self.execute("DELETE FROM operator_assets WHERE id = ?", (asset_id,))
+        return cur.rowcount > 0
+
     # --- Sessions ---
 
     async def create_session(

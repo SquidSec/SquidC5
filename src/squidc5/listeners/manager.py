@@ -73,10 +73,21 @@ class ListenerManager:
         host: str = "0.0.0.0",
         config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if kind not in ("http", "tcp", "reverse_shell", "dns", "smtp"):
+        if kind not in ("http", "https", "tcp", "reverse_shell", "dns", "smtp"):
             raise ValueError(f"Unsupported listener kind: {kind}")
         if port < 1 or port > 65535:
             raise ValueError("Port must be 1-65535")
+        # Reject port already used by another listener (any status)
+        existing = await self.db.fetchall(
+            "SELECT id, name, status, kind FROM listeners WHERE port = ? AND host = ?",
+            (int(port), host or "0.0.0.0"),
+        )
+        if existing:
+            e0 = existing[0]
+            raise ValueError(
+                f"Port {port} already used by listener {e0.get('name') or e0.get('id')} "
+                f"({e0.get('kind')}, {e0.get('status')})"
+            )
         lid = await self.db.create_listener(name, kind, port, host, config)
         await self.metrics.emit("listener.created", {"id": lid, "kind": kind, "port": port})
         row = await self.db.get_listener(lid)
@@ -99,20 +110,40 @@ class ListenerManager:
             kind = row["kind"]
             host = row["host"]
             port = int(row["port"])
-            if kind == "http":
+            if kind in ("http", "https"):
                 from squidc5.listeners.http_listener import handle_http_client
 
+                ssl_ctx = None
+                if kind == "https":
+                    import ssl
+
+                    from squidc5.tls.library import resolve_listener_ssl_paths
+
+                    data_dir = getattr(self, "data_dir", None)
+                    if data_dir is None:
+                        raise ValueError("HTTPS listener requires data_dir on ListenerManager")
+                    paths = resolve_listener_ssl_paths(data_dir)
+                    if not paths:
+                        raise ValueError(
+                            "No TLS certificate available for HTTPS — upload one under Admin → TLS"
+                        )
+                    cert_p, key_p = paths
+                    ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                    ssl_ctx.load_cert_chain(str(cert_p), str(key_p))
                 server = await asyncio.start_server(
                     lambda r, w: handle_http_client(self, listener_id, r, w),
                     host=host,
                     port=port,
+                    ssl=ssl_ctx,
                 )
                 self._servers[listener_id] = server
-                task = asyncio.create_task(server.serve_forever(), name=f"listener-http-{listener_id}")
+                task = asyncio.create_task(
+                    server.serve_forever(), name=f"listener-{kind}-{listener_id}"
+                )
                 self._tasks[listener_id] = task
                 self._attach_supervisor(listener_id, task)
                 await self.db.set_listener_status(listener_id, "running")
-                log.info("Started http listener %s on %s:%s", listener_id, host, port)
+                log.info("Started %s listener %s on %s:%s", kind, listener_id, host, port)
             elif kind == "dns":
                 from squidc5.listeners.dns_listener import start_dns_server
 
