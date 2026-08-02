@@ -572,6 +572,55 @@
       margin: 0.4em 0; padding: 0.25em 0 0.25em 0.75em;
       border-left: 3px solid rgba(233,30,140,0.45); color: var(--muted);
     }
+    .ai-msg .body .md-table-wrap {
+      overflow-x: auto; margin: 0.5em 0 0.65em;
+      border: 1px solid var(--border); border-radius: 8px;
+    }
+    .ai-msg .body table.md-table {
+      width: 100%; border-collapse: collapse; font-size: 0.78rem;
+      min-width: 200px;
+    }
+    .ai-msg .body table.md-table th,
+    .ai-msg .body table.md-table td {
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 6px 10px; text-align: left; vertical-align: top;
+    }
+    .ai-msg .body table.md-table th {
+      background: rgba(233,30,140,0.12); color: var(--pink2);
+      font-weight: 700; font-size: 0.68rem; text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .ai-msg .body table.md-table tr:nth-child(even) td {
+      background: rgba(255,255,255,0.02);
+    }
+    .ai-msg-actions {
+      margin-top: 8px; display: flex; justify-content: flex-end; gap: 6px;
+    }
+    .ai-copy-btn {
+      font-size: 0.68rem; padding: 4px 10px; min-height: 28px;
+      color: var(--muted); border-color: var(--border);
+    }
+    .ai-copy-btn:hover { color: var(--pink2); border-color: rgba(233,30,140,0.4); }
+    .ai-copy-btn.copied { color: var(--ok); border-color: rgba(52,211,153,0.35); }
+    .inko-cap-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px; margin: 10px 0;
+    }
+    .inko-cap-card {
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px; min-height: 88px;
+    }
+    .inko-cap-card h4 {
+      margin: 0 0 6px; font-size: 0.82rem; color: var(--pink2); font-weight: 700;
+    }
+    .inko-cap-card p {
+      margin: 0; font-size: 0.75rem; color: var(--muted); line-height: 1.4;
+    }
+    .inko-outbox {
+      margin-top: 10px; min-height: 220px; max-height: min(50vh, 420px);
+      overflow: auto; font-family: var(--mono); font-size: 0.75rem;
+      white-space: pre-wrap; word-break: break-word;
+    }
     .ai-msg .tools-used {
       margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px;
     }
@@ -1119,7 +1168,7 @@
     payloads: { title: "Payloads", sub: "Generate implants and templates", doc: "payloads-and-implants" },
     postex: { title: "Post-Ex", sub: "Files, SOCKS, modules on selected session", doc: "file-ops" },
     collab: { title: "Collab", sub: "Teams, chat, handoff, presence", doc: "multi-operator-collab" },
-    ai: { title: "INKO", sub: "Intelligent Neural Kinetic Operator — chat, inspect, and drive the C5", doc: "inko-intelligent-neural-kinetic-operator" },
+    ai: { title: "INKO", sub: "Capabilities, status & tools — chat opens from the top-bar flyout", doc: "inko-intelligent-neural-kinetic-operator" },
     observe: { title: "Observe", sub: "Metrics, audit, timeline, reports", doc: "timeline-and-reports" },
     admin: { title: "Admin", sub: "Tokens, policy, features, LLM, MCP", doc: "feature-toggles" },
   };
@@ -1380,29 +1429,38 @@
     const lis = Array.isArray(listeners) ? listeners : (listeners.listeners || []);
     state.sessions = ses;
     state.listeners = lis;
-    const verified = ses.filter((s) => s.verified || s.kind === "beacon");
+    const isActive = (s) => {
+      const st = String(s.status || "active").toLowerCase();
+      return st === "active" || st === "live" || st === "";
+    };
+    const activeSes = ses.filter(isActive);
+    const activeBeacons = activeSes.filter((s) => {
+      const k = String(s.kind || "").toLowerCase();
+      return k === "beacon" || k.includes("beacon");
+    });
+    const shells = activeSes.filter((s) => s.verified || s.kind === "reverse_shell");
     const running = lis.filter((l) => l.status === "running");
-    $("navNSes").textContent = String(ses.length);
+    $("navNSes").textContent = String(activeSes.length);
     $("navNLis").textContent = String(running.length);
 
-    // Dashboard stats
+    // Dashboard stats — live inventory only (never cumulative closed beacons)
     const m = metrics.metrics || metrics || {};
     const stats = [
-      { n: verified.filter((s) => s.kind === "reverse_shell" || s.verified).length, l: "Shells", c: "ok" },
+      { n: shells.length, l: "Shells", c: "ok" },
       { n: running.length, l: "Listeners", c: "pink" },
-      { n: ses.length, l: "Sessions", c: "cyan" },
-      { n: m["tasks.created"] || m["tasks.pending"] || "—", l: "Tasks", c: "purple" },
-      { n: m["implant.beacon"] || m["http.beacon"] || "—", l: "Beacons", c: "ok" },
+      { n: activeSes.length, l: "Sessions", c: "cyan" },
+      { n: m["tasks.pending"] != null ? m["tasks.pending"] : (m["tasks.created"] || "—"), l: "Tasks", c: "purple" },
+      { n: activeBeacons.length, l: "Beacons", c: "ok" },
       { n: formatUptime(metrics.uptime_seconds), l: "Uptime", c: "cyan" },
     ];
     $("dashStats").innerHTML = stats.map((s) =>
       `<div class="stat ${s.c}"><div class="n">${esc(s.n)}</div><div class="l">${esc(s.l)}</div></div>`
     ).join("");
 
-    // Recent sessions table
-    $("dashSes").innerHTML = ses.length
+    // Recent sessions table (active only)
+    $("dashSes").innerHTML = activeSes.length
       ? `<table class="data"><thead><tr><th>ID</th><th>Kind</th><th>Host</th><th>Claim</th></tr></thead><tbody>` +
-        ses.slice(0, 12).map((s) => {
+        activeSes.slice(0, 12).map((s) => {
           const meta = s.metadata || {};
           return `<tr data-sid="${esc(s.id)}">
             <td class="mono">${esc((s.id || "").slice(0, 12))}…</td>
@@ -1457,7 +1515,7 @@
         }).join("\n")
       : "No recent events";
 
-    $("sideFoot").textContent = (state.actor || "op") + " · " + (ses.length) + " sessions";
+    $("sideFoot").textContent = (state.actor || "op") + " · " + (activeSes.length) + " sessions";
     if (window.__SC5_onRefresh) window.__SC5_onRefresh({ sessions: ses, listeners: lis, metrics });
   }
 
