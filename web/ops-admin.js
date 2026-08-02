@@ -1411,6 +1411,13 @@
     });
   }
 
+  function scrollAiChatLog() {
+    const parent = el("aiChatLog");
+    if (!parent) return;
+    // Instant only - smooth + keyboard resize causes mobile jitter
+    parent.scrollTop = parent.scrollHeight;
+  }
+
   function showAiPending() {
     removeAiPending();
     const parent = el("aiChatLog");
@@ -1421,7 +1428,7 @@
     div.innerHTML =
       '<div class="who">INKO</div><div class="ai-typing"><span class="ai-typing-dots" aria-hidden="true"><span></span><span></span><span></span></span><span>Thinking...</span></div>';
     parent.appendChild(div);
-    parent.scrollTop = parent.scrollHeight;
+    scrollAiChatLog();
     return div;
   }
 
@@ -1484,19 +1491,26 @@
       div.appendChild(actions);
     }
     parent.appendChild(div);
-    parent.scrollTop = parent.scrollHeight;
+    if (!parent.dataset.skipScroll) scrollAiChatLog();
   }
 
   function rebuildAiChatDom() {
-    if (el("aiChatLog")) el("aiChatLog").innerHTML = "";
+    const log = el("aiChatLog");
+    if (log) log.innerHTML = "";
     if (!aiChatHistory.length) {
       renderInkoStarters();
       return;
     }
-    aiChatHistory.forEach((m) => {
-      const who = m.role === "user" ? "user" : "bot";
-      appendAiChat(who, m.content, m.tools || null);
-    });
+    if (log) log.dataset.skipScroll = "1";
+    try {
+      aiChatHistory.forEach((m) => {
+        const who = m.role === "user" ? "user" : "bot";
+        appendAiChat(who, m.content, m.tools || null);
+      });
+    } finally {
+      if (log) delete log.dataset.skipScroll;
+    }
+    scrollAiChatLog();
   }
 
 
@@ -1720,6 +1734,13 @@
     d.classList.toggle("hidden", !show);
     d.classList.toggle("open", show);
     d.setAttribute("aria-hidden", show ? "false" : "true");
+    if (!show) {
+      // Drop visualViewport pin so next open starts full-screen again
+      d.classList.remove("kb-pinned");
+      d.style.top = "";
+      d.style.height = "";
+      d.style.bottom = "";
+    }
     if (backdrop) {
       backdrop.hidden = !show;
       backdrop.classList.toggle("show", show);
