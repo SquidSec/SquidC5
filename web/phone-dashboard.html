@@ -585,15 +585,20 @@
     body.kb-open .ctx-body {
       padding-bottom: calc(24px + var(--kb-inset, 0px));
     }
+    /* INKO drawer is resized to visualViewport when keyboard is open - do not
+       also pad the foot by kb-inset (that double-compensates and jitters the log). */
     body.kb-open .ai-drawer-foot {
-      padding-bottom: calc(12px + var(--kb-inset, 0px));
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
-    body.kb-open .ai-drawer-body {
-      padding-bottom: 8px;
+    body.kb-open .ai-drawer.kb-pinned {
+      transition: none;
     }
     .ai-drawer-head .inko-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .ai-drawer-body {
       flex: 1; overflow: auto; padding: 10px; font-size: 0.82rem; min-height: 0;
+      overflow-anchor: none;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
     }
     .ai-msg { margin-bottom: 10px; padding: 8px 10px; border-radius: 8px; line-height: 1.45; }
     .ai-msg.user { background: rgba(255,255,255,0.04); border: 1px solid var(--border); }
@@ -1708,23 +1713,92 @@
   window.__SC5_buildPhoneShareUrl = buildPhoneShareUrl;
 })();
   
-  /* Mobile keyboard: keep focused inputs above keyboard */
+  /* Mobile keyboard: pin INKO drawer to visualViewport; avoid smooth-scroll jitter */
   (function () {
     const vv = window.visualViewport;
     if (!vv) return;
-    const apply = () => {
+    let raf = 0;
+    let lastKb = -1;
+    let lastTop = -1;
+    let lastH = -1;
+
+    function pinChatLog() {
+      const log = document.getElementById("aiChatLog");
+      if (!log) return;
+      // Instant snap only - never smooth (smooth + vv resize = jitter)
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function clearDrawerPin(drawer) {
+      if (!drawer) return;
+      drawer.classList.remove("kb-pinned");
+      drawer.style.top = "";
+      drawer.style.height = "";
+      drawer.style.bottom = "";
+    }
+
+    function apply(opts) {
       const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-      document.documentElement.style.setProperty("--kb-inset", kb + "px");
-      document.body.classList.toggle("kb-open", kb > 60);
-      const a = document.activeElement;
-      if (kb > 60 && a && (a.tagName === "TEXTAREA" || a.tagName === "INPUT" || a.tagName === "SELECT")) {
-        try { a.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (_) {}
+      const open = kb > 80;
+      if (kb !== lastKb) {
+        document.documentElement.style.setProperty("--kb-inset", kb + "px");
+        document.body.classList.toggle("kb-open", open);
+        lastKb = kb;
       }
-    };
-    vv.addEventListener("resize", apply);
-    vv.addEventListener("scroll", apply);
-    window.addEventListener("focusin", () => setTimeout(apply, 50));
-    window.addEventListener("focusout", () => setTimeout(apply, 100));
+
+      const drawer = document.getElementById("aiDrawer");
+      const drawerOpen = drawer && drawer.classList.contains("open") && !drawer.classList.contains("hidden");
+      if (drawerOpen && open) {
+        const top = Math.round(vv.offsetTop);
+        const h = Math.max(120, Math.round(vv.height));
+        if (top !== lastTop || h !== lastH || !drawer.classList.contains("kb-pinned")) {
+          drawer.classList.add("kb-pinned");
+          drawer.style.top = top + "px";
+          drawer.style.height = h + "px";
+          drawer.style.bottom = "auto";
+          lastTop = top;
+          lastH = h;
+        }
+      } else if (drawer) {
+        clearDrawerPin(drawer);
+        lastTop = -1;
+        lastH = -1;
+      }
+
+      if (opts && opts.pinChat && drawerOpen) pinChatLog();
+    }
+
+    function schedule(pinChat) {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        apply({ pinChat: !!pinChat });
+      });
+    }
+
+    vv.addEventListener("resize", () => schedule(false));
+    vv.addEventListener("scroll", () => schedule(false));
+
+    window.addEventListener("focusin", (e) => {
+      const a = e.target;
+      if (!a || !a.tagName) return;
+      const tag = a.tagName;
+      if (tag !== "TEXTAREA" && tag !== "INPUT" && tag !== "SELECT") return;
+      const inInko = !!(a.id === "aiPromptGlobal" || a.closest("#aiDrawer"));
+      // One settle after keyboard starts - no smooth scrollIntoView on the message log
+      setTimeout(() => {
+        apply({ pinChat: inInko });
+        try {
+          a.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+        } catch (_) {
+          try { a.scrollIntoView(false); } catch (__) {}
+        }
+      }, 60);
+    });
+
+    window.addEventListener("focusout", () => {
+      setTimeout(() => apply({ pinChat: false }), 120);
+    });
   })();
 
 </script>
