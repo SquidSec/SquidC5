@@ -4,6 +4,12 @@ Goal: ★★★★★ across implants, traffic, post-ex, multi-player, AI, gover
 
 **Process:** feature branch → unit tests → PR → CI + SquidGate green → merge `master` → deploy **Release binary** to prod → repeat.
 
+| Related | Link |
+|---------|------|
+| Long-range roadmap | [roadmap-2026-2027.md](roadmap-2026-2027.md) |
+| Prod readiness checklist | [prod-readiness-plan.md](prod-readiness-plan.md) |
+| Docs index | [README.md](README.md) |
+
 ## Pack status (living)
 
 | Pack | Focus | Status |
@@ -59,7 +65,10 @@ Token grant subset · policy admin-only · MCP=REST gates · HITL single-use · 
 
 ## Links
 
-- [User guide](user-guide.md)  
-- [Deployment](deployment.md)  
-- [Native beacon](../agents/sc5beacon/README.md)  
-- [README](../README.md)  
+| Doc | Link |
+|-----|------|
+| User guide | [user-guide.md](user-guide.md) |
+| Deployment | [deployment.md](deployment.md) |
+| Native beacon | [../agents/sc5beacon/README.md](../agents/sc5beacon/README.md) |
+| Root README | [../README.md](../README.md) |
+| Vision | [squidc5-vision.md](squidc5-vision.md) |

@@ -89,6 +89,11 @@
 
 ## Related
 
-- [SECURITY.md](../SECURITY.md)  
-- [deployment.md](deployment.md)  
-- [prod-readiness-plan.md](prod-readiness-plan.md)  
+| Doc | Link |
+|-----|------|
+| Disclosure | [SECURITY.md](../SECURITY.md) |
+| Deployment | [deployment.md](deployment.md) |
+| Prod readiness | [prod-readiness-plan.md](prod-readiness-plan.md) |
+| Vision | [squidc5-vision.md](squidc5-vision.md) |
+| User guide — Security model | [user-guide.md#security-model](user-guide.md#security-model) |
+| Docs index | [README.md](README.md) |

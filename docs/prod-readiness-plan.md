@@ -4,6 +4,16 @@
 **Repo:** `https://github.com/SquidSec/SquidC5` (default branch: `master`)  
 **Status:** Alpha 0.1.x → target 1.0.0 after Phase C minimum; Phase D hardens OSS excellence.
 
+| Related | Link |
+|---------|------|
+| Five-star pack status | [roadmap-five-star.md](roadmap-five-star.md) (many packs already **Landed** — check before redoing work) |
+| Roadmap 2026–2027 | [roadmap-2026-2027.md](roadmap-2026-2027.md) |
+| Deployment | [deployment.md](deployment.md) |
+| Threat model | [threat-model.md](threat-model.md) |
+| Docs index | [README.md](README.md) |
+
+> **Engineering plan** (not operator how-to). Prefer [roadmap-five-star.md](roadmap-five-star.md) for current pack status.
+
 ## Mandatory git cycle (every change)
 
 From SquidSec `AGENTS.md` + `knowledge-base/MEMORY.md` and SquidC5 `AGENTS.md`:

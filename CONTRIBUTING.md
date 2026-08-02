@@ -40,10 +40,19 @@ ruff check src tests
 
 ## Docs
 
-- Operator/agent memory: `AGENTS.md`
-- Vision and roadmap: `docs/`
-- Prod-readiness execution plan: `docs/prod-readiness-plan.md`
+Catalog and section templates: [docs/README.md](docs/README.md) (Diátaxis: tutorials/how-tos vs reference vs explanation).
 
+| Doc | Role |
+|-----|------|
+| [AGENTS.md](AGENTS.md) | Agent memory + full CLI surface |
+| [docs/user-guide.md](docs/user-guide.md) | Feature reference (What/Why/How/Example) |
+| [docs/operator-runbook.md](docs/operator-runbook.md) | Day-2 procedures |
+| [docs/deployment.md](docs/deployment.md) | Lab + prod binary |
+| [docs/squidc5-vision.md](docs/squidc5-vision.md) | Architecture |
+| [docs/roadmap-2026-2027.md](docs/roadmap-2026-2027.md) | Long-range roadmap |
+| [docs/prod-readiness-plan.md](docs/prod-readiness-plan.md) | Engineering checklist |
+
+When you change operator-facing behavior, update the matching user-guide chapter and fix cross-links.
 ## Pull requests
 
 Use the PR template. Include:

@@ -42,6 +42,7 @@
   const PAGE_DOCS = {
     dashboard: [
       { a: "status-overview", t: "Status overview" },
+      { a: "ops-console-layout", t: "Ops layout" },
       { a: "connection", t: "Connection" },
       { a: "sessions", t: "Sessions" },
     ],
@@ -49,45 +50,52 @@
       { a: "sessions", t: "Sessions" },
       { a: "shell", t: "Shell interact" },
       { a: "tasks", t: "Tasks / beacons" },
+      { a: "verified-reverse-shells", t: "Verified shells" },
     ],
     listeners: [
       { a: "listeners", t: "Listeners" },
+      { a: "oast-collaborator", t: "OAST" },
       { a: "payloads-and-implants", t: "Payloads" },
     ],
     payloads: [
       { a: "payloads-and-implants", t: "Payloads & implants" },
-      { a: "c2-profiles", t: "C2 profiles" },
+      { a: "c2-profiles-profiles", t: "C2 profiles" },
+      { a: "artifacts", t: "Artifacts" },
     ],
     profiles: [
-      { a: "c2-profiles", t: "C2 profiles" },
+      { a: "c2-profiles-profiles", t: "C2 profiles" },
+      { a: "payloads-and-implants", t: "Payloads" },
+      { a: "redirector-and-certificates", t: "Redirector" },
     ],
     artifacts: [
-      { a: "payloads-and-implants", t: "Saved artifacts" },
+      { a: "artifacts", t: "Artifacts" },
+      { a: "payloads-and-implants", t: "Payloads & implants" },
     ],
     postex: [
-      { a: "file-ops", t: "File ops" },
-      { a: "socks-pivot", t: "SOCKS pivot" },
-      { a: "modules", t: "Inject / BOF" },
+      { a: "post-ex", t: "Post-Ex" },
+      { a: "sessions", t: "Sessions" },
     ],
     collab: [
       { a: "multi-operator-collab", t: "Multi-op collab" },
-      { a: "operator-chat", t: "Operator chat" },
-      { a: "hitl", t: "HITL queue" },
+      { a: "policy", t: "Policy / HITL" },
+      { a: "identity", t: "Identity" },
     ],
     ai: [
       { a: "inko-intelligent-neural-kinetic-operator", t: "INKO" },
-      { a: "admin-ai", t: "Admin AI (legacy anchor)" },
       { a: "llm-connections", t: "LLM connections" },
+      { a: "mcp-tools", t: "MCP tools" },
     ],
     observe: [
+      { a: "observability", t: "Observability" },
       { a: "timeline-and-reports", t: "Timeline & reports" },
-      { a: "audit-me", t: "Audit" },
+      { a: "event-stream", t: "Event stream" },
     ],
     admin: [
       { a: "tokens", t: "Tokens" },
+      { a: "llm-connections", t: "LLM connections" },
+      { a: "tls-certificate-library", t: "TLS certificates" },
       { a: "feature-toggles", t: "Feature toggles" },
       { a: "policy", t: "Policy" },
-      { a: "llm-connections", t: "LLM connections" },
       { a: "mcp-tools", t: "MCP tools" },
     ],
   };

@@ -41,19 +41,20 @@ Security-first, AI-native C5 teamserver for **authorized** red team and penetrat
 ## Features
 
 - **Scoped API tokens** + immutable audit hash chain (`sc5 audit-verify`)
-- **Dual AI** — MCP off by default; **INKO** neural operator chat + Admin AI (15 allow-listed capabilities); optional local Ollama
+- **Dual AI** — MCP off by default; **INKO** neural operator chat (connection + model switcher, railed tools) + Admin AI capabilities; optional local Ollama
 - **Native implant** — `agents/sc5beacon` (Go): AEAD, sleep/jitter/kill/hours, files, SOCKS reverse-dial
 - **Implant factory** — `sc5 implants build` / `POST /api/v1/implants/build`
-- **Malleable transforms** — base64, prepend/append, xor, netbios + profile push
+- **Malleable C2 profiles** — Ops **Profiles** page; transforms (base64, prepend/append, xor, netbios) + profile push
+- **Artifacts** — save/reuse payloads, custom templates, and generated assets in Ops
+- **OAST Collaborator** — DNS / HTTP / SMTP out-of-band hit capture (`sc5 oast`)
+- **TLS certificate library** — Admin PEM upload/activate (restart to serve)
 - **SOCKS5 pivot** — operator proxy with **implant reverse-dial duplex** or direct mode
 - **File ops** — `file:list|read|write|delete` (+ chunk offset/length)
 - **Engagement ROE** — banned commands, end time, HITL file-write
 - **Multi-op collab** — session claim/lock, handoff packs, spectator, presence, team chat, per-op audit
-- **Ops console** — multi-page nav, mobile drawer, **INKO** top-bar flyout chat, resizable event/console dock
+- **Ops console** — multi-page nav (Sessions, Listeners, Payloads, Profiles, Artifacts, Post-Ex, Collab, INKO, Observe, Admin), mobile drawer, **◈ INKO** flyout, resizable dock
 - **Secure defaults** — TLS on, empty CORS (no null), no public OpenAPI, admin.js gated, MCP scoped+HITL, implant AEAD on all listeners
-
 - **Binary CI** — Linux/Windows server+CLI, native agents, SBOM
-
 ## Quick start (Docker lab)
 
 ```bash
@@ -129,11 +130,16 @@ Docs: [agents/sc5beacon/README.md](agents/sc5beacon/README.md)
 | Audit verify | `GET /api/v1/audit/verify` |
 | INKO chat (ops) | `POST /api/v1/ai/chat` · `GET /api/v1/ai/tools` |
 | Admin AI capabilities | `POST /api/v1/ai/run` · `GET /api/v1/ai/status` |
-| LLM connections | `GET/POST /api/v1/llm` · `POST /api/v1/llm/models` |
+| LLM connections | `GET/POST /api/v1/llm` · `PATCH /api/v1/llm/{id}` · `POST /api/v1/llm/models` |
+| Assets / artifacts | `GET/POST/DELETE /api/v1/assets` |
+| OAST | `POST /api/v1/oast/tokens` · `GET /api/v1/oast/hits` |
+| TLS cert library | `GET/POST /api/v1/tls/certs` · activate |
 
 Auth: `Authorization: Bearer <token>`. **No public OpenAPI** on the server.
 
 ## Documentation
+
+Docs follow [Diátaxis](https://diataxis.fr/): tutorials & how-tos (runbook/deploy), reference (user guide + AGENTS), explanation (vision/threat model). Full catalog: [docs/README.md](docs/README.md).
 
 | Doc | Link |
 |-----|------|
@@ -142,13 +148,14 @@ Auth: `Authorization: Bearer <token>`. **No public OpenAPI** on the server.
 | Operator runbook | [docs/operator-runbook.md](docs/operator-runbook.md) |
 | Deployment | [docs/deployment.md](docs/deployment.md) |
 | Threat model | [docs/threat-model.md](docs/threat-model.md) |
-| Five-star roadmap | [docs/roadmap-five-star.md](docs/roadmap-five-star.md) |
-| Prod readiness | [docs/prod-readiness-plan.md](docs/prod-readiness-plan.md) |
 | Vision | [docs/squidc5-vision.md](docs/squidc5-vision.md) |
+| Roadmap 2026–2027 | [docs/roadmap-2026-2027.md](docs/roadmap-2026-2027.md) |
+| Five-star program | [docs/roadmap-five-star.md](docs/roadmap-five-star.md) |
+| Prod readiness | [docs/prod-readiness-plan.md](docs/prod-readiness-plan.md) |
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Security | [SECURITY.md](SECURITY.md) |
-| Agents | [AGENTS.md](AGENTS.md) |
+| Agents (CLI + AI memory) | [AGENTS.md](AGENTS.md) |
 
 ## Configuration
 
