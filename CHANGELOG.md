@@ -16,6 +16,7 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 - Ops UI and chat system prompt use **INKO** naming; user guide / runbook / README updated
+- INKO chat: **persisted history** (browser localStorage), clear input on send, pending indicator, block send while waiting, **markdown** rendering for assistant replies
 
 ### Security / OPSEC
 - Native agent remains AEAD-only with full TLS verify

@@ -547,7 +547,31 @@
     .ai-msg { margin-bottom: 10px; padding: 8px 10px; border-radius: 8px; line-height: 1.45; }
     .ai-msg.user { background: rgba(255,255,255,0.04); border: 1px solid var(--border); }
     .ai-msg.bot { background: rgba(233,30,140,0.08); border: 1px solid rgba(233,30,140,0.25); }
+    .ai-msg.pending { opacity: 0.95; }
     .ai-msg .who { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .ai-msg .body { word-break: break-word; }
+    .ai-msg .body p { margin: 0 0 0.55em; }
+    .ai-msg .body p:last-child { margin-bottom: 0; }
+    .ai-msg .body ul, .ai-msg .body ol { margin: 0.35em 0 0.55em 1.2em; padding: 0; }
+    .ai-msg .body li { margin: 0.15em 0; }
+    .ai-msg .body pre {
+      margin: 0.45em 0; padding: 8px 10px; border-radius: 8px; overflow: auto;
+      background: rgba(0,0,0,0.35); border: 1px solid var(--border);
+      font-family: var(--mono); font-size: 0.75rem; line-height: 1.4;
+    }
+    .ai-msg .body code {
+      font-family: var(--mono); font-size: 0.78em;
+      background: rgba(255,255,255,0.06); padding: 0.1em 0.35em; border-radius: 4px;
+    }
+    .ai-msg .body pre code { background: none; padding: 0; font-size: inherit; }
+    .ai-msg .body a { color: var(--pink2); }
+    .ai-msg .body h1, .ai-msg .body h2, .ai-msg .body h3, .ai-msg .body h4 {
+      margin: 0.6em 0 0.35em; font-size: 0.95em; line-height: 1.3;
+    }
+    .ai-msg .body blockquote {
+      margin: 0.4em 0; padding: 0.25em 0 0.25em 0.75em;
+      border-left: 3px solid rgba(233,30,140,0.45); color: var(--muted);
+    }
     .ai-msg .tools-used {
       margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px;
     }
@@ -557,6 +581,28 @@
     }
     .ai-msg .tool-chip.ok { color: var(--ok); border-color: rgba(52,211,153,0.35); }
     .ai-msg .tool-chip.bad { color: var(--bad); border-color: rgba(248,113,113,0.35); }
+    .ai-typing {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: var(--muted); font-size: 0.8rem;
+    }
+    .ai-typing-dots {
+      display: inline-flex; gap: 4px; align-items: center;
+    }
+    .ai-typing-dots span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--pink2); opacity: 0.35;
+      animation: ai-bounce 1s infinite ease-in-out;
+    }
+    .ai-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .ai-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes ai-bounce {
+      0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
+      40% { opacity: 1; transform: translateY(-3px); }
+    }
+    .ai-busy .inko-top-btn,
+    button.ai-send-busy:disabled {
+      opacity: 0.65; cursor: wait;
+    }
     .ai-drawer-foot {
       border-top: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 6px;
       flex-shrink: 0;

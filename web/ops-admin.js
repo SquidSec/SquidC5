@@ -1088,9 +1088,226 @@
   }
 
   /* —— Admin —— */
-  /* —— AI tab —— */
-  /** Multi-turn chat history for Admin AI (user/assistant text only) */
-  let aiChatHistory = [];
+  /* —— AI / INKO tab —— */
+  const AI_HIST_KEY = "sc5_inko_chat_v1";
+  const AI_HIST_MAX = 40;
+  let aiBusy = false;
+
+  function loadAiHistory() {
+    try {
+      const raw = localStorage.getItem(AI_HIST_KEY);
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      return arr
+        .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+        .slice(-AI_HIST_MAX);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function persistAiHistory() {
+    try {
+      localStorage.setItem(AI_HIST_KEY, JSON.stringify(aiChatHistory.slice(-AI_HIST_MAX)));
+    } catch (_) {}
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  /** Minimal safe markdown → HTML (escape first; no raw HTML passthrough). */
+  function renderMarkdownSafe(src) {
+    let s = String(src ?? "").replace(/\r\n/g, "\n");
+    const fences = [];
+    s = s.replace(/```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+      const i = fences.length;
+      fences.push(
+        `<pre><code${lang ? ` class="language-${escapeHtml(lang)}"` : ""}>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`
+      );
+      return `\u0000FENCE${i}\u0000`;
+    });
+    s = escapeHtml(s);
+    s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    s = s.replace(/^(#{1,4})\s+(.+)$/gm, (_, h, t) => `<h${h.length}>${t}</h${h.length}>`);
+    s = s.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "<strong>$2</strong>");
+    s = s.replace(/(\*|_)(?=\S)([\s\S]*?\S)\1/g, "<em>$2</em>");
+    s = s.replace(/^&gt;\s?(.+)$/gm, "<blockquote>$1</blockquote>");
+    // unordered lists
+    s = s.replace(/(?:^(?:[-*+])\s+.+(?:\n|$))+?/gm, (block) => {
+      const items = block.trim().split("\n").map((line) => line.replace(/^[-*+]\s+/, "").trim());
+      return `<ul>${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
+    });
+    // ordered lists
+    s = s.replace(/(?:^\d+\.\s+.+(?:\n|$))+?/gm, (block) => {
+      const items = block.trim().split("\n").map((line) => line.replace(/^\d+\.\s+/, "").trim());
+      return `<ol>${items.map((i) => `<li>${i}</li>`).join("")}</ol>`;
+    });
+    s = s
+      .split(/\n{2,}/)
+      .map((para) => {
+        if (/^<(?:ul|ol|pre|h[1-4]|blockquote)/.test(para.trim())) return para;
+        return `<p>${para.replace(/\n/g, "<br>")}</p>`;
+      })
+      .join("");
+    s = s.replace(/\u0000FENCE(\d+)\u0000/g, (_, i) => fences[Number(i)] || "");
+    return s;
+  }
+
+  // Expose for light automated checks / console
+  window.__SC5_renderMarkdownSafe = renderMarkdownSafe;
+
+  let aiChatHistory = loadAiHistory();
+
+  function setAiBusy(busy) {
+    aiBusy = !!busy;
+    document.body.classList.toggle("ai-busy", aiBusy);
+    ["aiRun", "aiSendGlobal"].forEach((id) => {
+      const n = el(id);
+      if (!n) return;
+      n.disabled = aiBusy;
+      n.classList.toggle("ai-send-busy", aiBusy);
+    });
+  }
+
+  function showAiPending() {
+    removeAiPending();
+    const make = (parent) => {
+      if (!parent) return null;
+      const div = document.createElement("div");
+      div.className = "ai-msg bot pending";
+      div.dataset.aiPending = "1";
+      div.innerHTML =
+        '<div class="who">INKO</div><div class="ai-typing"><span class="ai-typing-dots" aria-hidden="true"><span></span><span></span><span></span></span><span>Thinking…</span></div>';
+      parent.appendChild(div);
+      parent.scrollTop = parent.scrollHeight;
+      return div;
+    };
+    make(el("aiChatLog"));
+    make(el("aiPageLog"));
+  }
+
+  function removeAiPending() {
+    document.querySelectorAll('[data-ai-pending="1"]').forEach((n) => n.remove());
+  }
+
+  function appendAiChat(who, text, toolTrace) {
+    const log = el("aiChatLog");
+    const page = el("aiPageLog");
+    const make = (parent) => {
+      if (!parent) return;
+      const div = document.createElement("div");
+      div.className = "ai-msg " + (who === "user" ? "user" : "bot");
+      const w = document.createElement("div");
+      w.className = "who";
+      w.textContent = who === "user" ? "You" : "INKO";
+      const b = document.createElement("div");
+      b.className = "body";
+      if (who === "user") {
+        b.style.whiteSpace = "pre-wrap";
+        b.textContent = text;
+      } else {
+        b.innerHTML = renderMarkdownSafe(text);
+      }
+      div.appendChild(w);
+      div.appendChild(b);
+      if (toolTrace && toolTrace.length) {
+        const row = document.createElement("div");
+        row.className = "tools-used";
+        toolTrace.forEach((t) => {
+          const chip = document.createElement("span");
+          chip.className = "tool-chip " + (t.ok ? "ok" : "bad");
+          chip.textContent = (t.ok ? "✓ " : "✗ ") + (t.tool || "?") + (t.summary ? " · " + t.summary : "");
+          row.appendChild(chip);
+        });
+        div.appendChild(row);
+      }
+      parent.appendChild(div);
+      parent.scrollTop = parent.scrollHeight;
+    };
+    make(log);
+    make(page);
+  }
+
+  function rebuildAiChatDom() {
+    if (el("aiChatLog")) el("aiChatLog").innerHTML = "";
+    if (el("aiPageLog")) el("aiPageLog").innerHTML = "";
+    aiChatHistory.forEach((m) => {
+      const who = m.role === "user" ? "user" : "bot";
+      appendAiChat(who, m.content, m.tools || null);
+    });
+  }
+
+  function clearAiChat() {
+    if (aiBusy) return showError("Wait for INKO to finish");
+    aiChatHistory = [];
+    persistAiHistory();
+    removeAiPending();
+    if (el("aiChatLog")) el("aiChatLog").innerHTML = "";
+    if (el("aiPageLog")) el("aiPageLog").innerHTML = "";
+    showOk("Chat cleared");
+  }
+
+  function syncAiPageLog() {
+    rebuildAiChatDom();
+  }
+
+  function takeInputValue(textareaId) {
+    const node = el(textareaId);
+    if (!node) return "";
+    const v = node.value || "";
+    node.value = "";
+    return v;
+  }
+
+  async function runAiChat(message) {
+    const text = (message || "").trim();
+    if (!text) return;
+    if (aiBusy) return showError("INKO is still responding");
+    setAiBusy(true);
+    appendAiChat("user", text);
+    aiChatHistory.push({ role: "user", content: text });
+    if (aiChatHistory.length > AI_HIST_MAX) aiChatHistory = aiChatHistory.slice(-AI_HIST_MAX);
+    persistAiHistory();
+    showAiPending();
+    try {
+      const body = {
+        message: text,
+        history: aiChatHistory.slice(0, -1),
+      };
+      const llm_id = selectedLlmId();
+      if (llm_id) body.llm_id = llm_id;
+      const r = await api("POST", "/api/v1/ai/chat", body);
+      const reply = (r && r.reply) || JSON.stringify(r, null, 2);
+      const tools = (r && r.tool_trace) || [];
+      removeAiPending();
+      appendAiChat("bot", reply, tools);
+      aiChatHistory.push({ role: "assistant", content: reply, tools: tools.length ? tools : undefined });
+      if (aiChatHistory.length > AI_HIST_MAX) aiChatHistory = aiChatHistory.slice(-AI_HIST_MAX);
+      persistAiHistory();
+      if (tools.some((t) => t.ok && /listener|session|task|payload/i.test(t.tool || ""))) {
+        if (window.__SC5_refresh) try { await window.__SC5_refresh(); } catch (_) {}
+      }
+      showOk(r.mode === "offline" ? "INKO (offline)" : "INKO replied");
+      return r;
+    } catch (e) {
+      const err = String(e.message || e);
+      showError(err);
+      removeAiPending();
+      appendAiChat("bot", "Error: " + err);
+      aiChatHistory.push({ role: "assistant", content: "Error: " + err });
+      persistAiHistory();
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   function renderAiView() {
     const root = el("view-ai");
@@ -1109,7 +1326,7 @@
           <p class="muted" style="font-size:0.78rem;margin:0 0 8px">
             Chat with the op. INKO inspects sessions, listeners, events, and runs railed actions
             (e.g. <em>"setup reverse shell on 4444"</em>). Configure models under <strong>Admin</strong>.
-            Use the <strong>INKO</strong> button in the top bar for the flyout panel.
+            Use the <strong>INKO</strong> button in the top bar for the flyout panel. History is kept in this browser.
           </p>
           <label>LLM connection</label>
           <select id="aiLlmPick"><option value="">Loading…</option></select>
@@ -1140,20 +1357,17 @@
       if (el("aiLlmGlobal") && el("aiLlmPick").value) el("aiLlmGlobal").value = el("aiLlmPick").value;
     };
     const sendPage = async () => {
-      const msg = (el("aiData") && el("aiData").value) || "";
+      if (aiBusy) return;
+      const msg = takeInputValue("aiData");
       if (!msg.trim()) return showError("Enter a message");
-      el("aiRun").disabled = true;
-      try {
-        await runAiChat(msg);
-        if (el("aiData")) el("aiData").value = "";
-      } finally { el("aiRun").disabled = false; }
+      await runAiChat(msg);
     };
     if (el("aiRun")) el("aiRun").onclick = sendPage;
     if (el("aiData")) {
       el("aiData").onkeydown = (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
-          sendPage();
+          if (!aiBusy) sendPage();
         }
       };
     }
@@ -1173,7 +1387,8 @@
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("aiOpenDrawer")) el("aiOpenDrawer").onclick = () => openAiDrawer(true);
-    syncAiPageLog();
+    rebuildAiChatDom();
+    setAiBusy(aiBusy);
   }
 
   function selectedLlmId() {
@@ -1181,83 +1396,6 @@
       || (el("aiLlmGlobal") && el("aiLlmGlobal").value)
       || loadSel("sc5_ops_llm")
       || null;
-  }
-
-  async function runAiChat(message) {
-    const text = (message || "").trim();
-    if (!text) return;
-    appendAiChat("user", text);
-    aiChatHistory.push({ role: "user", content: text });
-    // keep history bounded
-    if (aiChatHistory.length > 24) aiChatHistory = aiChatHistory.slice(-24);
-    try {
-      const body = {
-        message: text,
-        history: aiChatHistory.slice(0, -1), // prior turns only
-      };
-      const llm_id = selectedLlmId();
-      if (llm_id) body.llm_id = llm_id;
-      const r = await api("POST", "/api/v1/ai/chat", body);
-      const reply = (r && r.reply) || JSON.stringify(r, null, 2);
-      const tools = (r && r.tool_trace) || [];
-      appendAiChat("bot", reply, tools);
-      aiChatHistory.push({ role: "assistant", content: reply });
-      if (tools.some((t) => t.ok && /listener|session|task|payload/i.test(t.tool || ""))) {
-        if (window.__SC5_refresh) try { await window.__SC5_refresh(); } catch (_) {}
-      }
-      showOk(r.mode === "offline" ? "INKO (offline)" : "INKO replied");
-      return r;
-    } catch (e) {
-      const err = String(e.message || e);
-      showError(err);
-      appendAiChat("bot", "Error: " + err);
-      aiChatHistory.push({ role: "assistant", content: "Error: " + err });
-    }
-  }
-
-
-  function appendAiChat(who, text, toolTrace) {
-    const log = el("aiChatLog");
-    const page = el("aiPageLog");
-    const make = (parent) => {
-      if (!parent) return;
-      const div = document.createElement("div");
-      div.className = "ai-msg " + (who === "user" ? "user" : "bot");
-      const w = document.createElement("div");
-      w.className = "who";
-      w.textContent = who === "user" ? "You" : "INKO";
-      const b = document.createElement("div");
-      b.style.whiteSpace = "pre-wrap";
-      b.textContent = text;
-      div.appendChild(w);
-      div.appendChild(b);
-      if (toolTrace && toolTrace.length) {
-        const row = document.createElement("div");
-        row.className = "tools-used";
-        toolTrace.forEach((t) => {
-          const chip = document.createElement("span");
-          chip.className = "tool-chip " + (t.ok ? "ok" : "bad");
-          chip.textContent = (t.ok ? "✓ " : "✗ ") + (t.tool || "?") + (t.summary ? " · " + t.summary : "");
-          row.appendChild(chip);
-        });
-        div.appendChild(row);
-      }
-      parent.appendChild(div);
-      parent.scrollTop = parent.scrollHeight;
-    };
-    make(log);
-    make(page);
-  }
-
-  function clearAiChat() {
-    aiChatHistory = [];
-    if (el("aiChatLog")) el("aiChatLog").innerHTML = "";
-    if (el("aiPageLog")) el("aiPageLog").innerHTML = "";
-    showOk("Chat cleared");
-  }
-
-  function syncAiPageLog() {
-    // page log is independent DOM; drawer keeps history via aiChatHistory display only on new msgs
   }
 
   function openAiDrawer(open) {
@@ -1279,6 +1417,7 @@
     }
     if (btn) btn.setAttribute("aria-expanded", show ? "true" : "false");
     if (show) {
+      rebuildAiChatDom();
       const ta = el("aiPromptGlobal");
       if (ta) setTimeout(() => { try { ta.focus(); } catch (_) {} }, 50);
     }
@@ -1297,6 +1436,8 @@
       openAiDrawer(false);
       return;
     }
+    if (!aiChatHistory.length) aiChatHistory = loadAiHistory();
+    rebuildAiChatDom();
     loadSavedLlms().then((llms) => {
       fillLlmSelect(el("aiLlmGlobal"), llms, loadSel("sc5_ops_llm") || "");
     });
@@ -1311,23 +1452,19 @@
       if (e.key === "Escape" && drawer.classList.contains("open")) openAiDrawer(false);
     });
     if (el("aiClearGlobal")) el("aiClearGlobal").onclick = () => clearAiChat();
-    if (el("aiSendGlobal")) el("aiSendGlobal").onclick = async () => {
-      const prompt = (el("aiPromptGlobal") && el("aiPromptGlobal").value) || "";
+    const sendGlobal = async () => {
+      if (aiBusy) return;
+      const prompt = takeInputValue("aiPromptGlobal");
       if (!prompt.trim()) return showError("Enter a message");
-      el("aiSendGlobal").disabled = true;
-      try {
-        await runAiChat(prompt);
-        if (el("aiPromptGlobal")) el("aiPromptGlobal").value = "";
-      } finally {
-        el("aiSendGlobal").disabled = false;
-      }
+      await runAiChat(prompt);
     };
-    // Enter to send (Shift+Enter newline)
+    if (el("aiSendGlobal")) el("aiSendGlobal").onclick = sendGlobal;
+    // Enter to send (Shift+Enter newline); input clears immediately via takeInputValue
     if (el("aiPromptGlobal")) {
       el("aiPromptGlobal").onkeydown = (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
-          if (el("aiSendGlobal")) el("aiSendGlobal").click();
+          if (!aiBusy) sendGlobal();
         }
       };
     }
