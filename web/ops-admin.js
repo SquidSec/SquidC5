@@ -1340,15 +1340,15 @@
     s = s.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "<strong>$2</strong>");
     s = s.replace(/(\*|_)(?=\S)([\s\S]*?\S)\1/g, "<em>$2</em>");
     s = s.replace(/^&gt;\s?(.+)$/gm, "<blockquote>$1</blockquote>");
-    // unordered lists
-    s = s.replace(/(?:^(?:[-*+])\s+.+(?:\n|$))+?/gm, (block) => {
-      const items = block.trim().split("\n").map((line) => line.replace(/^[-*+]\s+/, "").trim());
-      return `<ul>${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
+    // Lists before paragraph split. Use greedy + so consecutive items share one <ul>/<ol>
+    // (non-greedy +? made each line its own <ol>, which restarts at 1. 1. 1.).
+    s = s.replace(/(?:^(?:[-*+])\s+.+(?:\n|$))+/gm, (block) => {
+      const items = block.trim().split("\n").map((line) => line.replace(/^[-*+]\s+/, "").trim()).filter(Boolean);
+      return `<ul>${items.map((i) => `<li>${i}</li>`).join("")}</ul>\n\n`;
     });
-    // ordered lists
-    s = s.replace(/(?:^\d+\.\s+.+(?:\n|$))+?/gm, (block) => {
-      const items = block.trim().split("\n").map((line) => line.replace(/^\d+\.\s+/, "").trim());
-      return `<ol>${items.map((i) => `<li>${i}</li>`).join("")}</ol>`;
+    s = s.replace(/(?:^\d+\.\s+.+(?:\n|$))+/gm, (block) => {
+      const items = block.trim().split("\n").map((line) => line.replace(/^\d+\.\s+/, "").trim()).filter(Boolean);
+      return `<ol>${items.map((i) => `<li>${i}</li>`).join("")}</ol>\n\n`;
     });
     s = s
       .split(/\n{2,}/)

@@ -89,6 +89,26 @@ def render_markdown_safe(src: str) -> str:
     s = re.sub(r"^(#{1,4})\s+(.+)$", lambda m: f"<h{len(m.group(1))}>{m.group(2)}</h{len(m.group(1))}>", s, flags=re.M)
     s = re.sub(r"(\*\*|__)(?=\S)([\s\S]*?\S)\1", r"<strong>\2</strong>", s)
     s = re.sub(r"(\*|_)(?=\S)([\s\S]*?\S)\1", r"<em>\2</em>", s)
+
+    def _ul_repl(m: re.Match[str]) -> str:
+        items = [
+            re.sub(r"^[-*+]\s+", "", ln).strip()
+            for ln in m.group(0).strip().split("\n")
+            if ln.strip()
+        ]
+        return "<ul>" + "".join(f"<li>{i}</li>" for i in items if i) + "</ul>\n\n"
+
+    def _ol_repl(m: re.Match[str]) -> str:
+        items = [
+            re.sub(r"^\d+\.\s+", "", ln).strip()
+            for ln in m.group(0).strip().split("\n")
+            if ln.strip()
+        ]
+        return "<ol>" + "".join(f"<li>{i}</li>" for i in items if i) + "</ol>\n\n"
+
+    # Greedy + so consecutive items share one list (non-greedy caused 1. 1. 1.)
+    s = re.sub(r"(?:^(?:[-*+])\s+.+(?:\n|$))+", _ul_repl, s, flags=re.M)
+    s = re.sub(r"(?:^\d+\.\s+.+(?:\n|$))+", _ol_repl, s, flags=re.M)
     parts = []
     for para in re.split(r"\n{2,}", s):
         p = para.strip()
@@ -152,3 +172,39 @@ def test_table_cells_escape_html() -> None:
     out = render_markdown_safe(md)
     assert "<script>" not in out
     assert "&lt;script&gt;" in out
+
+
+def test_ordered_list_single_ol() -> None:
+    """Consecutive 1. lines must become one <ol> (not four restarting at 1)."""
+    md = (
+        "Operator workflow (short)\n"
+        "1. **Upsert**/select profile → activate it.\n"
+        "1. Ensure **HTTP/HTTPS listener** is up.\n"
+        "1. Generate payload that matches that profile.\n"
+        "1. If you switch active profile mid-op, old implants keep old behavior.\n"
+    )
+    out = render_markdown_safe(md)
+    assert out.count("<ol>") == 1
+    assert out.count("</ol>") == 1
+    assert out.count("<li>") == 4
+    assert "<strong>Upsert</strong>" in out
+    assert "<strong>HTTP/HTTPS listener</strong>" in out
+
+
+def test_unordered_list_single_ul() -> None:
+    md = "- alpha\n- beta\n- gamma\n"
+    out = render_markdown_safe(md)
+    assert out.count("<ul>") == 1
+    assert out.count("<li>") == 3
+
+
+def test_chat_system_prompt_covers_platform() -> None:
+    from squidc5.ai.ops_tools import CHAT_SYSTEM_PROMPT
+
+    p = CHAT_SYSTEM_PROMPT
+    assert "INKO" in p
+    assert "Command" in p and "Control" in p
+    assert "reverse_shell" in p
+    assert "list_sessions" in p
+    assert "activate_profile" in p
+    assert "authorized" in p.lower()

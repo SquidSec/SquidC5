@@ -54,6 +54,18 @@
       width: 100%; background: #0e0e14; border: 1px solid var(--border2);
       border-radius: 6px; padding: 7px 10px; outline: none;
     }
+    /* Room for native/custom chevron so text never collides with the arrow */
+    select {
+      padding-right: 2rem;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a0a0b8' d='M1.4.6 6 5.2 10.6.6 12 2 6 8 0 2z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.65rem center;
+      background-size: 12px 8px;
+    }
+    select::-ms-expand { display: none; }
     input:focus, select:focus, textarea:focus { border-color: rgba(233,30,140,0.55); }
     label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 8px 0 4px; }
     .mono { font-family: var(--mono); font-size: 0.78rem; }
@@ -934,6 +946,7 @@
       .scope-grid { grid-template-columns: 1fr 1fr; max-height: 180px; }
       button, .nav-item, input, select, textarea { font-size: 16px; } /* prevent iOS zoom */
       input, select, textarea { padding: 10px; min-height: 42px; }
+      select { padding-right: 2.25rem; }
       label { margin-top: 10px; }
     }
 
