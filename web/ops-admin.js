@@ -69,7 +69,7 @@
       { a: "hitl", t: "HITL queue" },
     ],
     ai: [
-      { a: "admin-ai", t: "Admin AI" },
+      { a: "admin-ai", t: "INK" },
       { a: "llm-connections", t: "LLM connections" },
     ],
     observe: [
@@ -1095,46 +1095,36 @@
     const root = el("view-ai");
     if (!root) return;
     if (!can("ai:use") && !can("admin")) {
-      root.innerHTML = `<div class="empty-state"><strong>AI locked</strong>Need <code>ai:use</code> scope.</div>`;
+      root.innerHTML = `<div class="empty-state"><strong>INK locked</strong>Need <code>ai:use</code> scope.</div>`;
       return;
     }
     root.innerHTML = `
-      <div class="form-grid ai-layout">
-        <div class="work-panel">
-          <div class="wp-head">Operator chat</div>
-          <div class="wp-body">
-            <p class="muted" style="font-size:0.78rem;margin:0 0 8px">
-              Free-form chat with railed tools: sessions, listeners, tasks, payloads, metrics, events, audit.
-              Example: <em>“Setup a reverse shell listener on 4444 and start it.”</em>
-            </p>
-            <label>LLM connection</label>
-            <select id="aiLlmPick"><option value="">Loading…</option></select>
-            <label>Message</label>
-            <textarea id="aiData" rows="4" placeholder="Ask a question or give an ops instruction…"></textarea>
-            <div class="row">
-              <button type="button" class="primary" id="aiRun">Send</button>
-              <button type="button" id="aiClearPage">Clear chat</button>
-              <button type="button" id="aiStatus">AI status</button>
-              <button type="button" id="aiTools">Tools</button>
-              <button type="button" id="aiOpenDrawer">Floating chat</button>
-            </div>
-            <div id="aiPageLog" class="outbox" style="max-height:min(420px,45vh);min-height:160px"></div>
-            <details style="margin-top:10px">
-              <summary class="muted" style="cursor:pointer;font-size:0.78rem">Legacy capability runner</summary>
-              <label style="margin-top:8px">Capability</label>
-              <select id="aiCap">${AI_CAPS.map((c) => `<option value="${c}">${c}</option>`).join("")}</select>
-              <div class="row"><button type="button" id="aiRunCap">Run capability</button></div>
-              <div class="outbox empty" id="aiOut">—</div>
-            </details>
-          </div>
+      <div class="work-panel" style="min-height:min(70vh,640px);display:flex;flex-direction:column">
+        <div class="wp-head">
+          <span class="ink-brand">◈ INK</span>
+          <span class="muted" style="margin-left:8px;font-size:0.75rem;font-weight:500;text-transform:none;letter-spacing:0">neural operator</span>
         </div>
-        <div class="work-panel">
-          <div class="wp-head">Configure LLM (BYO)</div>
-          <div class="wp-body">${llmFormHtml("llm")}</div>
+        <div class="wp-body" style="display:flex;flex-direction:column;flex:1;min-height:0">
+          <p class="muted" style="font-size:0.78rem;margin:0 0 8px">
+            Chat with the op. INK inspects sessions, listeners, events, and runs railed actions
+            (e.g. <em>“setup reverse shell on 4444”</em>). Configure models under <strong>Admin</strong>.
+          </p>
+          <label>LLM connection</label>
+          <select id="aiLlmPick"><option value="">Loading…</option></select>
+          <div id="aiPageLog" class="outbox" style="flex:1;max-height:none;min-height:220px;margin-top:10px"></div>
+          <label style="margin-top:10px">Message</label>
+          <textarea id="aiData" rows="3" placeholder="Talk to INK… Enter to send, Shift+Enter for newline"></textarea>
+          <div class="row">
+            <button type="button" class="primary" id="aiRun">Send</button>
+            <button type="button" id="aiClearPage">Clear</button>
+            <button type="button" id="aiStatus">Status</button>
+            <button type="button" id="aiTools">Tools</button>
+            <button type="button" id="aiOpenDrawer">Pop-out</button>
+          </div>
+          <div class="outbox empty hidden" id="aiOut">—</div>
         </div>
       </div>
     `;
-    bindLlmForm("llm");
     const refreshPick = async () => {
       const llms = await loadSavedLlms();
       const prev = el("aiLlmPick")?.value || loadSel("sc5_ops_llm") || "";
@@ -1147,7 +1137,7 @@
       saveSel("sc5_ops_llm", el("aiLlmPick").value || "");
       if (el("aiLlmGlobal") && el("aiLlmPick").value) el("aiLlmGlobal").value = el("aiLlmPick").value;
     };
-    if (el("aiRun")) el("aiRun").onclick = async () => {
+    const sendPage = async () => {
       const msg = (el("aiData") && el("aiData").value) || "";
       if (!msg.trim()) return showError("Enter a message");
       el("aiRun").disabled = true;
@@ -1156,20 +1146,28 @@
         if (el("aiData")) el("aiData").value = "";
       } finally { el("aiRun").disabled = false; }
     };
+    if (el("aiRun")) el("aiRun").onclick = sendPage;
+    if (el("aiData")) {
+      el("aiData").onkeydown = (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendPage();
+        }
+      };
+    }
     if (el("aiClearPage")) el("aiClearPage").onclick = () => clearAiChat();
-    if (el("aiRunCap")) el("aiRunCap").onclick = () => runAiCapability(el("aiCap").value, el("aiData").value, "aiOut");
     if (el("aiStatus")) el("aiStatus").onclick = async () => {
       try {
         const r = await api("GET", "/api/v1/ai/status");
+        el("aiOut").classList.remove("hidden", "empty");
         el("aiOut").textContent = JSON.stringify(r, null, 2);
-        el("aiOut").classList.remove("empty");
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("aiTools")) el("aiTools").onclick = async () => {
       try {
         const r = await api("GET", "/api/v1/ai/tools");
+        el("aiOut").classList.remove("hidden", "empty");
         el("aiOut").textContent = JSON.stringify(r, null, 2);
-        el("aiOut").classList.remove("empty");
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("aiOpenDrawer")) el("aiOpenDrawer").onclick = () => openAiDrawer(true);
@@ -1205,7 +1203,7 @@
       if (tools.some((t) => t.ok && /listener|session|task|payload/i.test(t.tool || ""))) {
         if (window.__SC5_refresh) try { await window.__SC5_refresh(); } catch (_) {}
       }
-      showOk(r.mode === "offline" ? "AI (offline tools)" : "AI reply");
+      showOk(r.mode === "offline" ? "INK (offline)" : "INK replied");
       return r;
     } catch (e) {
       const err = String(e.message || e);
@@ -1215,26 +1213,6 @@
     }
   }
 
-  async function runAiCapability(capability, user_data, outId) {
-    try {
-      const body = {
-        capability: capability || "recon_assist",
-        user_data: user_data || "",
-      };
-      const llm_id = selectedLlmId();
-      if (llm_id) body.llm_id = llm_id;
-      const r = await api("POST", "/api/v1/ai/run", body);
-      const text = typeof r === "string" ? r : JSON.stringify(r, null, 2);
-      if (outId && el(outId)) {
-        el(outId).textContent = text;
-        el(outId).classList.remove("empty");
-      }
-      showOk("Capability complete");
-      return r;
-    } catch (e) {
-      showError(String(e.message || e));
-    }
-  }
 
   function appendAiChat(who, text, toolTrace) {
     const log = el("aiChatLog");
@@ -1245,7 +1223,7 @@
       div.className = "ai-msg " + (who === "user" ? "user" : "bot");
       const w = document.createElement("div");
       w.className = "who";
-      w.textContent = who === "user" ? "You" : "Admin AI";
+      w.textContent = who === "user" ? "You" : "INK";
       const b = document.createElement("div");
       b.style.whiteSpace = "pre-wrap";
       b.textContent = text;
@@ -1390,7 +1368,14 @@
         </div>` : ""}
       </div>
     `;
-    if (can("llm:manage") || can("admin")) bindLlmForm("adLlm");
+    if (can("llm:manage") || can("admin")) {
+      bindLlmForm("adLlm");
+      window.__SC5_refreshLlms = async () => {
+        const llms = await loadSavedLlms();
+        fillLlmSelect(el("aiLlmGlobal"), llms, loadSel("sc5_ops_llm") || "");
+        fillLlmSelect(el("aiLlmPick"), llms, loadSel("sc5_ops_llm") || "");
+      };
+    }
     function selectedScopes() {
       return Array.from(document.querySelectorAll(".ad-scope:checked")).map((c) => c.value);
     }
