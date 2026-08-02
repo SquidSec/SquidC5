@@ -98,6 +98,18 @@ class AIRunRequest(BaseModel):
     llm_id: str | None = None
 
 
+class AIChatMessage(BaseModel):
+    role: str
+    content: str = ""
+
+
+class AIChatRequest(BaseModel):
+    message: str
+    history: list[AIChatMessage] = Field(default_factory=list)
+    llm_id: str | None = None
+    max_rounds: int | None = None
+
+
 class ShellCommand(BaseModel):
     session_id: str
     command: str
@@ -1681,6 +1693,61 @@ def build_api_router() -> APIRouter:
             raise HTTPException(400, str(e)) from e
         except Exception as e:
             raise HTTPException(502, f"Admin AI error: {e}") from e
+
+    @api.post("/ai/chat")
+    async def ai_chat(
+        body: AIChatRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("ai:use", "admin")),
+    ) -> dict[str, Any]:
+        """Operator chat with allow-listed C5 tools (sessions, listeners, payloads, …)."""
+        state = get_state(request)
+        if not await state.features.enabled("ai_enabled"):
+            raise HTTPException(403, "Admin AI is disabled by feature flag")
+        decision = await state.policy.check_and_audit(
+            auth, "ai.admin", extra={"capability": "chat"}
+        )
+        if not decision.allowed:
+            raise HTTPException(403, decision.reason)
+        hist = [{"role": m.role, "content": m.content} for m in (body.history or [])]
+        try:
+            return await state.admin_ai.chat(
+                message=body.message,
+                history=hist,
+                actor=auth.name,
+                llm_id=body.llm_id,
+                state=state,
+                auth=auth,
+                max_rounds=body.max_rounds or 6,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        except Exception as e:
+            raise HTTPException(502, f"Admin AI error: {e}") from e
+
+    @api.get("/ai/tools")
+    async def ai_tools_catalog(
+        auth: AuthContext = Depends(require_scope("ai:use", "admin")),
+    ) -> dict[str, Any]:
+        """List Admin AI chat tools (names + descriptions only)."""
+        from squidc5.ai.ops_tools import OPENAI_TOOLS, TOOL_GATES
+
+        tools = []
+        for t in OPENAI_TOOLS:
+            fn = t.get("function") or {}
+            name = fn.get("name")
+            if not name:
+                continue
+            scopes, action = TOOL_GATES.get(name, ([], ""))
+            tools.append(
+                {
+                    "name": name,
+                    "description": fn.get("description"),
+                    "scopes": scopes,
+                    "policy_action": action,
+                }
+            )
+        return {"tools": tools, "note": "Railed tool-calling; policy + scopes enforced per call"}
 
     # ----- Malleable C2 profiles -----
 

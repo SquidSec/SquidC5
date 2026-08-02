@@ -1064,6 +1064,9 @@
 
   /* —— Admin —— */
   /* —— AI tab —— */
+  /** Multi-turn chat history for Admin AI (user/assistant text only) */
+  let aiChatHistory = [];
+
   function renderAiView() {
     const root = el("view-ai");
     if (!root) return;
@@ -1074,20 +1077,31 @@
     root.innerHTML = `
       <div class="form-grid ai-layout">
         <div class="work-panel">
-          <div class="wp-head">Run capability</div>
+          <div class="wp-head">Operator chat</div>
           <div class="wp-body">
+            <p class="muted" style="font-size:0.78rem;margin:0 0 8px">
+              Free-form chat with railed tools: sessions, listeners, tasks, payloads, metrics, events, audit.
+              Example: <em>“Setup a reverse shell listener on 4444 and start it.”</em>
+            </p>
             <label>LLM connection</label>
             <select id="aiLlmPick"><option value="">Loading…</option></select>
-            <label>Capability</label>
-            <select id="aiCap">${AI_CAPS.map((c) => `<option value="${c}">${c}</option>`).join("")}</select>
-            <label>Input (untrusted — sanitized server-side)</label>
-            <textarea id="aiData" rows="5" placeholder="Describe target, paste metrics text, ask for recon assist…"></textarea>
+            <label>Message</label>
+            <textarea id="aiData" rows="4" placeholder="Ask a question or give an ops instruction…"></textarea>
             <div class="row">
-              <button type="button" class="primary" id="aiRun">Run</button>
+              <button type="button" class="primary" id="aiRun">Send</button>
+              <button type="button" id="aiClearPage">Clear chat</button>
               <button type="button" id="aiStatus">AI status</button>
-              <button type="button" id="aiOpenDrawer">Open floating chat</button>
+              <button type="button" id="aiTools">Tools</button>
+              <button type="button" id="aiOpenDrawer">Floating chat</button>
             </div>
-            <div class="outbox empty" id="aiOut">—</div>
+            <div id="aiPageLog" class="outbox" style="max-height:min(420px,45vh);min-height:160px"></div>
+            <details style="margin-top:10px">
+              <summary class="muted" style="cursor:pointer;font-size:0.78rem">Legacy capability runner</summary>
+              <label style="margin-top:8px">Capability</label>
+              <select id="aiCap">${AI_CAPS.map((c) => `<option value="${c}">${c}</option>`).join("")}</select>
+              <div class="row"><button type="button" id="aiRunCap">Run capability</button></div>
+              <div class="outbox empty" id="aiOut">—</div>
+            </details>
           </div>
         </div>
         <div class="work-panel">
@@ -1109,7 +1123,17 @@
       saveSel("sc5_ops_llm", el("aiLlmPick").value || "");
       if (el("aiLlmGlobal") && el("aiLlmPick").value) el("aiLlmGlobal").value = el("aiLlmPick").value;
     };
-    if (el("aiRun")) el("aiRun").onclick = () => runAi(el("aiCap").value, el("aiData").value, "aiOut");
+    if (el("aiRun")) el("aiRun").onclick = async () => {
+      const msg = (el("aiData") && el("aiData").value) || "";
+      if (!msg.trim()) return showError("Enter a message");
+      el("aiRun").disabled = true;
+      try {
+        await runAiChat(msg);
+        if (el("aiData")) el("aiData").value = "";
+      } finally { el("aiRun").disabled = false; }
+    };
+    if (el("aiClearPage")) el("aiClearPage").onclick = () => clearAiChat();
+    if (el("aiRunCap")) el("aiRunCap").onclick = () => runAiCapability(el("aiCap").value, el("aiData").value, "aiOut");
     if (el("aiStatus")) el("aiStatus").onclick = async () => {
       try {
         const r = await api("GET", "/api/v1/ai/status");
@@ -1117,20 +1141,63 @@
         el("aiOut").classList.remove("empty");
       } catch (e) { showError(String(e.message || e)); }
     };
+    if (el("aiTools")) el("aiTools").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/ai/tools");
+        el("aiOut").textContent = JSON.stringify(r, null, 2);
+        el("aiOut").classList.remove("empty");
+      } catch (e) { showError(String(e.message || e)); }
+    };
     if (el("aiOpenDrawer")) el("aiOpenDrawer").onclick = () => openAiDrawer(true);
+    syncAiPageLog();
   }
 
+  function selectedLlmId() {
+    return (el("aiLlmPick") && el("aiLlmPick").value)
+      || (el("aiLlmGlobal") && el("aiLlmGlobal").value)
+      || loadSel("sc5_ops_llm")
+      || null;
+  }
 
-  async function runAi(capability, user_data, outId) {
+  async function runAiChat(message) {
+    const text = (message || "").trim();
+    if (!text) return;
+    appendAiChat("user", text);
+    aiChatHistory.push({ role: "user", content: text });
+    // keep history bounded
+    if (aiChatHistory.length > 24) aiChatHistory = aiChatHistory.slice(-24);
     try {
-      const llm_id = (el("aiLlmPick") && el("aiLlmPick").value)
-        || (el("aiLlmGlobal") && el("aiLlmGlobal").value)
-        || loadSel("sc5_ops_llm")
-        || null;
+      const body = {
+        message: text,
+        history: aiChatHistory.slice(0, -1), // prior turns only
+      };
+      const llm_id = selectedLlmId();
+      if (llm_id) body.llm_id = llm_id;
+      const r = await api("POST", "/api/v1/ai/chat", body);
+      const reply = (r && r.reply) || JSON.stringify(r, null, 2);
+      const tools = (r && r.tool_trace) || [];
+      appendAiChat("bot", reply, tools);
+      aiChatHistory.push({ role: "assistant", content: reply });
+      if (tools.some((t) => t.ok && /listener|session|task|payload/i.test(t.tool || ""))) {
+        if (window.__SC5_refresh) try { await window.__SC5_refresh(); } catch (_) {}
+      }
+      showOk(r.mode === "offline" ? "AI (offline tools)" : "AI reply");
+      return r;
+    } catch (e) {
+      const err = String(e.message || e);
+      showError(err);
+      appendAiChat("bot", "Error: " + err);
+      aiChatHistory.push({ role: "assistant", content: "Error: " + err });
+    }
+  }
+
+  async function runAiCapability(capability, user_data, outId) {
+    try {
       const body = {
         capability: capability || "recon_assist",
         user_data: user_data || "",
       };
+      const llm_id = selectedLlmId();
       if (llm_id) body.llm_id = llm_id;
       const r = await api("POST", "/api/v1/ai/run", body);
       const text = typeof r === "string" ? r : JSON.stringify(r, null, 2);
@@ -1138,32 +1205,55 @@
         el(outId).textContent = text;
         el(outId).classList.remove("empty");
       }
-      appendAiChat("user", `[${capability}${llm_id ? " · " + llm_id.slice(0, 10) : ""}] ${user_data || "(empty)"}`);
-      appendAiChat("bot", text);
-      showOk("AI complete");
+      showOk("Capability complete");
       return r;
     } catch (e) {
       showError(String(e.message || e));
-      appendAiChat("bot", "Error: " + String(e.message || e));
     }
   }
 
-  function appendAiChat(who, text) {
+  function appendAiChat(who, text, toolTrace) {
     const log = el("aiChatLog");
-    if (!log) return;
-    const div = document.createElement("div");
-    div.className = "ai-msg " + (who === "user" ? "user" : "bot");
-    const w = document.createElement("div");
-    w.className = "who";
-    w.textContent = who === "user" ? "You" : "Admin AI";
-    const b = document.createElement("div");
-    b.className = "mono";
-    b.style.whiteSpace = "pre-wrap";
-    b.textContent = text;
-    div.appendChild(w);
-    div.appendChild(b);
-    log.appendChild(div);
-    log.scrollTop = log.scrollHeight;
+    const page = el("aiPageLog");
+    const make = (parent) => {
+      if (!parent) return;
+      const div = document.createElement("div");
+      div.className = "ai-msg " + (who === "user" ? "user" : "bot");
+      const w = document.createElement("div");
+      w.className = "who";
+      w.textContent = who === "user" ? "You" : "Admin AI";
+      const b = document.createElement("div");
+      b.style.whiteSpace = "pre-wrap";
+      b.textContent = text;
+      div.appendChild(w);
+      div.appendChild(b);
+      if (toolTrace && toolTrace.length) {
+        const row = document.createElement("div");
+        row.className = "tools-used";
+        toolTrace.forEach((t) => {
+          const chip = document.createElement("span");
+          chip.className = "tool-chip " + (t.ok ? "ok" : "bad");
+          chip.textContent = (t.ok ? "✓ " : "✗ ") + (t.tool || "?") + (t.summary ? " · " + t.summary : "");
+          row.appendChild(chip);
+        });
+        div.appendChild(row);
+      }
+      parent.appendChild(div);
+      parent.scrollTop = parent.scrollHeight;
+    };
+    make(log);
+    make(page);
+  }
+
+  function clearAiChat() {
+    aiChatHistory = [];
+    if (el("aiChatLog")) el("aiChatLog").innerHTML = "";
+    if (el("aiPageLog")) el("aiPageLog").innerHTML = "";
+    showOk("Chat cleared");
+  }
+
+  function syncAiPageLog() {
+    // page log is independent DOM; drawer keeps history via aiChatHistory display only on new msgs
   }
 
   function openAiDrawer(open) {
@@ -1183,16 +1273,6 @@
       drawer.classList.add("hidden");
       return;
     }
-    const sel = el("aiCapGlobal");
-    if (sel && !sel.options.length) {
-      AI_CAPS.forEach((c) => {
-        const o = document.createElement("option");
-        o.value = c; o.textContent = c;
-        sel.appendChild(o);
-      });
-      sel.value = "recon_assist";
-    }
-    // LLM picker in drawer
     loadSavedLlms().then((llms) => {
       fillLlmSelect(el("aiLlmGlobal"), llms, loadSel("sc5_ops_llm") || "");
     });
@@ -1202,18 +1282,27 @@
     };
     fab.onclick = () => openAiDrawer();
     if (el("aiDrawerClose")) el("aiDrawerClose").onclick = () => openAiDrawer(false);
+    if (el("aiClearGlobal")) el("aiClearGlobal").onclick = () => clearAiChat();
     if (el("aiSendGlobal")) el("aiSendGlobal").onclick = async () => {
-      const cap = (el("aiCapGlobal") && el("aiCapGlobal").value) || "recon_assist";
       const prompt = (el("aiPromptGlobal") && el("aiPromptGlobal").value) || "";
-      if (!prompt.trim()) return showError("Enter a prompt");
+      if (!prompt.trim()) return showError("Enter a message");
       el("aiSendGlobal").disabled = true;
       try {
-        await runAi(cap, prompt, null);
+        await runAiChat(prompt);
         if (el("aiPromptGlobal")) el("aiPromptGlobal").value = "";
       } finally {
         el("aiSendGlobal").disabled = false;
       }
     };
+    // Enter to send (Shift+Enter newline)
+    if (el("aiPromptGlobal")) {
+      el("aiPromptGlobal").onkeydown = (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          if (el("aiSendGlobal")) el("aiSendGlobal").click();
+        }
+      };
+    }
   }
 
   function renderAdminView() {
