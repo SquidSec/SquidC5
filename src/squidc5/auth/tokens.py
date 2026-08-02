@@ -496,6 +496,43 @@ class TokenService:
         )
         return ok
 
+    async def roll(
+        self,
+        token_id: str,
+        *,
+        actor: str = "unknown",
+        grantor_is_admin: bool = False,
+    ) -> tuple[dict[str, Any], str]:
+        """Rotate the secret for an active token. Old secret stops working immediately.
+
+        Returns (token_row_without_secret, new_raw_token).
+        """
+        row = await self.db.get_token_by_id(token_id)
+        if not row or row.get("revoked"):
+            raise KeyError("token not found")
+        before = self.parse_row(row)
+        if not grantor_is_admin:
+            held_priv = set(before.get("scopes") or []) & self.PRIVILEGED_SCOPES
+            if held_priv:
+                raise PermissionError(
+                    f"Only admin may roll tokens with privileged scopes: {sorted(held_priv)}"
+                )
+        raw = generate_token()
+        ok = await self.db.update_token(token_id, token_hash=hash_token(raw))
+        if not ok:
+            raise KeyError("token not found")
+        await self.db.audit(
+            actor=actor,
+            actor_type="operator",
+            action="token.roll",
+            resource=token_id,
+            details={"name": before.get("name"), "scopes": before.get("scopes")},
+            risk_score=6,
+        )
+        updated = await self.db.get_token_by_id(token_id)
+        assert updated is not None
+        return self.parse_row(updated), raw
+
     def parse_row(self, row: dict[str, Any]) -> dict[str, Any]:
         out = dict(row)
         out["scopes"] = json.loads(row["scopes"]) if isinstance(row["scopes"], str) else row["scopes"]

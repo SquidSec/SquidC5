@@ -494,6 +494,38 @@ def build_api_router() -> APIRouter:
         ok = await state.tokens.revoke(token_id, auth.name)
         return {"revoked": ok}
 
+    @api.post("/tokens/{token_id}/roll")
+    async def roll_token(
+        token_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("tokens:manage", "admin")),
+    ) -> dict[str, Any]:
+        """Rotate token secret. Old secret stops working; new secret returned once."""
+        state = get_state(request)
+        decision = await state.policy.check_and_audit(
+            auth, "tokens.roll", resource=token_id
+        )
+        if not decision.allowed:
+            raise HTTPException(403, decision.reason)
+        try:
+            row, raw = await state.tokens.roll(
+                token_id,
+                actor=auth.name,
+                grantor_is_admin=auth.has_scope("admin"),
+            )
+        except KeyError as e:
+            raise HTTPException(404, "token not found") from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "scopes": row["scopes"],
+            "mcp_tools": row.get("mcp_tools") or [],
+            "token": raw,
+            "rolled": True,
+        }
+
     @api.patch("/tokens/{token_id}")
     async def update_token(
         token_id: str,

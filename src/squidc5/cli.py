@@ -660,6 +660,11 @@ def cmd_tokens_update(args: argparse.Namespace, client: Client) -> None:
     pp(client.patch(f"/api/v1/tokens/{args.id}", json=body))
 
 
+def cmd_tokens_roll(args: argparse.Namespace, client: Client) -> None:
+    """Rotate secret; prints new token once."""
+    pp(client.post(f"/api/v1/tokens/{args.id}/roll"))
+
+
 def cmd_ai_run(args: argparse.Namespace, client: Client) -> None:
     body: dict[str, Any] = {"capability": args.capability, "user_data": args.data or ""}
     if args.llm:
@@ -1177,6 +1182,9 @@ def build_parser() -> argparse.ArgumentParser:
     tk_upd.add_argument("--scopes", default=None, help="Comma-separated scopes (replaces full set)")
     tk_upd.add_argument("--mcp-tools", dest="mcp_tools", default=None, help="Comma-separated MCP tools")
     tk_upd.set_defaults(func=cmd_tokens_update, needs_client=True)
+    tk_roll = tok_sub.add_parser("roll", help="Rotate token secret (old secret stops working)")
+    tk_roll.add_argument("id")
+    tk_roll.set_defaults(func=cmd_tokens_roll, needs_client=True)
 
     # ai / llm
     ai = sub.add_parser("ai", help="Run Admin AI capability")

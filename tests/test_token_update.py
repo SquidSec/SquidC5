@@ -148,3 +148,48 @@ async def test_tokens_manage_cannot_modify_privileged_token(client, admin_header
         json={"scopes": ["sessions:read"]},
     )
     assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_roll_token_rotates_secret(client, admin_headers):
+    created = await mint_token(
+        client, admin_headers, "roll-me", ["sessions:read", "metrics:read"]
+    )
+    tid = created["id"]
+    old = created["token"]
+    old_h = bearer(old)
+    assert (await client.get("/api/v1/sessions", headers=old_h)).status_code == 200
+
+    r = await client.post(f"/api/v1/tokens/{tid}/roll", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body.get("rolled") is True
+    assert body.get("token") and body["token"] != old
+    assert body["token"].startswith("sc5_")
+
+    # old secret dead
+    assert (await client.get("/api/v1/sessions", headers=old_h)).status_code == 401
+    # new secret works
+    new_h = bearer(body["token"])
+    assert (await client.get("/api/v1/sessions", headers=new_h)).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_tokens_manage_cannot_roll_privileged(client, admin_headers):
+    mgr = await mint_token(
+        client,
+        admin_headers,
+        "tok-mgr-roll",
+        ["tokens:manage", "sessions:read"],
+    )
+    listed = await client.get("/api/v1/tokens", headers=admin_headers)
+    admin_tok = next(
+        (t for t in listed.json() if "admin" in (t.get("scopes") or []) and not t.get("revoked")),
+        None,
+    )
+    assert admin_tok
+    r = await client.post(
+        f"/api/v1/tokens/{admin_tok['id']}/roll",
+        headers=bearer(mgr["token"]),
+    )
+    assert r.status_code == 403

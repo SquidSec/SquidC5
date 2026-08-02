@@ -1892,7 +1892,27 @@
           <div class="work-panel">
             <div class="wp-head">Tokens</div>
             <div class="wp-body">
-              <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Mint a new token or select one below to update scopes. Updating scopes does <strong>not</strong> rotate the secret - revoke if compromised.</p>
+              <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Mint or edit scopes below. <strong>Roll</strong> rotates the secret (old stops working). Scope edit does not rotate - roll or revoke if compromised.</p>
+              <div id="adSecretBanner" class="hidden" style="margin-bottom:12px;padding:12px;border-radius:10px;border:1px solid rgba(52,211,153,0.4);background:rgba(15,46,34,0.55)">
+                <div class="row" style="margin:0 0 8px;justify-content:space-between;align-items:flex-start">
+                  <div>
+                    <strong id="adSecretTitle" style="color:var(--ok)">New token secret</strong>
+                    <p class="muted" style="margin:4px 0 0;font-size:0.72rem">Shown once until you dismiss. Copy the token or connection link now.</p>
+                  </div>
+                  <button type="button" id="adSecretDismiss" title="Dismiss">Close</button>
+                </div>
+                <label style="margin-top:0">Token</label>
+                <div class="row" style="margin:4px 0 8px;gap:6px;align-items:stretch">
+                  <input id="adSecretToken" class="mono" readonly style="flex:1;font-size:0.75rem" />
+                  <button type="button" id="adSecretCopyTok">Copy token</button>
+                </div>
+                <label>Connection link (opens /ops and auto-fills)</label>
+                <div class="row" style="margin:4px 0 0;gap:6px;align-items:stretch">
+                  <input id="adSecretLink" class="mono" readonly style="flex:1;font-size:0.68rem" />
+                  <button type="button" id="adSecretCopyLink">Copy link</button>
+                </div>
+                <p class="muted" id="adSecretMeta" style="margin:8px 0 0;font-size:0.68rem"></p>
+              </div>
               <label>Name</label><input id="adName" placeholder="operator-1" />
               <input type="hidden" id="adEditId" value="" />
               <label>Presets</label>
@@ -1927,7 +1947,6 @@
                 <button type="button" id="adSaveEdit" disabled>Save changes</button>
                 <button type="button" id="adCancelEdit" class="hidden">Cancel edit</button>
               </div>
-              <div class="outbox empty" id="adMintOut">New token secret shown once after mint</div>
               <div class="row" style="margin-top:12px">
                 <button type="button" id="adTokRefresh">Refresh list</button>
               </div>
@@ -2091,6 +2110,63 @@
       if (el("adMcpBox")) el("adMcpBox").classList.toggle("hidden", !show);
       if (el("adMcpShow") && selectedScopes().includes("mcp:connect")) el("adMcpShow").checked = true;
     }
+    function b64urlEncodeObj(obj) {
+      const s = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+      return s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+    function buildTokenConnectLink(rawToken) {
+      let apiUrl = "";
+      try {
+        if (window.__SC5_API_BASE__) apiUrl = String(window.__SC5_API_BASE__);
+        else if (typeof localStorage !== "undefined") {
+          const raw = localStorage.getItem("sc5_ops_cfg");
+          if (raw) apiUrl = (JSON.parse(raw).url || "");
+        }
+      } catch (_) {}
+      if (!apiUrl && typeof location !== "undefined") apiUrl = location.origin;
+      apiUrl = (apiUrl || "").replace(/\/$/, "");
+      let opsOrigin = apiUrl;
+      try { opsOrigin = new URL(apiUrl).origin; } catch (_) {}
+      const payload = { url: apiUrl, token: rawToken, refresh: 10 };
+      return opsOrigin + "/ops#sc5=" + b64urlEncodeObj(payload);
+    }
+    function hideSecretBanner() {
+      const b = el("adSecretBanner");
+      if (b) b.classList.add("hidden");
+      if (el("adSecretToken")) el("adSecretToken").value = "";
+      if (el("adSecretLink")) el("adSecretLink").value = "";
+    }
+    function showSecretBanner({ title, token, name, id, scopes }) {
+      const b = el("adSecretBanner");
+      if (!b) return;
+      b.classList.remove("hidden");
+      if (el("adSecretTitle")) el("adSecretTitle").textContent = title || "Token secret";
+      if (el("adSecretToken")) el("adSecretToken").value = token || "";
+      if (el("adSecretLink")) el("adSecretLink").value = buildTokenConnectLink(token || "");
+      if (el("adSecretMeta")) {
+        const sc = (scopes || []).slice(0, 8).join(", ");
+        el("adSecretMeta").textContent =
+          (name ? name + " - " : "") + (id || "") + (sc ? " - " + sc : "");
+      }
+      try { b.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {}
+    }
+    async function copyField(inputId, okMsg) {
+      const n = el(inputId);
+      if (!n || !n.value) return showError("Nothing to copy");
+      try {
+        await navigator.clipboard.writeText(n.value);
+        showOk(okMsg || "Copied");
+      } catch (_) {
+        try {
+          n.focus();
+          n.select();
+          document.execCommand("copy");
+          showOk(okMsg || "Copied");
+        } catch (e2) {
+          showError("Clipboard unavailable - select and copy manually");
+        }
+      }
+    }
     function clearEditMode() {
       if (el("adEditId")) el("adEditId").value = "";
       if (el("adSaveEdit")) el("adSaveEdit").disabled = true;
@@ -2109,10 +2185,6 @@
       if (el("adSaveEdit")) el("adSaveEdit").disabled = false;
       if (el("adCancelEdit")) el("adCancelEdit").classList.remove("hidden");
       if (el("adMint")) el("adMint").disabled = true;
-      if (el("adMintOut")) {
-        el("adMintOut").textContent = "Editing " + (tok.id || "") + " - save applies scopes without rotating the secret.";
-        el("adMintOut").classList.remove("empty");
-      }
     }
     async function loadTokenTable() {
       const box = el("adTokTable");
@@ -2138,8 +2210,9 @@
             <td><strong>${esc(t.name || "")}</strong><div class="mono muted" style="font-size:0.65rem">${esc(t.id || "")}</div></td>
             <td style="font-size:0.72rem;max-width:220px">${sc}${more}</td>
             <td>${st}</td>
-            <td class="row" style="margin:0">
+            <td class="row" style="margin:0;flex-wrap:wrap">
               ${!t.revoked ? `<button type="button" data-tok-edit="${esc(t.id)}">Edit</button>` : ""}
+              ${!t.revoked ? `<button type="button" data-tok-roll="${esc(t.id)}">Roll</button>` : ""}
               ${!t.revoked ? `<button type="button" class="danger" data-tok-rev="${esc(t.id)}">Revoke</button>` : ""}
             </td>
           </tr>`;
@@ -2150,6 +2223,26 @@
             const id = b.getAttribute("data-tok-edit");
             const tok = list.find((x) => x.id === id);
             if (tok) enterEditMode(tok);
+          };
+        });
+        box.querySelectorAll("[data-tok-roll]").forEach((b) => {
+          b.onclick = async () => {
+            const id = b.getAttribute("data-tok-roll");
+            const tok = list.find((x) => x.id === id);
+            if (!id || !confirm("Roll secret for " + (tok && tok.name ? tok.name : id) + "? The old secret stops working immediately.")) return;
+            try {
+              const r = await api("POST", "/api/v1/tokens/" + encodeURIComponent(id) + "/roll");
+              showSecretBanner({
+                title: "Rolled token secret",
+                token: r.token,
+                name: r.name || (tok && tok.name),
+                id: r.id || id,
+                scopes: r.scopes || (tok && tok.scopes),
+              });
+              showOk("Token rolled - copy new secret");
+              clearEditMode();
+              loadTokenTable();
+            } catch (e) { showError(String(e.message || e)); }
           };
         });
         box.querySelectorAll("[data-tok-rev]").forEach((b) => {
@@ -2196,19 +2289,28 @@
       c.addEventListener("change", () => syncMcpVisibility());
     });
     if (el("adCancelEdit")) el("adCancelEdit").onclick = () => clearEditMode();
+    if (el("adSecretDismiss")) el("adSecretDismiss").onclick = () => hideSecretBanner();
+    if (el("adSecretCopyTok")) el("adSecretCopyTok").onclick = () => copyField("adSecretToken", "Token copied");
+    if (el("adSecretCopyLink")) el("adSecretCopyLink").onclick = () => copyField("adSecretLink", "Connection link copied");
     if (el("adMint")) el("adMint").onclick = async () => {
       try {
         const scopes = selectedScopes();
         if (!scopes.length) return showError("Select at least one scope");
-        const body = { name: (el("adName").value || "").trim() || "op", scopes };
+        const name = (el("adName").value || "").trim() || "op";
+        const body = { name, scopes };
         if (scopes.includes("mcp:connect")) {
           const tools = selectedMcp();
           if (tools.length) body.mcp_tools = tools;
         }
         const r = await api("POST", "/api/v1/tokens", body);
-        el("adMintOut").textContent = r.token || JSON.stringify(r, null, 2);
-        el("adMintOut").classList.remove("empty");
-        showOk("Token minted - copy now");
+        showSecretBanner({
+          title: "Minted token secret",
+          token: r.token,
+          name: r.name || name,
+          id: r.id,
+          scopes: r.scopes || scopes,
+        });
+        showOk("Token minted - copy secret or connection link");
         loadTokenTable();
       } catch (e) { showError(String(e.message || e)); }
     };

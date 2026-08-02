@@ -1117,15 +1117,18 @@ Least privilege: phone UI might only need `shell:interact` + `sessions:read`; ex
    - **MCP external AI** - MCP connect with default safe tools
    - **Token admin** - mint/update tokens within grant limits
    - **Full admin** - break-glass (admin granters only)
-3. **Mint new** - raw `sc5_...` shown **once**.
-4. **Edit** a row to change name/scopes/MCP tools (`PATCH /api/v1/tokens/{id}`), or **Revoke**.
-5. Nav hides Profiles, Post-Ex, etc. when the connected token lacks those scopes.
+3. **Mint new** - a green banner shows the secret **and a connection link** (`/ops#sc5=...`) until you **Close** it.
+4. **Edit** a row to change name/scopes/MCP tools (`PATCH /api/v1/tokens/{id}`) without rotating the secret.
+5. **Roll** rotates the secret (old stops working); new secret appears in the same banner.
+6. **Revoke** disables the token entirely.
+7. Nav hides Profiles, Post-Ex, etc. when the connected token lacks those scopes.
 
 ### Example
 
 ```bash
 sc5 tokens create phone --scopes "sessions:read,shell:interact,metrics:read,collab:use,phone:operator"
 sc5 tokens update <id> --scopes "sessions:read,shell:interact,metrics:read,listeners:read"
+sc5 tokens roll <id>
 sc5 tokens list
 sc5 tokens revoke <id>
 ```
