@@ -23,7 +23,7 @@ Ops UI: `/ops` (admin UI loaded only after server-side admin token check)
 
 1. **Secure by default**: New installs must ship hardened (no public docs/OpenAPI, no wildcard CORS, MCP off until enabled, exec probe on, false-shell filter on).
 2. **External AI restriction**: MCP tools must remain allow-listed per token. No open-ended autonomous agent loops for external models.
-3. **Admin AI shielding**: Never feed raw session output into LLM prompts without `sanitize_untrusted()`. Keep capabilities allow-listed. Prefer offline/deterministic fallbacks when no LLM is configured.
+3. **Admin AI / INKO shielding**: Never feed raw session output into LLM prompts without `sanitize_untrusted()`. Keep capabilities and chat tools allow-listed. Prefer offline/deterministic fallbacks when no LLM is configured. No open-ended autonomous agent loops.
 4. **Determinism preference**: Templates, fixed prompts, single-step tools over free-form agentic planning.
 5. **Audit everything**: Operator, MCP, Admin AI, feature toggles, and admin UI loads go through the policy engine / audit trail.
 6. **No secrets in git**: Tokens, API keys, `data/`, `admin_token.txt`, `~/.config/squidc5/config.json` stay out of the repository.
@@ -181,7 +181,8 @@ sc5 tokens create <name> --scopes "a,b,c" [--mcp-tools "t1,t2"]
 sc5 tokens revoke <id>
 
 sc5 ai <capability> [--data "..."] [--llm <id>]
-# capabilities: payload_template | phishing_asset | doc_generate | shell_classify | recon_assist
+# capabilities: payload_template | phishing_asset | doc_generate | shell_classify | recon_assist | …
+# Ops UI INKO chat uses POST /api/v1/ai/chat (multi-turn + railed tools); CLI remains capability-oriented
 
 sc5 llm list
 sc5 llm add <name> <model> [--provider openai|xai] [--base-url URL] [--api-key KEY]
@@ -245,13 +246,17 @@ Beacon flow:
 - Deterministic single-tool preference; chain length limited by policy
 - Feature flag / settings: MCP **off by default**
 
-### Server-side Admin AI
+### Server-side Admin AI + INKO
 
-- BYO LLM (OpenAI-compatible, including xAI Grok at `https://api.x.ai/v1`)
-- Capabilities allow-list only
-- `sanitize_untrusted` on untrusted input
-- Offline fallback if no LLM configured
+**INKO** (Intelligent Neural Kinetic Operator) is the operator-facing neural chat surface on top of the sandboxed Admin AI stack.
+
+- BYO LLM (OpenAI-compatible, including xAI Grok at `https://api.x.ai/v1`); configure in Ops **Admin** or `sc5 llm add`
+- Capabilities allow-list only (`POST /api/v1/ai/run`); chat tools allow-list (`POST /api/v1/ai/chat`)
+- `sanitize_untrusted` on untrusted input; tool results sanitized before model re-entry
+- Offline fallbacks when no LLM configured (deterministic intents + capability offline JSON)
+- Ops UI: top-bar **INKO** opens right flyout (full-screen mobile); nav **INKO** page for workspace chat
 - Status: `GET /api/v1/ai/status` (+ `?debug=true`) — **never returns API keys**
+- Tool catalog: `GET /api/v1/ai/tools` (names/descriptions only)
 
 ## Deployment Knowledge (Docker)
 

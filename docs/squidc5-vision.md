@@ -12,7 +12,7 @@
 
 SquidC5 is a professional, lightweight, **military-grade**, security-first, AI-native C5 / command-and-control framework under active development. It is designed open-source-ready from the first commit, with strong emphasis on **secure defaults**, AI restriction, determinism, auditability, and low resource usage.
 
-Hardened posture includes: no public API documentation surface, scoped tokens, server-gated admin UI, feature flags, false-shell filtering, shell exec verification, and dual AI controls (restricted MCP + sandboxed Admin AI).
+Hardened posture includes: no public API documentation surface, scoped tokens, server-gated admin UI, feature flags, false-shell filtering, shell exec verification, and dual AI controls (restricted MCP + sandboxed Admin AI / INKO).
 
 ## Dual AI Architecture
 
@@ -27,9 +27,11 @@ External AI agents connect using scoped API tokens and interact via the MCP-comp
 - Policy engine enforces `max_chain_length` (default 1)
 - All tool calls are audited
 
-### 2. Server-Side Admin AI (Internal Intelligence Layer)
+### 2. Server-Side Admin AI / INKO (Internal Intelligence Layer)
 
-Administrators configure BYO LLM connections. The Admin AI supports limited capabilities:
+**INKO** (Intelligent Neural Kinetic Operator) is the operator-facing neural chat surface on top of the sandboxed Admin AI stack.
+
+Administrators configure BYO LLM connections (Ops **Admin** UI or CLI). **INKO** exposes multi-turn chat with railed C5 tools (`POST /api/v1/ai/chat`). The Admin AI also supports limited structured capabilities (`POST /api/v1/ai/run`):
 
 - `payload_template`
 - `phishing_asset`

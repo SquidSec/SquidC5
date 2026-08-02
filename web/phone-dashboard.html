@@ -325,7 +325,16 @@
       color: #c4c4d0; white-space: pre-wrap; word-break: break-word;
       min-height: 0;
     }
-    .ink-brand {
+    .inko-brand, .ink-brand {
+      background: linear-gradient(90deg, var(--pink2), var(--purple));
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent; font-weight: 800; letter-spacing: 0.04em;
+    }
+    .inko-brand-full {
+      font-weight: 700; font-size: 0.78rem; letter-spacing: 0.01em;
+      color: var(--text);
+    }
+    .inko-brand-full .inko-acronym {
       background: linear-gradient(90deg, var(--pink2), var(--purple));
       -webkit-background-clip: text; background-clip: text;
       color: transparent; font-weight: 800; letter-spacing: 0.04em;
@@ -497,34 +506,72 @@
     }
     .docs-menu a:hover { background: rgba(233,30,140,0.15); color: var(--pink2); }
 
-    /* Global AI FAB + drawer */
-    .ai-fab {
-      position: fixed; right: 18px; bottom: calc(var(--bottom-h) + 16px); z-index: 40;
-      width: auto; min-width: 72px; height: 44px; border-radius: 999px;
-      background: rgba(233,30,140,0.25); border: 1px solid rgba(233,30,140,0.55);
-      color: var(--pink2); font-weight: 800; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    /* INKO top-bar button + right flyout panel (not floating FAB) */
+    .inko-top-btn {
+      background: rgba(233,30,140,0.18); border-color: rgba(233,30,140,0.5);
+      color: var(--pink2); font-weight: 800; letter-spacing: 0.04em;
     }
-    .ai-fab:hover { background: rgba(233,30,140,0.4); }
+    .inko-top-btn:hover { background: rgba(233,30,140,0.32); }
+    .inko-top-btn.hidden { display: none !important; }
+    .ai-backdrop {
+      display: none; position: fixed; inset: 0; z-index: 58;
+      background: rgba(0,0,0,0.5);
+    }
+    .ai-backdrop.show { display: block; }
     .ai-drawer {
-      position: fixed; right: 16px; bottom: calc(var(--bottom-h) + 68px); z-index: 41;
-      width: min(440px, calc(100vw - 24px));
-      height: min(580px, calc(100dvh - var(--bottom-h) - 90px));
-      background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px;
-      display: flex; flex-direction: column; box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+      position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
+      width: min(440px, 100vw);
+      height: 100dvh; height: 100svh;
+      background: var(--bg2); border-left: 1px solid var(--border2); border-radius: 0;
+      display: flex; flex-direction: column;
+      box-shadow: -16px 0 48px rgba(0,0,0,0.45);
       overflow: hidden;
+      transform: translateX(100%);
+      transition: transform 0.2s ease;
+      pointer-events: none;
     }
-    .ai-drawer.hidden, .ai-fab.hidden { display: none !important; }
+    .ai-drawer.open {
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+    .ai-drawer.hidden { display: none !important; }
     .ai-drawer-head {
-      display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+      display: flex; align-items: flex-start; gap: 8px; padding: 12px 12px 10px;
       border-bottom: 1px solid var(--border); font-size: 0.85rem; flex-shrink: 0;
+      padding-top: calc(12px + env(safe-area-inset-top, 0px));
     }
+    .ai-drawer-head .inko-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .ai-drawer-body {
       flex: 1; overflow: auto; padding: 10px; font-size: 0.82rem; min-height: 0;
     }
     .ai-msg { margin-bottom: 10px; padding: 8px 10px; border-radius: 8px; line-height: 1.45; }
     .ai-msg.user { background: rgba(255,255,255,0.04); border: 1px solid var(--border); }
     .ai-msg.bot { background: rgba(233,30,140,0.08); border: 1px solid rgba(233,30,140,0.25); }
+    .ai-msg.pending { opacity: 0.95; }
     .ai-msg .who { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .ai-msg .body { word-break: break-word; }
+    .ai-msg .body p { margin: 0 0 0.55em; }
+    .ai-msg .body p:last-child { margin-bottom: 0; }
+    .ai-msg .body ul, .ai-msg .body ol { margin: 0.35em 0 0.55em 1.2em; padding: 0; }
+    .ai-msg .body li { margin: 0.15em 0; }
+    .ai-msg .body pre {
+      margin: 0.45em 0; padding: 8px 10px; border-radius: 8px; overflow: auto;
+      background: rgba(0,0,0,0.35); border: 1px solid var(--border);
+      font-family: var(--mono); font-size: 0.75rem; line-height: 1.4;
+    }
+    .ai-msg .body code {
+      font-family: var(--mono); font-size: 0.78em;
+      background: rgba(255,255,255,0.06); padding: 0.1em 0.35em; border-radius: 4px;
+    }
+    .ai-msg .body pre code { background: none; padding: 0; font-size: inherit; }
+    .ai-msg .body a { color: var(--pink2); }
+    .ai-msg .body h1, .ai-msg .body h2, .ai-msg .body h3, .ai-msg .body h4 {
+      margin: 0.6em 0 0.35em; font-size: 0.95em; line-height: 1.3;
+    }
+    .ai-msg .body blockquote {
+      margin: 0.4em 0; padding: 0.25em 0 0.25em 0.75em;
+      border-left: 3px solid rgba(233,30,140,0.45); color: var(--muted);
+    }
     .ai-msg .tools-used {
       margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px;
     }
@@ -534,14 +581,39 @@
     }
     .ai-msg .tool-chip.ok { color: var(--ok); border-color: rgba(52,211,153,0.35); }
     .ai-msg .tool-chip.bad { color: var(--bad); border-color: rgba(248,113,113,0.35); }
+    .ai-typing {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: var(--muted); font-size: 0.8rem;
+    }
+    .ai-typing-dots {
+      display: inline-flex; gap: 4px; align-items: center;
+    }
+    .ai-typing-dots span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--pink2); opacity: 0.35;
+      animation: ai-bounce 1s infinite ease-in-out;
+    }
+    .ai-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .ai-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes ai-bounce {
+      0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
+      40% { opacity: 1; transform: translateY(-3px); }
+    }
+    .ai-busy .inko-top-btn,
+    button.ai-send-busy:disabled {
+      opacity: 0.65; cursor: wait;
+    }
     .ai-drawer-foot {
       border-top: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 6px;
       flex-shrink: 0;
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
     .ai-drawer-foot select, .ai-drawer-foot textarea { width: 100%; }
     @media (max-width: 900px) {
-      .ai-fab { bottom: 24px; right: 12px; }
-      .ai-drawer { bottom: 76px; right: 8px; left: 8px; width: auto; }
+      .ai-drawer {
+        width: 100vw; left: 0; right: 0;
+        border-left: none;
+      }
     }
 
     /* Mobile: fixed header + scrollable nav + context bottom-sheet */
@@ -774,11 +846,6 @@
       button, .nav-item, input, select, textarea { font-size: 16px; } /* prevent iOS zoom */
       input, select, textarea { padding: 10px; min-height: 42px; }
       label { margin-top: 10px; }
-      .ai-fab { bottom: calc(var(--bottom-h) + 12px + env(safe-area-inset-bottom, 0px)); }
-      .ai-drawer {
-        bottom: calc(var(--bottom-h) + 64px + env(safe-area-inset-bottom, 0px));
-        max-height: calc(100dvh - var(--top-h) - var(--nav-h) - 80px);
-      }
     }
 
     @media (max-width: 420px) {
@@ -801,6 +868,7 @@
       <div class="spacer"></div>
       <span class="pill" id="statusBadge">offline</span>
       <span class="pill live hidden" id="roleBadge">—</span>
+      <button type="button" id="btnInko" class="inko-top-btn hidden" title="INKO — Intelligent Neural Kinetic Operator">◈ INKO</button>
       <button type="button" id="btnPhoneQr" title="Phone QR — scan to open ops and auto-connect">Phone QR</button>
       <button type="button" id="btnConnect" title="Connection settings">Connect</button>
       <button type="button" id="btnRefresh" title="Refresh data">↻</button>
@@ -815,7 +883,7 @@
         <button type="button" class="nav-item" data-view="payloads"><span class="ico">⌘</span> Payloads</button>
         <button type="button" class="nav-item" data-view="postex"><span class="ico">⚡</span> Post-Ex</button>
         <button type="button" class="nav-item" data-view="collab"><span class="ico">⇄</span> Collab</button>
-        <button type="button" class="nav-item" data-view="ai" id="navAi"><span class="ico">◈</span> INK</button>
+        <button type="button" class="nav-item" data-view="ai" id="navAi"><span class="ico">◈</span> INKO</button>
         <button type="button" class="nav-item" data-view="observe"><span class="ico">▤</span> Observe</button>
         <button type="button" class="nav-item hidden" data-view="admin" id="navAdmin"><span class="ico">⚙</span> Admin</button>
       </div>
@@ -870,26 +938,28 @@
       </div>
     </main>
 
-    <!-- INK — SquidC5 neural operator (global) -->
-    <button type="button" id="aiFab" class="ai-fab hidden" title="INK — neural operator">◈ INK</button>
-    <div id="aiDrawer" class="ai-drawer hidden" aria-label="INK chat">
+    <!-- INKO — Intelligent Neural Kinetic Operator (top-bar flyout) -->
+    <div id="aiBackdrop" class="ai-backdrop" hidden aria-hidden="true"></div>
+    <aside id="aiDrawer" class="ai-drawer hidden" aria-label="INKO chat" aria-hidden="true">
       <div class="ai-drawer-head">
-        <strong class="ink-brand">◈ INK</strong>
-        <span class="muted" style="font-size:0.68rem;font-weight:500">neural operator</span>
-        <a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#admin-ai" target="_blank" rel="noopener noreferrer" style="font-size:0.7rem">Docs</a>
-        <button type="button" id="aiDrawerClose" style="margin-left:auto">✕</button>
+        <div class="inko-titles">
+          <strong class="inko-brand-full"><span class="inko-acronym">◈ INKO</span></strong>
+          <span class="muted" style="font-size:0.72rem;font-weight:600;line-height:1.25">Intelligent Neural Kinetic Operator</span>
+        </div>
+        <a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#inko-intelligent-neural-kinetic-operator" target="_blank" rel="noopener noreferrer" style="font-size:0.7rem;flex-shrink:0">Docs</a>
+        <button type="button" id="aiDrawerClose" style="margin-left:4px;flex-shrink:0" title="Close INKO" aria-label="Close INKO">✕</button>
       </div>
       <div class="ai-drawer-body" id="aiChatLog"></div>
       <div class="ai-drawer-foot">
         <select id="aiLlmGlobal" title="LLM connection"></select>
-        <textarea id="aiPromptGlobal" rows="3" placeholder="Ask INK anything — list sessions, spin up a listener…"></textarea>
+        <textarea id="aiPromptGlobal" rows="3" placeholder="Ask INKO anything - list sessions, spin up a listener…"></textarea>
         <div class="row" style="margin:0;gap:6px">
           <button type="button" class="primary" id="aiSendGlobal" style="flex:1">Send</button>
           <button type="button" id="aiClearGlobal" title="Clear chat">Clear</button>
         </div>
         <p class="muted" style="margin:0;font-size:0.62rem">Enter to send · Shift+Enter newline</p>
       </div>
-    </div>
+    </aside>
 
     <aside class="ctx" id="ctxRail">
       <div class="ctx-head">
@@ -1049,7 +1119,7 @@
     payloads: { title: "Payloads", sub: "Generate implants and templates", doc: "payloads-and-implants" },
     postex: { title: "Post-Ex", sub: "Files, SOCKS, modules on selected session", doc: "file-ops" },
     collab: { title: "Collab", sub: "Teams, chat, handoff, presence", doc: "multi-operator-collab" },
-    ai: { title: "INK", sub: "Neural operator — chat, inspect, and drive the C5", doc: "admin-ai" },
+    ai: { title: "INKO", sub: "Intelligent Neural Kinetic Operator — chat, inspect, and drive the C5", doc: "inko-intelligent-neural-kinetic-operator" },
     observe: { title: "Observe", sub: "Metrics, audit, timeline, reports", doc: "timeline-and-reports" },
     admin: { title: "Admin", sub: "Tokens, policy, features, LLM, MCP", doc: "feature-toggles" },
   };
