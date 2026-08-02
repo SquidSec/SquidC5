@@ -28,6 +28,8 @@ TOOL_GATES: dict[str, tuple[list[str], str]] = {
     "create_task": (["tasks:write", "admin"], "tasks.create"),
     "generate_payload": (["payloads:generate", "admin"], "payloads.generate"),
     "list_payload_templates": (["payloads:generate", "admin"], "payloads.generate"),
+    "save_asset": (["payloads:generate", "profiles:write", "admin"], "payloads.generate"),
+    "list_assets": (["payloads:generate", "profiles:read", "admin"], "payloads.generate"),
     "get_metrics": (["metrics:read", "admin"], "metrics.read"),
     "list_recent_events": (["metrics:read", "sessions:read", "admin"], "metrics.read"),
     "list_audit": (["audit:read", "admin"], "audit.read"),
@@ -91,7 +93,7 @@ OPENAI_TOOLS: list[dict[str, Any]] = [
                     "name": {"type": "string", "description": "Short name e.g. rev-444"},
                     "kind": {
                         "type": "string",
-                        "enum": ["http", "tcp", "reverse_shell", "dns", "smtp"],
+                        "enum": ["http", "https", "tcp", "reverse_shell", "dns", "smtp"],
                     },
                     "port": {"type": "integer", "description": "TCP/UDP port 1-65535"},
                     "host": {
@@ -188,7 +190,8 @@ OPENAI_TOOLS: list[dict[str, Any]] = [
             "name": "generate_payload",
             "description": (
                 "Generate a deterministic payload from a template "
-                "(e.g. reverse_shell_bash, http_beacon_python)."
+                "(e.g. reverse_shell_bash, http_beacon_python). "
+                "After generate, call save_asset so the operator can reuse it."
             ),
             "parameters": {
                 "type": "object",
@@ -197,8 +200,50 @@ OPENAI_TOOLS: list[dict[str, Any]] = [
                     "host": {"type": "string"},
                     "port": {"type": "integer"},
                     "interval": {"type": "integer"},
+                    "save": {
+                        "type": "boolean",
+                        "description": "If true, also save to operator asset library",
+                    },
+                    "save_name": {"type": "string", "description": "Name when save=true"},
                 },
                 "required": ["template", "host", "port"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_asset",
+            "description": (
+                "Save generated content (payload, profile JSON, implant plan) to the "
+                "server asset library for later use by the operator."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": ["payload", "profile", "implant", "other"],
+                    },
+                    "name": {"type": "string"},
+                    "content": {"type": "string"},
+                    "meta": {"type": "object"},
+                },
+                "required": ["kind", "name", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_assets",
+            "description": "List saved operator assets (payloads/profiles/implants).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
             },
         },
     },
@@ -277,7 +322,8 @@ You can:
 Rules:
 - Prefer tools over guessing about live environment state.
 - When the user asks to set up a listener, create it AND start it (auto_start true or start_listener).
-- For reverse shells use kind=reverse_shell. For HTTP beacons use kind=http.
+- For reverse shells use kind=reverse_shell. For HTTP beacons use kind=http. For TLS implant HTTP use kind=https.
+- When you generate a payload/profile/implant the operator may reuse, call save_asset (or generate_payload with save=true).
 - Never invent session IDs, listener IDs, or secrets. Use tools.
 - Never dump API keys, tokens, or raw PII. Summarize tool results for the operator.
 - Do not claim you ran a tool unless you did.
@@ -353,12 +399,14 @@ def _handlers(
 
     async def create_listener(args: dict[str, Any]) -> Any:
         kind = str(args.get("kind") or "")
-        if not await state.features.enabled("http_listeners") and kind == "http":
-            raise PermissionError("HTTP listeners disabled")
+        if not await state.features.enabled("http_listeners") and kind in ("http", "https"):
+            raise PermissionError("HTTP/HTTPS listeners disabled")
         if kind in ("tcp", "reverse_shell") and not await state.features.enabled(
             "reverse_shell_listeners"
         ):
             raise PermissionError("Reverse-shell listeners disabled")
+        if kind == "smtp" and not await state.features.enabled("smtp_oast"):
+            raise PermissionError("SMTP listeners disabled")
         cfg: dict[str, Any] = {}
         if args.get("zone"):
             cfg["zone"] = str(args["zone"])
@@ -419,14 +467,64 @@ def _handlers(
             port=int(args["port"]),
             interval=int(args.get("interval") or 5),
         )
-        # payloads may be large — cap script body
+        full_payload = ""
+        if isinstance(result, dict):
+            full_payload = str(result.get("payload") or result.get("body") or "")
+        saved = None
+        if args.get("save") and full_payload:
+            sname = str(args.get("save_name") or f"{args.get('template')}-{args.get('port')}")
+            aid = await state.db.create_operator_asset(
+                kind="payload",
+                name=sname[:120],
+                content=full_payload,
+                meta={
+                    "template": args.get("template"),
+                    "host": args.get("host"),
+                    "port": args.get("port"),
+                },
+                created_by=auth.name,
+            )
+            saved = {"id": aid, "name": sname, "kind": "payload"}
+        # payloads may be large — cap script body for model context
         if isinstance(result, dict) and "payload" in result:
             body = str(result.get("payload") or "")
             if len(body) > 4000:
                 result = dict(result)
                 result["payload"] = body[:4000] + "\n...[truncated]"
                 result["truncated"] = True
+        if saved:
+            if isinstance(result, dict):
+                result = dict(result)
+                result["saved_asset"] = saved
+            else:
+                result = {"result": result, "saved_asset": saved}
         return result
+
+    async def save_asset(args: dict[str, Any]) -> Any:
+        kind = str(args.get("kind") or "other").strip().lower()
+        if kind not in ("payload", "profile", "implant", "other"):
+            raise ValueError("kind must be payload|profile|implant|other")
+        name = str(args.get("name") or "").strip()
+        content = str(args.get("content") or "")
+        if not name or not content.strip():
+            raise ValueError("name and content required")
+        meta = args.get("meta") if isinstance(args.get("meta"), dict) else {}
+        aid = await state.db.create_operator_asset(
+            kind=kind,
+            name=name[:120],
+            content=content,
+            meta=meta,
+            created_by=auth.name,
+        )
+        return {"id": aid, "kind": kind, "name": name}
+
+    async def list_assets(args: dict[str, Any]) -> Any:
+        kind = args.get("kind")
+        rows = await state.db.list_operator_assets(
+            kind=str(kind) if kind else None,
+            limit=int(args.get("limit") or 50),
+        )
+        return {"count": len(rows), "assets": rows}
 
     async def get_metrics(args: dict[str, Any]) -> Any:
         snap = await state.metrics.snapshot()
@@ -475,6 +573,8 @@ def _handlers(
         "create_task": create_task,
         "list_payload_templates": list_payload_templates,
         "generate_payload": generate_payload,
+        "save_asset": save_asset,
+        "list_assets": list_assets,
         "get_metrics": get_metrics,
         "list_recent_events": list_recent_events,
         "list_audit": list_audit,

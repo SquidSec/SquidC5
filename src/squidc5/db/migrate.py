@@ -217,10 +217,25 @@ ALTER TABLE audit_log ADD COLUMN chain_hash TEXT NOT NULL DEFAULT '';
 ALTER TABLE audit_log ADD COLUMN prev_hash TEXT NOT NULL DEFAULT '';
 """
 
+OPERATOR_ASSETS_SQL = """
+CREATE TABLE IF NOT EXISTS operator_assets (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    meta TEXT NOT NULL DEFAULT '{}',
+    created_by TEXT,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_operator_assets_kind ON operator_assets(kind);
+CREATE INDEX IF NOT EXISTS idx_operator_assets_created ON operator_assets(created_at);
+"""
+
 MIGRATIONS: Sequence[tuple[int, str, str]] = (
     (1, "baseline schema", BASELINE_SQL),
     (2, "HITL approval queue", HITL_REQUESTS_SQL),
     (3, "audit integrity chain columns", AUDIT_INTEGRITY_SQL),
+    (4, "operator assets library", OPERATOR_ASSETS_SQL),
 )
 
 SCHEMA_VERSION_TABLE = """

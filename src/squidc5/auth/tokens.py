@@ -131,6 +131,14 @@ class TokenService:
         {"admin", "tokens:manage", "policy:manage", "llm:manage", "plugins:manage"}
     )
 
+    async def rename(self, token_id: str, name: str) -> bool:
+        clean = (name or "").strip()
+        if not clean or len(clean) > 64:
+            raise ValueError("name must be 1-64 characters")
+        if any(c in clean for c in "\n\r\t"):
+            raise ValueError("name must not contain control characters")
+        return await self.db.rename_token(token_id, clean)
+
     async def create(
         self,
         name: str,
