@@ -1126,6 +1126,7 @@
   function renderMarkdownSafe(src) {
     let s = String(src ?? "").replace(/\r\n/g, "\n");
     const fences = [];
+    const tables = [];
     s = s.replace(/```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
       const i = fences.length;
       fences.push(
@@ -1140,6 +1141,38 @@
     s = s.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "<strong>$2</strong>");
     s = s.replace(/(\*|_)(?=\S)([\s\S]*?\S)\1/g, "<em>$2</em>");
     s = s.replace(/^&gt;\s?(.+)$/gm, "<blockquote>$1</blockquote>");
+    // GFM tables (must run before list/paragraph splitting)
+    s = s.replace(/(?:^[ \t]*\|.+\|[ \t]*\n){2,}/gm, (block) => {
+      const lines = block.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+      if (lines.length < 2) return block;
+      const splitRow = (line) => {
+        let t = line.trim();
+        if (t.startsWith("|")) t = t.slice(1);
+        if (t.endsWith("|")) t = t.slice(0, -1);
+        return t.split("|").map((c) => c.trim());
+      };
+      const isSep = (line) => {
+        const cells = splitRow(line);
+        return cells.length > 0 && cells.every((c) => /^:?-{1,}:?$/.test(c));
+      };
+      let header = splitRow(lines[0]);
+      let bodyStart = 1;
+      if (isSep(lines[1])) bodyStart = 2;
+      else if (lines.length >= 2 && isSep(lines[0])) return block;
+      const rows = lines.slice(bodyStart).filter((l) => !isSep(l)).map(splitRow);
+      if (!header.length || !rows.length) return block;
+      const coln = header.length;
+      const norm = (row) => {
+        const r = row.slice(0, coln);
+        while (r.length < coln) r.push("");
+        return r;
+      };
+      const th = norm(header).map((c) => `<th>${c}</th>`).join("");
+      const trs = rows.map((r) => `<tr>${norm(r).map((c) => `<td>${c}</td>`).join("")}</tr>`).join("");
+      const i = tables.length;
+      tables.push(`<div class="md-table-wrap"><table class="md-table"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table></div>`);
+      return `\u0000TABLE${i}\u0000\n\n`;
+    });
     // unordered lists
     s = s.replace(/(?:^(?:[-*+])\s+.+(?:\n|$))+?/gm, (block) => {
       const items = block.trim().split("\n").map((line) => line.replace(/^[-*+]\s+/, "").trim());
@@ -1153,10 +1186,14 @@
     s = s
       .split(/\n{2,}/)
       .map((para) => {
-        if (/^<(?:ul|ol|pre|h[1-4]|blockquote)/.test(para.trim())) return para;
+        const t = para.trim();
+        if (!t) return "";
+        if (/^<(?:ul|ol|pre|h[1-4]|blockquote|div)/.test(t)) return t;
+        if (/^\u0000TABLE\d+\u0000$/.test(t)) return t;
         return `<p>${para.replace(/\n/g, "<br>")}</p>`;
       })
       .join("");
+    s = s.replace(/\u0000TABLE(\d+)\u0000/g, (_, i) => tables[Number(i)] || "");
     s = s.replace(/\u0000FENCE(\d+)\u0000/g, (_, i) => fences[Number(i)] || "");
     return s;
   }
@@ -1179,19 +1216,16 @@
 
   function showAiPending() {
     removeAiPending();
-    const make = (parent) => {
-      if (!parent) return null;
-      const div = document.createElement("div");
-      div.className = "ai-msg bot pending";
-      div.dataset.aiPending = "1";
-      div.innerHTML =
-        '<div class="who">INKO</div><div class="ai-typing"><span class="ai-typing-dots" aria-hidden="true"><span></span><span></span><span></span></span><span>Thinking…</span></div>';
-      parent.appendChild(div);
-      parent.scrollTop = parent.scrollHeight;
-      return div;
-    };
-    make(el("aiChatLog"));
-    make(el("aiPageLog"));
+    const parent = el("aiChatLog");
+    if (!parent) return null;
+    const div = document.createElement("div");
+    div.className = "ai-msg bot pending";
+    div.dataset.aiPending = "1";
+    div.innerHTML =
+      '<div class="who">INKO</div><div class="ai-typing"><span class="ai-typing-dots" aria-hidden="true"><span></span><span></span><span></span></span><span>Thinking…</span></div>';
+    parent.appendChild(div);
+    parent.scrollTop = parent.scrollHeight;
+    return div;
   }
 
   function removeAiPending() {
@@ -1199,46 +1233,65 @@
   }
 
   function appendAiChat(who, text, toolTrace) {
-    const log = el("aiChatLog");
-    const page = el("aiPageLog");
-    const make = (parent) => {
-      if (!parent) return;
-      const div = document.createElement("div");
-      div.className = "ai-msg " + (who === "user" ? "user" : "bot");
-      const w = document.createElement("div");
-      w.className = "who";
-      w.textContent = who === "user" ? "You" : "INKO";
-      const b = document.createElement("div");
-      b.className = "body";
-      if (who === "user") {
-        b.style.whiteSpace = "pre-wrap";
-        b.textContent = text;
-      } else {
-        b.innerHTML = renderMarkdownSafe(text);
-      }
-      div.appendChild(w);
-      div.appendChild(b);
-      if (toolTrace && toolTrace.length) {
-        const row = document.createElement("div");
-        row.className = "tools-used";
-        toolTrace.forEach((t) => {
-          const chip = document.createElement("span");
-          chip.className = "tool-chip " + (t.ok ? "ok" : "bad");
-          chip.textContent = (t.ok ? "✓ " : "✗ ") + (t.tool || "?") + (t.summary ? " · " + t.summary : "");
-          row.appendChild(chip);
-        });
-        div.appendChild(row);
-      }
-      parent.appendChild(div);
-      parent.scrollTop = parent.scrollHeight;
-    };
-    make(log);
-    make(page);
+    const parent = el("aiChatLog");
+    if (!parent) return;
+    const div = document.createElement("div");
+    div.className = "ai-msg " + (who === "user" ? "user" : "bot");
+    const w = document.createElement("div");
+    w.className = "who";
+    w.textContent = who === "user" ? "You" : "INKO";
+    const b = document.createElement("div");
+    b.className = "body";
+    if (who === "user") {
+      b.style.whiteSpace = "pre-wrap";
+      b.textContent = text;
+    } else {
+      b.innerHTML = renderMarkdownSafe(text);
+    }
+    div.appendChild(w);
+    div.appendChild(b);
+    if (toolTrace && toolTrace.length) {
+      const row = document.createElement("div");
+      row.className = "tools-used";
+      toolTrace.forEach((t) => {
+        const chip = document.createElement("span");
+        chip.className = "tool-chip " + (t.ok ? "ok" : "bad");
+        chip.textContent = (t.ok ? "✓ " : "✗ ") + (t.tool || "?") + (t.summary ? " · " + t.summary : "");
+        row.appendChild(chip);
+      });
+      div.appendChild(row);
+    }
+    if (who !== "user") {
+      const actions = document.createElement("div");
+      actions.className = "ai-msg-actions";
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "ai-copy-btn";
+      copyBtn.textContent = "Copy";
+      copyBtn.title = "Copy response to clipboard";
+      copyBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(String(text || ""));
+          copyBtn.textContent = "Copied";
+          copyBtn.classList.add("copied");
+          setTimeout(() => {
+            copyBtn.textContent = "Copy";
+            copyBtn.classList.remove("copied");
+          }, 1600);
+        } catch (_) {
+          showError("Clipboard unavailable");
+        }
+      };
+      actions.appendChild(copyBtn);
+      div.appendChild(actions);
+    }
+    parent.appendChild(div);
+    parent.scrollTop = parent.scrollHeight;
   }
 
   function rebuildAiChatDom() {
     if (el("aiChatLog")) el("aiChatLog").innerHTML = "";
-    if (el("aiPageLog")) el("aiPageLog").innerHTML = "";
     aiChatHistory.forEach((m) => {
       const who = m.role === "user" ? "user" : "bot";
       appendAiChat(who, m.content, m.tools || null);
@@ -1251,12 +1304,7 @@
     persistAiHistory();
     removeAiPending();
     if (el("aiChatLog")) el("aiChatLog").innerHTML = "";
-    if (el("aiPageLog")) el("aiPageLog").innerHTML = "";
     showOk("Chat cleared");
-  }
-
-  function syncAiPageLog() {
-    rebuildAiChatDom();
   }
 
   function takeInputValue(textareaId) {
@@ -1316,31 +1364,55 @@
       root.innerHTML = `<div class="empty-state"><strong>INKO locked</strong>Need <code>ai:use</code> scope.</div>`;
       return;
     }
+    const CAP_CARDS = [
+      { t: "Sessions", d: "List / get beacons & reverse shells; triage live inventory." },
+      { t: "Listeners", d: "Create, start, stop reverse_shell / http / dns / smtp acceptors." },
+      { t: "Tasks", d: "Queue commands on beacons; inspect pending work." },
+      { t: "Payloads", d: "List templates and generate implants for authorized targets." },
+      { t: "Metrics & events", d: "Snapshot counters and recent live event buffer." },
+      { t: "Audit", d: "Pull recent audit trail entries for the engagement." },
+      { t: "Shell (HITL)", d: "Send to verified reverse shells when policy allows." },
+      { t: "General ops Q&A", d: "Explain C5 concepts, ROE-safe guidance, and results." },
+    ];
     root.innerHTML = `
-      <div class="work-panel" style="min-height:min(70vh,640px);display:flex;flex-direction:column">
-        <div class="wp-head" style="flex-wrap:wrap;gap:6px">
-          <span class="inko-brand">◈ INKO</span>
-          <span class="muted" style="margin-left:4px;font-size:0.75rem;font-weight:600;text-transform:none;letter-spacing:0">Intelligent Neural Kinetic Operator</span>
-        </div>
-        <div class="wp-body" style="display:flex;flex-direction:column;flex:1;min-height:0">
-          <p class="muted" style="font-size:0.78rem;margin:0 0 8px">
-            Chat with the op. INKO inspects sessions, listeners, events, and runs railed actions
-            (e.g. <em>"setup reverse shell on 4444"</em>). Configure models under <strong>Admin</strong>.
-            Use the <strong>INKO</strong> button in the top bar for the flyout panel. History is kept in this browser.
-          </p>
-          <label>LLM connection</label>
-          <select id="aiLlmPick"><option value="">Loading…</option></select>
-          <div id="aiPageLog" class="outbox" style="flex:1;max-height:none;min-height:220px;margin-top:10px"></div>
-          <label style="margin-top:10px">Message</label>
-          <textarea id="aiData" rows="3" placeholder="Talk to INKO… Enter to send, Shift+Enter for newline"></textarea>
-          <div class="row">
-            <button type="button" class="primary" id="aiRun">Send</button>
-            <button type="button" id="aiClearPage">Clear</button>
-            <button type="button" id="aiStatus">Status</button>
-            <button type="button" id="aiTools">Tools</button>
-            <button type="button" id="aiOpenDrawer">Open flyout</button>
+      <div class="form-grid" style="align-items:stretch">
+        <div class="work-panel">
+          <div class="wp-head" style="flex-wrap:wrap;gap:6px">
+            <span class="inko-brand">◈ INKO</span>
+            <span class="muted" style="margin-left:4px;font-size:0.75rem;font-weight:600;text-transform:none;letter-spacing:0">Intelligent Neural Kinetic Operator</span>
           </div>
-          <div class="outbox empty hidden" id="aiOut">—</div>
+          <div class="wp-body">
+            <p class="muted" style="font-size:0.82rem;margin:0 0 10px;line-height:1.45">
+              Chat lives in the top-bar <strong>INKO</strong> flyout — not on this page.
+              Here you pick the default LLM, review what INKO can do, and inspect status / tool catalog.
+              Configure providers under <strong>Admin</strong>.
+            </p>
+            <div class="row" style="margin-bottom:12px">
+              <button type="button" class="primary" id="aiOpenDrawer">Open INKO chat</button>
+              <button type="button" id="aiClearPage">Clear chat history</button>
+            </div>
+            <label>Default LLM connection (flyout)</label>
+            <select id="aiLlmPick"><option value="">Loading…</option></select>
+            <h3 style="margin:16px 0 6px;font-size:0.85rem;color:var(--text)">What INKO can do</h3>
+            <div class="inko-cap-grid">
+              ${CAP_CARDS.map((c) => `
+                <div class="inko-cap-card"><h4>${esc(c.t)}</h4><p>${esc(c.d)}</p></div>
+              `).join("")}
+            </div>
+            <p class="muted" style="font-size:0.75rem;margin:8px 0 0">
+              Example: <em>“setup reverse shell on 4444”</em> · <em>“list active sessions”</em> · <em>“show recent events”</em>
+            </p>
+          </div>
+        </div>
+        <div class="work-panel">
+          <div class="wp-head">Status &amp; tools</div>
+          <div class="wp-body" style="display:flex;flex-direction:column;min-height:0;flex:1">
+            <div class="row">
+              <button type="button" class="primary" id="aiStatus">AI status</button>
+              <button type="button" id="aiTools">Tool catalog</button>
+            </div>
+            <div class="outbox empty inko-outbox" id="aiOut">Run Status or Tools — output appears here (scrollable).</div>
+          </div>
         </div>
       </div>
     `;
@@ -1356,39 +1428,29 @@
       saveSel("sc5_ops_llm", el("aiLlmPick").value || "");
       if (el("aiLlmGlobal") && el("aiLlmPick").value) el("aiLlmGlobal").value = el("aiLlmPick").value;
     };
-    const sendPage = async () => {
-      if (aiBusy) return;
-      const msg = takeInputValue("aiData");
-      if (!msg.trim()) return showError("Enter a message");
-      await runAiChat(msg);
-    };
-    if (el("aiRun")) el("aiRun").onclick = sendPage;
-    if (el("aiData")) {
-      el("aiData").onkeydown = (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          if (!aiBusy) sendPage();
-        }
-      };
-    }
     if (el("aiClearPage")) el("aiClearPage").onclick = () => clearAiChat();
     if (el("aiStatus")) el("aiStatus").onclick = async () => {
       try {
         const r = await api("GET", "/api/v1/ai/status");
-        el("aiOut").classList.remove("hidden", "empty");
+        el("aiOut").classList.remove("empty");
         el("aiOut").textContent = JSON.stringify(r, null, 2);
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("aiTools")) el("aiTools").onclick = async () => {
       try {
         const r = await api("GET", "/api/v1/ai/tools");
-        el("aiOut").classList.remove("hidden", "empty");
-        el("aiOut").textContent = JSON.stringify(r, null, 2);
+        el("aiOut").classList.remove("empty");
+        const tools = (r && r.tools) || [];
+        if (tools.length) {
+          el("aiOut").textContent = tools.map((t) =>
+            `${t.name}\n  ${t.description || ""}\n  scopes: ${(t.scopes || []).join(", ") || "—"}\n  policy: ${t.policy_action || "—"}`
+          ).join("\n\n") + (r.note ? `\n\n—\n${r.note}` : "");
+        } else {
+          el("aiOut").textContent = JSON.stringify(r, null, 2);
+        }
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("aiOpenDrawer")) el("aiOpenDrawer").onclick = () => openAiDrawer(true);
-    rebuildAiChatDom();
-    setAiBusy(aiBusy);
   }
 
   function selectedLlmId() {
