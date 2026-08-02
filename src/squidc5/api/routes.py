@@ -541,7 +541,22 @@ def build_api_router() -> APIRouter:
         status: str | None = None,
         auth: AuthContext = Depends(require_scope("tasks:read", "admin")),
     ) -> list[dict[str, Any]]:
+        """List tasks. Non-admins must pass session_id (no global enumeration)."""
         state = get_state(request)
+        if not auth.has_scope("admin"):
+            if not session_id:
+                raise HTTPException(
+                    400, "session_id required (non-admin cannot list all tasks)"
+                )
+            # read path: allow if not claim-locked against this actor
+            try:
+                await state.teams.assert_write_access(
+                    session_id, auth.name, is_admin=False
+                )
+            except KeyError as e:
+                raise HTTPException(404, str(e)) from e
+            except PermissionError as e:
+                raise HTTPException(403, str(e)) from e
         return await state.tasks.list(session_id=session_id, status=status)
 
     @api.post("/tasks")

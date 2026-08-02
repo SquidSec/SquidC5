@@ -39,8 +39,10 @@ async def test_cancel_and_patch_pending_task(tmp_path):
             tid = t.json()["id"]
             assert t.json()["status"] == "pending"
 
-            # list pending
-            lst = await client.get("/api/v1/tasks?status=pending", headers=h)
+            # list pending for session
+            lst = await client.get(
+                f"/api/v1/tasks?session_id={sid}&status=pending", headers=h
+            )
             assert lst.status_code == 200
             assert any(x["id"] == tid for x in lst.json())
 

@@ -325,19 +325,16 @@
       return;
     }
     try {
-      const q = selectedId
-        ? `/api/v1/tasks?session_id=${encodeURIComponent(selectedId)}&status=pending`
-        : "/api/v1/tasks?status=pending";
+      if (!selectedId) {
+        box.innerHTML = '<div class="muted" style="padding:8px">Select a session to list pending tasks</div>';
+        selectedTaskId = null;
+        return;
+      }
+      const q = `/api/v1/tasks?session_id=${encodeURIComponent(selectedId)}&status=pending`;
       let tasks = await api("GET", q);
       if (!Array.isArray(tasks)) tasks = tasks.tasks || [];
-      // also show pending for all if no session filter returned empty and we want global
-      if (!tasks.length && selectedId) {
-        const all = await api("GET", "/api/v1/tasks?status=pending");
-        tasks = Array.isArray(all) ? all.filter((t) => t.session_id === selectedId) : [];
-      }
       if (!tasks.length) {
-        box.innerHTML = '<div class="muted" style="padding:8px">No pending tasks' +
-          (selectedId ? " for this session" : "") + "</div>";
+        box.innerHTML = '<div class="muted" style="padding:8px">No pending tasks for this session</div>';
         selectedTaskId = null;
         return;
       }
