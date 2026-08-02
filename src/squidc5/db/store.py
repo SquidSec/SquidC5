@@ -142,8 +142,9 @@ class Database:
         name: str | None = None,
         scopes: list[str] | None = None,
         mcp_tools: list[str] | None = None,
+        token_hash: str | None = None,
     ) -> bool:
-        """Patch token fields. Does not change token_hash (secret stays the same)."""
+        """Patch token fields. token_hash set only on roll (secret rotate)."""
         sets: list[str] = []
         args: list[Any] = []
         if name is not None:
@@ -155,6 +156,9 @@ class Database:
         if mcp_tools is not None:
             sets.append("mcp_tools = ?")
             args.append(json.dumps(mcp_tools))
+        if token_hash is not None:
+            sets.append("token_hash = ?")
+            args.append(token_hash)
         if not sets:
             return False
         args.append(token_id)

@@ -88,6 +88,7 @@ DEFAULT_POLICY: dict[str, Any] = {
         "ai.admin": 3,
         "tokens.create": 6,
         "tokens.update": 6,
+        "tokens.roll": 7,
         "policy.update": 9,
     },
 }
