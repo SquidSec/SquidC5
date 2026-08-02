@@ -1620,7 +1620,7 @@ def build_api_router() -> APIRouter:
     async def list_llm_models(
         body: LLMModelsRequest,
         request: Request,
-        auth: AuthContext = Depends(require_scope("llm:manage", "admin", "ai:use")),
+        auth: AuthContext = Depends(require_scope("llm:manage", "admin")),
     ) -> dict[str, Any]:
         """List models from an OpenAI-compatible provider (SSRF-guarded proxy)."""
         state = get_state(request)

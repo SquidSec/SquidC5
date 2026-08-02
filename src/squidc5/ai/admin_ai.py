@@ -554,16 +554,17 @@ class AdminAI:
         raw_base = (base_url or "").strip()
         prov = (provider or "").strip().lower()
         if llm_id:
+            # Never mix stored secrets with caller-supplied base_url (key exfil).
             row = await self.db.get_llm(llm_id)
             if not row:
                 raise ValueError("LLM not found")
-            raw_base = raw_base or (row.get("base_url") or "")
-            prov = prov or str(row.get("provider") or "")
+            raw_base = (row.get("base_url") or "").strip()
+            prov = str(row.get("provider") or "")
             raw_key = row.get("api_key_enc") or ""
             if self.secrets is not None and raw_key:
                 key = self.secrets.decrypt(raw_key) or ""
             else:
-                key = raw_key or key
+                key = raw_key or ""
         if not raw_base:
             raise ValueError("base_url required")
         base = validate_llm_base_url(raw_base, allow_private=False)
