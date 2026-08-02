@@ -11,11 +11,23 @@
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"));
   if (!api || !$) return;
 
-  let selectedId = state.selectedId || null;
+  const DOCS = window.__SC5_DOCS || "https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md";
+  function loadSel(key) {
+    try { return localStorage.getItem(key) || null; } catch (_) { return null; }
+  }
+  function saveSel(key, val) {
+    try {
+      if (val) localStorage.setItem(key, val);
+      else localStorage.removeItem(key);
+    } catch (_) {}
+  }
+
+  let selectedId = state.selectedId || loadSel("sc5_ops_sid") || null;
+  let selectedListenerId = loadSel("sc5_ops_lid") || null;
   let cache = { sessions: [], listeners: [] };
+  let viewBuilt = {}; // track which views already rendered structure
 
   function el(id) { return document.getElementById(id); }
-  function setHTML(id, html) { const n = el(id); if (n) n.innerHTML = html; }
   function tools(html) { const t = el("viewTools"); if (t) t.innerHTML = html || ""; }
   function shortId(id) { return (id || "").length > 14 ? id.slice(0, 12) + "…" : (id || ""); }
   function metaOf(s) {
@@ -23,41 +35,106 @@
     if (typeof m === "string") { try { m = JSON.parse(m); } catch (_) { m = {}; } }
     return m || {};
   }
+  function docLink(anchor, label) {
+    const href = DOCS + (anchor ? "#" + anchor : "");
+    return `<a class="doc-link" href="${href}" target="_blank" rel="noopener noreferrer">${label || "Docs ↗"}</a>`;
+  }
+  function featDocs(anchor, blurb) {
+    return `<div class="feat-docs"><span class="muted">${blurb || ""}</span> ${docLink(anchor, "Docs ↗")}</div>`;
+  }
+  const AI_CAPS = [
+    "recon_assist", "session_triage", "task_suggest", "shell_classify", "opsec_review",
+    "payload_template", "evasion_suggest", "beacon_anomaly", "report_draft", "hitl_brief",
+    "anomaly_explain", "profile_mutate", "implant_build_plan", "phishing_asset", "doc_generate",
+  ];
 
   /* —— Context rail —— */
-  async function renderContext() {
+  let ctxBoundSid = null;
+  function bindContextHandlers() {
+    if (el("ctxClaim")) el("ctxClaim").onclick = async () => {
+      try {
+        const r = await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/claim`, {});
+        showOk("Claimed");
+        if (el("ctxOut")) { el("ctxOut").textContent = JSON.stringify(r, null, 2); el("ctxOut").classList.remove("empty"); }
+        if (window.__SC5_refresh) await window.__SC5_refresh();
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("ctxRelease")) el("ctxRelease").onclick = async () => {
+      try {
+        await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/release`);
+        showOk("Released");
+        if (window.__SC5_refresh) await window.__SC5_refresh();
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("ctxSpectate")) el("ctxSpectate").onclick = async () => {
+      try {
+        const r = await api("GET", `/api/v1/sessions/${encodeURIComponent(selectedId)}/spectator`);
+        if (el("ctxOut")) { el("ctxOut").textContent = JSON.stringify(r, null, 2); el("ctxOut").classList.remove("empty"); }
+        showOk("Spectator snapshot");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("ctxRun")) el("ctxRun").onclick = async () => {
+      const command = (el("ctxCmd").value || "").trim();
+      if (!command) return showError("Command required");
+      try {
+        const r = await api("POST", "/api/v1/shell/command", { session_id: selectedId, command, wait_sec: 5 });
+        const out = r.output || r.result || JSON.stringify(r, null, 2);
+        showOutput(out, "$ " + command);
+        if (el("ctxOut")) { el("ctxOut").textContent = out; el("ctxOut").classList.remove("empty"); }
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("ctxTaskBtn")) el("ctxTaskBtn").onclick = async () => {
+      const command = (el("ctxTask").value || "").trim();
+      if (!command) return showError("Command required");
+      try {
+        const r = await api("POST", "/api/v1/tasks", { session_id: selectedId, command });
+        showOk("Task " + (r.id || "queued"));
+        if (el("ctxOut")) { el("ctxOut").textContent = JSON.stringify(r, null, 2); el("ctxOut").classList.remove("empty"); }
+      } catch (e) { showError(String(e.message || e)); }
+    };
+  }
+
+  async function renderContext(force) {
     const body = el("ctxBody");
     if (!body) return;
     if (!selectedId) {
-      body.innerHTML = '<div class="ctx-empty">Select a session from <strong>Sessions</strong> to claim, shell, or task it.</div>';
+      ctxBoundSid = null;
+      body.innerHTML = `<div class="ctx-empty">Select a session from <strong>Sessions</strong> to claim, shell, or task it. ${docLink("sessions")}</div>`;
       return;
     }
     let s = cache.sessions.find((x) => x.id === selectedId);
     try { s = await api("GET", "/api/v1/sessions/" + encodeURIComponent(selectedId)); } catch (_) {}
     if (!s) {
-      body.innerHTML = '<div class="ctx-empty">Session not found.</div>';
+      body.innerHTML = '<div class="ctx-empty">Session not found (may be closed).</div>';
+      ctxBoundSid = null;
       return;
     }
     const m = metaOf(s);
+    // Soft update: keep form fields if same session already bound
+    if (!force && ctxBoundSid === selectedId && el("ctxMeta")) {
+      el("ctxMeta").innerHTML = `
+        <div class="mono" style="font-size:0.7rem;color:var(--muted);margin-bottom:6px">${esc(s.id)}</div>
+        <div style="font-weight:700;margin-bottom:4px">${esc(s.hostname || s.remote_addr || "session")}</div>
+        <div class="chips" style="margin-bottom:10px">
+          <span class="chip">${esc(s.kind || "?")}</span>
+          <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
+          ${m.claimed_by ? `<span class="chip warn">🔒 ${esc(m.claimed_by)}</span>` : '<span class="chip">unlocked</span>'}
+        </div>
+        <div class="muted" style="font-size:0.78rem;margin-bottom:8px">
+          User: ${esc(s.username || "—")}<br/>OS: ${esc(s.os_info || "—")}<br/>Addr: ${esc(s.remote_addr || "—")}
+        </div>`;
+      return;
+    }
+    const shellOk = can("shell:interact") && (s.kind === "reverse_shell" || s.interactive || s.verified);
     body.innerHTML = `
-      <div class="mono" style="font-size:0.7rem;color:var(--muted);margin-bottom:6px">${esc(s.id)}</div>
-      <div style="font-weight:700;margin-bottom:4px">${esc(s.hostname || s.remote_addr || "session")}</div>
-      <div class="chips" style="margin-bottom:10px">
-        <span class="chip">${esc(s.kind || "?")}</span>
-        <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
-        ${m.claimed_by ? `<span class="chip warn">🔒 ${esc(m.claimed_by)}</span>` : '<span class="chip">unlocked</span>'}
-      </div>
-      <div class="muted" style="font-size:0.78rem;margin-bottom:8px">
-        User: ${esc(s.username || "—")}<br/>
-        OS: ${esc(s.os_info || "—")}<br/>
-        Addr: ${esc(s.remote_addr || "—")}
-      </div>
+      <div id="ctxMeta"></div>
       <div class="row">
         ${can("shell:interact") || can("collab:use") ? '<button type="button" class="primary" id="ctxClaim">Claim</button>' : ""}
         ${can("shell:interact") || can("collab:use") ? '<button type="button" id="ctxRelease">Release</button>' : ""}
         ${can("sessions:read") ? '<button type="button" id="ctxSpectate">Spectate</button>' : ""}
+        ${docLink("shell", "Shell docs")}
       </div>
-      ${can("shell:interact") && (s.kind === "reverse_shell" || s.interactive) ? `
+      ${shellOk ? `
         <label for="ctxCmd">Shell command</label>
         <textarea id="ctxCmd" rows="2" placeholder="whoami"></textarea>
         <div class="row"><button type="button" class="primary" id="ctxRun">Run</button></div>
@@ -69,89 +146,106 @@
       ` : ""}
       <div class="outbox empty" id="ctxOut">—</div>
     `;
-    if (el("ctxClaim")) el("ctxClaim").onclick = async () => {
-      try {
-        const r = await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/claim`, {});
-        showOk("Claimed");
-        el("ctxOut").textContent = JSON.stringify(r, null, 2);
-        el("ctxOut").classList.remove("empty");
-        if (window.__SC5_refresh) await window.__SC5_refresh();
-        renderContext();
-      } catch (e) { showError(String(e.message || e)); }
-    };
-    if (el("ctxRelease")) el("ctxRelease").onclick = async () => {
-      try {
-        await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/release`);
-        showOk("Released");
-        if (window.__SC5_refresh) await window.__SC5_refresh();
-        renderContext();
-      } catch (e) { showError(String(e.message || e)); }
-    };
-    if (el("ctxSpectate")) el("ctxSpectate").onclick = async () => {
-      try {
-        const r = await api("GET", `/api/v1/sessions/${encodeURIComponent(selectedId)}/spectator`);
-        el("ctxOut").textContent = JSON.stringify(r, null, 2);
-        el("ctxOut").classList.remove("empty");
-        showOk("Spectator snapshot");
-      } catch (e) { showError(String(e.message || e)); }
-    };
-    if (el("ctxRun")) el("ctxRun").onclick = async () => {
-      const command = (el("ctxCmd").value || "").trim();
-      if (!command) return showError("Command required");
-      try {
-        const r = await api("POST", "/api/v1/shell/command", { session_id: selectedId, command, wait_sec: 5 });
-        const out = r.output || r.result || JSON.stringify(r, null, 2);
-        showOutput(out, "$ " + command);
-        el("ctxOut").textContent = out;
-        el("ctxOut").classList.remove("empty");
-      } catch (e) { showError(String(e.message || e)); }
-    };
-    if (el("ctxTaskBtn")) el("ctxTaskBtn").onclick = async () => {
-      const command = (el("ctxTask").value || "").trim();
-      if (!command) return showError("Command required");
-      try {
-        const r = await api("POST", "/api/v1/tasks", { session_id: selectedId, command });
-        showOk("Task " + (r.id || "queued"));
-        el("ctxOut").textContent = JSON.stringify(r, null, 2);
-        el("ctxOut").classList.remove("empty");
-      } catch (e) { showError(String(e.message || e)); }
-    };
+    ctxBoundSid = selectedId;
+    // fill meta
+    const metaEl = el("ctxMeta");
+    if (metaEl) {
+      metaEl.innerHTML = `
+        <div class="mono" style="font-size:0.7rem;color:var(--muted);margin-bottom:6px">${esc(s.id)}</div>
+        <div style="font-weight:700;margin-bottom:4px">${esc(s.hostname || s.remote_addr || "session")}</div>
+        <div class="chips" style="margin-bottom:10px">
+          <span class="chip">${esc(s.kind || "?")}</span>
+          <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
+          ${m.claimed_by ? `<span class="chip warn">🔒 ${esc(m.claimed_by)}</span>` : '<span class="chip">unlocked</span>'}
+        </div>
+        <div class="muted" style="font-size:0.78rem;margin-bottom:8px">
+          User: ${esc(s.username || "—")}<br/>OS: ${esc(s.os_info || "—")}<br/>Addr: ${esc(s.remote_addr || "—")}
+        </div>`;
+    }
+    bindContextHandlers();
   }
 
   function selectSession(id) {
-    selectedId = id;
-    state.selectedId = id;
-    renderContext();
+    selectedId = id || null;
+    state.selectedId = selectedId;
+    saveSel("sc5_ops_sid", selectedId);
     document.querySelectorAll("tr[data-sid]").forEach((tr) => {
-      tr.classList.toggle("selected", tr.getAttribute("data-sid") === id);
+      tr.classList.toggle("selected", tr.getAttribute("data-sid") === selectedId);
     });
+    const s = cache.sessions.find((x) => x.id === selectedId);
+    const box = el("sesDetail");
+    if (box) {
+      if (s) {
+        box.textContent = JSON.stringify(s, null, 2);
+        box.classList.remove("empty");
+      } else if (!selectedId) {
+        box.textContent = "Select a session…";
+        box.classList.add("empty");
+      }
+    }
+    if (el("pxSid")) el("pxSid").textContent = selectedId || "(none — pick in Sessions)";
+    renderContext();
   }
   window.__SC5_selectSession = selectSession;
 
+  function fillSessionRows(tbody) {
+    if (!tbody) return;
+    const rows = cache.sessions || [];
+    if (!rows.length) {
+      tbody.innerHTML = "";
+      const empty = tbody.closest(".lp-body");
+      if (empty && !empty.querySelector(".empty-state")) {
+        // handled by parent
+      }
+      return;
+    }
+    tbody.innerHTML = rows.map((s) => {
+      const m = metaOf(s);
+      return `<tr data-sid="${esc(s.id)}" class="${s.id === selectedId ? "selected" : ""}">
+        <td class="mono">${esc(shortId(s.id))}${m.claimed_by ? " 🔒" : ""}</td>
+        <td>${esc(s.kind || "")}</td>
+        <td>${esc(s.hostname || s.remote_addr || "—")}</td>
+      </tr>`;
+    }).join("");
+    tbody.querySelectorAll("tr[data-sid]").forEach((tr) => {
+      tr.onclick = () => selectSession(tr.getAttribute("data-sid"));
+    });
+    // restore highlight if still present
+    if (selectedId && !rows.some((s) => s.id === selectedId)) {
+      // keep id in state but mark missing in detail
+      const box = el("sesDetail");
+      if (box) {
+        box.textContent = "Selected session not in active list (may be closed). id=" + selectedId;
+        box.classList.remove("empty");
+      }
+    }
+  }
+
   /* —— Sessions view —— */
-  function renderSessionsView() {
+  function renderSessionsView(force) {
     const root = el("view-sessions");
     if (!root) return;
+    if (!force && viewBuilt.sessions && root.querySelector("#sesTbody")) {
+      fillSessionRows(el("sesTbody"));
+      const count = el("sesCount");
+      if (count) count.textContent = String((cache.sessions || []).length);
+      return;
+    }
     const rows = cache.sessions || [];
     root.innerHTML = `
+      ${featDocs("sessions", "Beacons and reverse shells. Select a row — context rail stays on the right.")}
       <div class="split">
         <div class="list-panel">
-          <div class="lp-head">Active <span style="margin-left:auto" class="muted">${rows.length}</span></div>
-          <div class="lp-body">
-            ${rows.length ? `<table class="data"><thead><tr><th>Session</th><th>Kind</th><th>Host</th></tr></thead><tbody>
-              ${rows.map((s) => {
-                const m = metaOf(s);
-                return `<tr data-sid="${esc(s.id)}" class="${s.id === selectedId ? "selected" : ""}">
-                  <td class="mono">${esc(shortId(s.id))}${m.claimed_by ? " 🔒" : ""}</td>
-                  <td>${esc(s.kind || "")}</td>
-                  <td>${esc(s.hostname || s.remote_addr || "—")}</td>
-                </tr>`;
-              }).join("")}
-            </tbody></table>` : '<div class="empty-state"><strong>No sessions</strong>Land a beacon or reverse shell.</div>'}
+          <div class="lp-head">Active <span id="sesCount" style="margin-left:auto" class="muted">${rows.length}</span>
+            ${docLink("sessions", "Docs")}</div>
+          <div class="lp-body" id="sesListBody">
+            ${rows.length
+              ? `<table class="data"><thead><tr><th>Session</th><th>Kind</th><th>Host</th></tr></thead><tbody id="sesTbody"></tbody></table>`
+              : '<div class="empty-state" id="sesEmpty"><strong>No sessions</strong>Land a beacon or reverse shell. ' + docLink("sessions") + "</div>"}
           </div>
         </div>
         <div class="work-panel">
-          <div class="wp-head">Session actions</div>
+          <div class="wp-head">Session actions ${docLink("shell")}</div>
           <div class="wp-body">
             <div class="toolbar">
               ${can("sessions:write") ? '<button type="button" id="sesReap">Reap dead</button>' : ""}
@@ -159,25 +253,18 @@
               <button type="button" id="sesRefresh">Refresh</button>
             </div>
             <p class="muted" style="font-size:0.85rem;margin:0">
-              Click a row to load the <strong>context rail</strong> (right). Claim before multi-op tasking.
-              Use Shell for verified reverse shells; Tasks for beacons.
+              Click a row to load the <strong>context rail</strong>. Claim before multi-op tasking.
+              Shell = verified reverse shells; Tasks = beacons.
             </p>
             <div id="sesDetail" class="outbox empty" style="margin-top:12px">Select a session…</div>
           </div>
         </div>
       </div>
     `;
-    root.querySelectorAll("tr[data-sid]").forEach((tr) => {
-      tr.onclick = () => {
-        selectSession(tr.getAttribute("data-sid"));
-        const s = cache.sessions.find((x) => x.id === selectedId);
-        const box = el("sesDetail");
-        if (box && s) {
-          box.textContent = JSON.stringify(s, null, 2);
-          box.classList.remove("empty");
-        }
-      };
-    });
+    viewBuilt.sessions = true;
+    if (rows.length) {
+      fillSessionRows(el("sesTbody"));
+    }
     if (el("sesReap")) el("sesReap").onclick = async () => {
       try {
         const r = await api("POST", "/api/v1/sessions/reap", {});
@@ -186,51 +273,71 @@
         if (window.__SC5_refresh) await window.__SC5_refresh();
       } catch (e) { showError(String(e.message || e)); }
     };
-    if (el("sesClose") && selectedId) el("sesClose").onclick = async () => {
+    if (el("sesClose")) el("sesClose").onclick = async () => {
       if (!selectedId) return showError("Select a session");
+      const sid = selectedId;
       try {
-        await api("DELETE", "/api/v1/sessions/" + encodeURIComponent(selectedId));
+        await api("POST", "/api/v1/sessions/" + encodeURIComponent(sid) + "/close");
         showOk("Closed");
-        selectedId = null;
+        selectSession(null);
         if (window.__SC5_refresh) await window.__SC5_refresh();
       } catch (e) {
         try {
-          await api("POST", "/api/v1/sessions/" + encodeURIComponent(selectedId) + "/close");
+          await api("DELETE", "/api/v1/sessions/" + encodeURIComponent(sid));
           showOk("Closed");
+          selectSession(null);
           if (window.__SC5_refresh) await window.__SC5_refresh();
         } catch (e2) { showError(String(e2.message || e2)); }
       }
     };
     if (el("sesRefresh")) el("sesRefresh").onclick = () => window.__SC5_refresh && window.__SC5_refresh();
-    tools(`<button type="button" class="primary" id="toolNewShell">Interact</button>`);
+    tools(`${docLink("sessions", "Sessions docs")} <button type="button" class="primary" id="toolNewShell">Focus rail</button>`);
     if (el("toolNewShell")) el("toolNewShell").onclick = () => {
       if (!selectedId) return showError("Select a session first");
       renderContext();
     };
+    if (selectedId) selectSession(selectedId);
   }
 
   /* —— Listeners —— */
-  function renderListenersView() {
+  function fillListenerRows(tbody) {
+    if (!tbody) return;
+    const rows = cache.listeners || [];
+    tbody.innerHTML = rows.map((l) => `<tr data-lid="${esc(l.id)}" class="${l.id === selectedListenerId ? "selected" : ""}">
+      <td>${esc(l.name || shortId(l.id))}</td>
+      <td class="mono">${esc(l.port)}</td>
+      <td>${esc(l.kind)}</td>
+      <td><span class="chip ${l.status === "running" ? "ok" : ""}">${esc(l.status || "—")}</span></td>
+    </tr>`).join("") || '<tr><td colspan="4" class="muted">None</td></tr>';
+    tbody.querySelectorAll("tr[data-lid]").forEach((tr) => {
+      tr.onclick = () => {
+        selectedListenerId = tr.getAttribute("data-lid");
+        saveSel("sc5_ops_lid", selectedListenerId);
+        tbody.querySelectorAll("tr").forEach((x) => x.classList.remove("selected"));
+        tr.classList.add("selected");
+      };
+    });
+  }
+
+  function renderListenersView(force) {
     const root = el("view-listeners");
     if (!root) return;
-    const rows = cache.listeners || [];
+    if (!force && viewBuilt.listeners && el("lisTbody")) {
+      fillListenerRows(el("lisTbody"));
+      return;
+    }
     root.innerHTML = `
+      ${featDocs("listeners", "Create and control acceptors. Reverse shells need reverse_shell; beacons need http/dns/ws.")}
       <div class="split">
         <div class="list-panel">
-          <div class="lp-head">Listeners</div>
+          <div class="lp-head">Listeners ${docLink("listeners")}</div>
           <div class="lp-body">
-            <table class="data"><thead><tr><th>Name</th><th>Port</th><th>Kind</th><th>Status</th></tr></thead><tbody>
-              ${rows.map((l) => `<tr data-lid="${esc(l.id)}">
-                <td>${esc(l.name || shortId(l.id))}</td>
-                <td class="mono">${esc(l.port)}</td>
-                <td>${esc(l.kind)}</td>
-                <td><span class="chip ${l.status === "running" ? "ok" : ""}">${esc(l.status || "—")}</span></td>
-              </tr>`).join("") || '<tr><td colspan="4" class="muted">None</td></tr>'}
-            </tbody></table>
+            <table class="data"><thead><tr><th>Name</th><th>Port</th><th>Kind</th><th>Status</th></tr></thead>
+            <tbody id="lisTbody"></tbody></table>
           </div>
         </div>
         <div class="work-panel">
-          <div class="wp-head">Manage</div>
+          <div class="wp-head">Manage ${docLink("listeners")}</div>
           <div class="wp-body">
             ${can("listeners:write") ? `
               <div class="form-grid">
@@ -258,14 +365,8 @@
         </div>
       </div>
     `;
-    let lid = null;
-    root.querySelectorAll("tr[data-lid]").forEach((tr) => {
-      tr.onclick = () => {
-        lid = tr.getAttribute("data-lid");
-        root.querySelectorAll("tr").forEach((x) => x.classList.remove("selected"));
-        tr.classList.add("selected");
-      };
-    });
+    viewBuilt.listeners = true;
+    fillListenerRows(el("lisTbody"));
     async function lisAct(fn) {
       try {
         const r = await fn();
@@ -287,16 +388,21 @@
       return created;
     });
     if (el("lisStart")) el("lisStart").onclick = () => {
-      if (!lid) return showError("Select listener");
-      lisAct(() => api("POST", `/api/v1/listeners/${lid}/start`));
+      if (!selectedListenerId) return showError("Select listener");
+      lisAct(() => api("POST", `/api/v1/listeners/${selectedListenerId}/start`));
     };
     if (el("lisStop")) el("lisStop").onclick = () => {
-      if (!lid) return showError("Select listener");
-      lisAct(() => api("POST", `/api/v1/listeners/${lid}/stop`));
+      if (!selectedListenerId) return showError("Select listener");
+      lisAct(() => api("POST", `/api/v1/listeners/${selectedListenerId}/stop`));
     };
     if (el("lisDel")) el("lisDel").onclick = () => {
-      if (!lid) return showError("Select listener");
-      lisAct(() => api("DELETE", `/api/v1/listeners/${lid}`));
+      if (!selectedListenerId) return showError("Select listener");
+      lisAct(async () => {
+        const id = selectedListenerId;
+        selectedListenerId = null;
+        saveSel("sc5_ops_lid", null);
+        return api("DELETE", `/api/v1/listeners/${id}`);
+      });
     };
   }
 
@@ -306,8 +412,9 @@
     if (!root) return;
     const host = (() => { try { return location.hostname || "127.0.0.1"; } catch (_) { return "127.0.0.1"; } })();
     root.innerHTML = `
+      ${featDocs("payloads-and-implants", "Deterministic templates only. Point host/port at a running listener.")}
       <div class="work-panel" style="min-height:360px">
-        <div class="wp-head">Generate</div>
+        <div class="wp-head">Generate ${docLink("payloads-and-implants")}</div>
         <div class="wp-body">
           ${can("payloads:generate") ? `
             <div class="form-grid">
@@ -358,12 +465,14 @@
     const root = el("view-postex");
     if (!root) return;
     root.innerHTML = `
+      ${featDocs("file-ops", "File ops, SOCKS pivots, and lab BOF modules on the selected session.")}
       <p class="muted" style="margin:0 0 10px;font-size:0.85rem">
         Target session: <strong class="mono" id="pxSid">${esc(selectedId || "(none — pick in Sessions)")}</strong>
+        · ${docLink("socks-pivot", "SOCKS docs")} · ${docLink("modules", "Modules docs")}
       </p>
       <div class="form-grid">
         <div class="work-panel">
-          <div class="wp-head">Files</div>
+          <div class="wp-head">Files ${docLink("file-ops")}</div>
           <div class="wp-body">
             <label>Op</label>
             <select id="pxOp"><option>list</option><option>read</option><option>write</option><option>delete</option></select>
@@ -434,9 +543,10 @@
     const root = el("view-collab");
     if (!root) return;
     root.innerHTML = `
+      ${featDocs("multi-operator-collab", "Teams, claim/handoff, presence, and operator chat.")}
       <div class="form-grid">
         <div class="work-panel">
-          <div class="wp-head">Chat</div>
+          <div class="wp-head">Chat ${docLink("operator-chat")}</div>
           <div class="wp-body">
             <label>Team channel (optional id)</label>
             <input id="chTeam" placeholder="leave empty for global" />
@@ -529,12 +639,14 @@
     const root = el("view-observe");
     if (!root) return;
     root.innerHTML = `
+      ${featDocs("timeline-and-reports", "Metrics, audit chain, ATT&CK timeline, and engagement reports.")}
       <div class="toolbar">
         <button type="button" class="primary" id="obMetrics">Metrics</button>
         <button type="button" id="obAudit">My audit</button>
         <button type="button" id="obTimeline">Timeline</button>
         <button type="button" id="obReport">Report</button>
         <button type="button" id="obAnom">Anomalies</button>
+        ${docLink("timeline-and-reports", "Docs ↗")}
       </div>
       <div class="outbox empty" id="obOut" style="max-height:480px">—</div>
     `;
@@ -553,6 +665,141 @@
   }
 
   /* —— Admin —— */
+  /* —— AI tab —— */
+  function renderAiView() {
+    const root = el("view-ai");
+    if (!root) return;
+    if (!can("ai:use") && !can("admin")) {
+      root.innerHTML = `<div class="empty-state"><strong>AI locked</strong>Need <code>ai:use</code> scope. ${docLink("admin-ai")}</div>`;
+      return;
+    }
+    root.innerHTML = `
+      ${featDocs("admin-ai", "Sandboxed Admin AI — allow-listed capabilities only. Uses configured LLM (BYO) or offline fallback.")}
+      <div class="form-grid">
+        <div class="work-panel">
+          <div class="wp-head">Run capability ${docLink("admin-ai")}</div>
+          <div class="wp-body">
+            <label>Capability</label>
+            <select id="aiCap">${AI_CAPS.map((c) => `<option value="${c}">${c}</option>`).join("")}</select>
+            <label>Input (untrusted — sanitized server-side)</label>
+            <textarea id="aiData" rows="5" placeholder="Describe target, paste metrics text, ask for recon assist…"></textarea>
+            <div class="row">
+              <button type="button" class="primary" id="aiRun">Run</button>
+              <button type="button" id="aiStatus">AI status</button>
+              <button type="button" id="aiOpenDrawer">Open floating chat</button>
+            </div>
+            <div class="outbox empty" id="aiOut">—</div>
+          </div>
+        </div>
+        <div class="work-panel">
+          <div class="wp-head">LLM connections ${docLink("llm-connections")}</div>
+          <div class="wp-body">
+            <div class="row"><button type="button" id="aiLlmList">List LLMs</button></div>
+            <div class="outbox empty" id="aiLlmOut">—</div>
+            <p class="muted" style="font-size:0.78rem;margin-top:8px">Configure LLMs under Admin or <code>sc5 llm add</code>. Keys never returned by API.</p>
+          </div>
+        </div>
+      </div>
+    `;
+    if (el("aiRun")) el("aiRun").onclick = () => runAi(el("aiCap").value, el("aiData").value, "aiOut");
+    if (el("aiStatus")) el("aiStatus").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/ai/status");
+        el("aiOut").textContent = JSON.stringify(r, null, 2);
+        el("aiOut").classList.remove("empty");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("aiLlmList")) el("aiLlmList").onclick = async () => {
+      try {
+        const r = await api("GET", "/api/v1/llm");
+        el("aiLlmOut").textContent = JSON.stringify(r, null, 2);
+        el("aiLlmOut").classList.remove("empty");
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("aiOpenDrawer")) el("aiOpenDrawer").onclick = () => openAiDrawer(true);
+  }
+
+  async function runAi(capability, user_data, outId) {
+    try {
+      const r = await api("POST", "/api/v1/ai/run", {
+        capability: capability || "recon_assist",
+        user_data: user_data || "",
+      });
+      const text = typeof r === "string" ? r : JSON.stringify(r, null, 2);
+      if (outId && el(outId)) {
+        el(outId).textContent = text;
+        el(outId).classList.remove("empty");
+      }
+      appendAiChat("user", `[${capability}] ${user_data || "(empty)"}`);
+      appendAiChat("bot", text);
+      showOk("AI complete");
+      return r;
+    } catch (e) {
+      showError(String(e.message || e));
+      appendAiChat("bot", "Error: " + String(e.message || e));
+    }
+  }
+
+  function appendAiChat(who, text) {
+    const log = el("aiChatLog");
+    if (!log) return;
+    const div = document.createElement("div");
+    div.className = "ai-msg " + (who === "user" ? "user" : "bot");
+    const w = document.createElement("div");
+    w.className = "who";
+    w.textContent = who === "user" ? "You" : "Admin AI";
+    const b = document.createElement("div");
+    b.className = "mono";
+    b.style.whiteSpace = "pre-wrap";
+    b.textContent = text;
+    div.appendChild(w);
+    div.appendChild(b);
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function openAiDrawer(open) {
+    const d = el("aiDrawer");
+    if (!d) return;
+    if (open === false) d.classList.add("hidden");
+    else d.classList.toggle("hidden", open == null ? !d.classList.contains("hidden") : !open);
+  }
+
+  function setupGlobalAi() {
+    const fab = el("aiFab");
+    const drawer = el("aiDrawer");
+    if (!fab || !drawer) return;
+    const allowed = can("ai:use") || can("admin");
+    fab.classList.toggle("hidden", !allowed);
+    if (!allowed) {
+      drawer.classList.add("hidden");
+      return;
+    }
+    const sel = el("aiCapGlobal");
+    if (sel && !sel.options.length) {
+      AI_CAPS.forEach((c) => {
+        const o = document.createElement("option");
+        o.value = c; o.textContent = c;
+        sel.appendChild(o);
+      });
+      sel.value = "recon_assist";
+    }
+    fab.onclick = () => openAiDrawer();
+    if (el("aiDrawerClose")) el("aiDrawerClose").onclick = () => openAiDrawer(false);
+    if (el("aiSendGlobal")) el("aiSendGlobal").onclick = async () => {
+      const cap = (el("aiCapGlobal") && el("aiCapGlobal").value) || "recon_assist";
+      const prompt = (el("aiPromptGlobal") && el("aiPromptGlobal").value) || "";
+      if (!prompt.trim()) return showError("Enter a prompt");
+      el("aiSendGlobal").disabled = true;
+      try {
+        await runAi(cap, prompt, null);
+        if (el("aiPromptGlobal")) el("aiPromptGlobal").value = "";
+      } finally {
+        el("aiSendGlobal").disabled = false;
+      }
+    };
+  }
+
   function renderAdminView() {
     const root = el("view-admin");
     if (!root) return;
@@ -561,9 +808,10 @@
       return;
     }
     root.innerHTML = `
+      ${featDocs("feature-toggles", "Tokens, policy engine, feature flags. High-risk — admin only where required.")}
       <div class="form-grid">
         <div class="work-panel">
-          <div class="wp-head">Mint token</div>
+          <div class="wp-head">Mint token ${docLink("tokens")}</div>
           <div class="wp-body">
             <label>Name</label><input id="adName" placeholder="operator-1" />
             <label>Scopes (comma)</label>
@@ -609,11 +857,12 @@
   /* —— View router —— */
   function renderView(name) {
     switch (name) {
-      case "sessions": renderSessionsView(); break;
-      case "listeners": renderListenersView(); break;
+      case "sessions": renderSessionsView(true); break;
+      case "listeners": renderListenersView(true); break;
       case "payloads": renderPayloadsView(); break;
       case "postex": renderPostexView(); break;
       case "collab": renderCollabView(); break;
+      case "ai": renderAiView(); break;
       case "observe": renderObserveView(); break;
       case "admin": renderAdminView(); break;
       default: break;
@@ -625,10 +874,19 @@
   window.__SC5_onRefresh = (data) => {
     if (data.sessions) cache.sessions = data.sessions;
     if (data.listeners) cache.listeners = data.listeners;
-    if (currentIs("sessions")) renderSessionsView();
-    if (currentIs("listeners")) renderListenersView();
-    if (currentIs("postex") && el("pxSid")) el("pxSid").textContent = selectedId || "(none)";
-    renderContext();
+    // Soft update — do not wipe selection or rebuild forms
+    if (currentIs("sessions")) renderSessionsView(false);
+    if (currentIs("listeners")) renderListenersView(false);
+    if (el("pxSid")) el("pxSid").textContent = selectedId || "(none — pick in Sessions)";
+    // Restore row highlights without full context rebuild if possible
+    document.querySelectorAll("tr[data-sid]").forEach((tr) => {
+      tr.classList.toggle("selected", tr.getAttribute("data-sid") === selectedId);
+    });
+    document.querySelectorAll("tr[data-lid]").forEach((tr) => {
+      tr.classList.toggle("selected", tr.getAttribute("data-lid") === selectedListenerId);
+    });
+    // Only refresh context metadata if selection still valid
+    if (selectedId) renderContext(false);
   };
   function currentIs(name) {
     const v = el("view-" + name);
@@ -636,7 +894,10 @@
   }
 
   window.__SC5_boot = function () {
+    setupGlobalAi();
     const v = (() => { try { return localStorage.getItem("sc5_ops_view"); } catch (_) { return "dashboard"; } })();
+    if (selectedId) state.selectedId = selectedId;
+    viewBuilt = {};
     renderView(v || "dashboard");
   };
   window.__SC5_ADMIN_LOADED__ = true;
