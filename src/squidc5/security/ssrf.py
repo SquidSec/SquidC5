@@ -15,19 +15,23 @@ def validate_llm_base_url(url: str, *, allow_private: bool = False) -> str:
     p = urlparse(u)
     if p.scheme not in ("https", "http"):
         raise ValueError("base_url scheme must be http or https")
-    if p.scheme == "http" and not allow_private:
-        # allow http only for explicit loopback lab
-        host = (p.hostname or "").lower()
-        if host not in ("127.0.0.1", "localhost", "::1"):
-            raise ValueError("base_url must use https (http only for localhost lab)")
     host = p.hostname
     if not host:
         raise ValueError("base_url host required")
-    if not allow_private:
+    host_l = host.lower().strip("[]")
+    loopback = host_l in ("127.0.0.1", "localhost", "::1")
+    if p.scheme == "http":
+        # http only for explicit loopback lab (Ollama etc.)
+        if not loopback and not allow_private:
+            raise ValueError("base_url must use https (http only for localhost lab)")
+    if not allow_private and not loopback:
         _assert_public_host(host)
+    elif not allow_private and loopback and p.scheme != "http":
+        # https://localhost still blocked (avoid confusing TLS-to-loopback)
+        raise ValueError("base_url host not allowed")
     # strip path noise; callers append /chat/completions
     port = f":{p.port}" if p.port else ""
-    return f"{p.scheme}://{host}{port}"
+    return f"{p.scheme}://{host_l if loopback else host}{port}"
 
 
 def _assert_public_host(host: str) -> None:

@@ -38,8 +38,14 @@ def test_ssrf_blocks_metadata_and_private():
         validate_llm_base_url("http://10.0.0.1/v1")
     with pytest.raises(ValueError):
         validate_llm_base_url("http://evil.example/v1")  # http non-local
+    with pytest.raises(ValueError):
+        validate_llm_base_url("https://127.0.0.1/v1")  # loopback only via http lab
     ok = validate_llm_base_url("https://api.openai.com/v1")
     assert ok.startswith("https://")
+    lab = validate_llm_base_url("http://127.0.0.1:11434/v1")
+    assert lab == "http://127.0.0.1:11434"
+    lab2 = validate_llm_base_url("http://localhost:11434/v1")
+    assert lab2 == "http://localhost:11434"
 
 
 def test_stage2_host_injection_blocked():
