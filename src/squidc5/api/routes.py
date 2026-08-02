@@ -83,6 +83,15 @@ class LLMConfig(BaseModel):
     capabilities: list[str] | None = None
 
 
+class LLMModelsRequest(BaseModel):
+    """Probe OpenAI-compatible /models (key never logged)."""
+
+    base_url: str | None = None
+    api_key: str | None = None
+    provider: str | None = None
+    llm_id: str | None = None
+
+
 class AIRunRequest(BaseModel):
     capability: str
     user_data: str = ""
@@ -1606,6 +1615,37 @@ def build_api_router() -> APIRouter:
             risk_score=4,
         )
         return {"id": lid, "name": body.name, "model": body.model}
+
+    @api.post("/llm/models")
+    async def list_llm_models(
+        body: LLMModelsRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("llm:manage", "admin")),
+    ) -> dict[str, Any]:
+        """List models from an OpenAI-compatible provider (SSRF-guarded proxy)."""
+        state = get_state(request)
+        try:
+            models = await state.admin_ai.list_remote_models(
+                base_url=body.base_url,
+                api_key=body.api_key,
+                provider=body.provider,
+                llm_id=body.llm_id,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(400, str(e)) from e
+        except Exception as e:
+            raise HTTPException(502, f"Provider models unavailable: {e}") from e
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="llm.models_list",
+            resource=body.llm_id or (body.base_url or "")[:80],
+            details={"count": len(models), "provider": body.provider},
+            risk_score=2,
+        )
+        return {"models": models}
 
     @api.get("/ai/status")
     async def ai_status(

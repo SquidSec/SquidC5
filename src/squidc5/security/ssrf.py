@@ -3,18 +3,28 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
 from urllib.parse import urlparse
 
+# Allow only simple API path prefixes (e.g. /v1, /openai/v1)
+_SAFE_PATH = re.compile(r"^(/[A-Za-z0-9._-]+)+$")
+
 
 def validate_llm_base_url(url: str, *, allow_private: bool = False) -> str:
-    """Return normalized base URL or raise ValueError."""
+    """Return normalized base URL (scheme://host[:port][/path]) or raise ValueError.
+
+    Path is preserved when it is a simple API root (OpenAI-compatible /v1 etc.).
+    Query strings and fragments are rejected. Callers append /chat/completions or /models.
+    """
     u = (url or "").strip()
     if not u:
         raise ValueError("base_url required")
     p = urlparse(u)
     if p.scheme not in ("https", "http"):
         raise ValueError("base_url scheme must be http or https")
+    if p.query or p.fragment or p.username or p.password:
+        raise ValueError("base_url must not include credentials, query, or fragment")
     host = p.hostname
     if not host:
         raise ValueError("base_url host required")
@@ -29,9 +39,16 @@ def validate_llm_base_url(url: str, *, allow_private: bool = False) -> str:
     elif not allow_private and loopback and p.scheme != "http":
         # https://localhost still blocked (avoid confusing TLS-to-loopback)
         raise ValueError("base_url host not allowed")
-    # strip path noise; callers append /chat/completions
+
+    path = (p.path or "").rstrip("/")
+    if path in ("", "/"):
+        path = ""
+    elif not _SAFE_PATH.fullmatch(path):
+        raise ValueError("base_url path not allowed")
+
     port = f":{p.port}" if p.port else ""
-    return f"{p.scheme}://{host_l if loopback else host}{port}"
+    host_out = host_l if loopback else host
+    return f"{p.scheme}://{host_out}{port}{path}"
 
 
 def _assert_public_host(host: str) -> None:
