@@ -41,6 +41,64 @@ INJECTION_MARKERS = re.compile(
 )
 
 
+# Hosts / providers that need /v1 when path was stripped by older configs
+_PROVIDER_V1 = frozenset(
+    {
+        "xai",
+        "openai",
+        "groq",
+        "together",
+        "openrouter",
+        "deepseek",
+        "mistral",
+        "fireworks",
+        "ollama",
+        "lmstudio",
+        "azure",
+        "custom",
+    }
+)
+_HOST_V1 = (
+    "api.x.ai",
+    "api.openai.com",
+    "api.groq.com",
+    "api.together.xyz",
+    "openrouter.ai",
+    "api.deepseek.com",
+    "api.mistral.ai",
+    "api.fireworks.ai",
+)
+
+
+def _ensure_openai_compat_root(base: str, *, provider: str = "") -> str:
+    """Ensure OpenAI-compatible API root (…/v1) when path is missing.
+
+    Fixes legacy rows stored as https://api.x.ai (path stripped) which 404 on
+    /chat/completions without /v1.
+    """
+    b = (base or "").rstrip("/")
+    if not b:
+        return b
+    from urllib.parse import urlparse
+
+    p = urlparse(b)
+    path = (p.path or "").rstrip("/")
+    if path and path != "/":
+        return b
+    prov = (provider or "").lower().strip()
+    host = (p.hostname or "").lower()
+    needs = prov in _PROVIDER_V1 or any(host == h or host.endswith("." + h) for h in _HOST_V1)
+    # loopback lab endpoints (ollama/lmstudio) also use /v1 openai shim
+    if host in ("127.0.0.1", "localhost", "::1"):
+        needs = True
+    # perplexity uses root without /v1
+    if host.endswith("perplexity.ai") or prov == "perplexity":
+        needs = False
+    if needs:
+        return b + "/v1"
+    return b
+
+
 def sanitize_untrusted(text: str, max_chars: int = 512) -> str:
     """Isolate untrusted input — never free-form inject into system reasoning."""
     if not text:
@@ -433,6 +491,7 @@ class AdminAI:
             base = validate_llm_base_url(raw_base, allow_private=False)
         except ValueError as e:
             raise PermissionError(f"LLM base_url blocked: {e}") from e
+        base = _ensure_openai_compat_root(base, provider=str(llm.get("provider") or ""))
         model = llm["model"]
         raw_key = llm.get("api_key_enc") or ""
         if self.secrets is not None and raw_key:
@@ -479,6 +538,55 @@ class AdminAI:
             return json.loads(content)
         except json.JSONDecodeError:
             return {"raw": content[:2000]}
+
+    async def list_remote_models(
+        self,
+        *,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        provider: str | None = None,
+        llm_id: str | None = None,
+    ) -> list[str]:
+        """Fetch OpenAI-compatible /models (server-side; SSRF-guarded)."""
+        from squidc5.security.ssrf import validate_llm_base_url
+
+        key = (api_key or "").strip()
+        raw_base = (base_url or "").strip()
+        prov = (provider or "").strip().lower()
+        if llm_id:
+            row = await self.db.get_llm(llm_id)
+            if not row:
+                raise ValueError("LLM not found")
+            raw_base = raw_base or (row.get("base_url") or "")
+            prov = prov or str(row.get("provider") or "")
+            raw_key = row.get("api_key_enc") or ""
+            if self.secrets is not None and raw_key:
+                key = self.secrets.decrypt(raw_key) or ""
+            else:
+                key = raw_key or key
+        if not raw_base:
+            raise ValueError("base_url required")
+        base = validate_llm_base_url(raw_base, allow_private=False)
+        base = _ensure_openai_compat_root(base, provider=prov)
+        headers: dict[str, str] = {}
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+        url = f"{base}/models"
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        ids: list[str] = []
+        for item in data.get("data") or []:
+            mid = item.get("id") if isinstance(item, dict) else None
+            if mid:
+                ids.append(str(mid))
+        # Ollama native fallback shape
+        if not ids and isinstance(data.get("models"), list):
+            for item in data["models"]:
+                if isinstance(item, dict) and item.get("name"):
+                    ids.append(str(item["name"]))
+        return sorted(set(ids), key=str.lower)
 
     def _offline_fallback(self, capability: str, safe_data: str) -> dict[str, Any]:
         if capability == "payload_template":

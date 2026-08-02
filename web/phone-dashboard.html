@@ -81,6 +81,21 @@
         "bottom bottom";
     }
     .app.no-ctx .ctx { display: none; }
+    .app.no-bottom {
+      grid-template-rows: var(--top-h) 1fr;
+      --bottom-h: 0px;
+    }
+    .app.no-bottom {
+      grid-template-areas:
+        "top top top"
+        "side main ctx";
+    }
+    .app.no-bottom.no-ctx {
+      grid-template-areas:
+        "top top"
+        "side main";
+    }
+    .app.no-bottom .bottom { display: none; }
 
     /* Top bar */
     .top {
@@ -288,6 +303,25 @@
 
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
     .form-grid .full { grid-column: 1 / -1; }
+    .llm-form-grid { gap: 10px 16px; }
+    .chk-inline { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .chk-inline input { width: auto; margin: 0; }
+    .admin-stack {
+      display: flex; flex-direction: column; gap: 16px;
+      height: 100%; min-height: 0; overflow: auto; padding: 4px 2px 16px;
+    }
+    .admin-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+      align-items: stretch;
+    }
+    .admin-stack .work-panel {
+      height: auto; min-height: 0; display: flex; flex-direction: column;
+    }
+    .admin-stack .work-panel .wp-body { flex: 1; }
+    .admin-stack .admin-llm { flex: 0 0 auto; }
+    .admin-stack .scope-grid { max-height: 280px; }
+    .admin-stack .llm-form-grid { max-width: 720px; }
+    .view.active > .admin-stack { flex: 1 1 auto; min-height: 0; }
     .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
     .outbox {
       background: #08080c; border: 1px solid var(--border); border-radius: 6px;
@@ -467,6 +501,7 @@
         grid-template-columns: 1fr;
       }
       .view.active > .form-grid > .work-panel { height: auto; min-height: 200px; }
+      .admin-row { grid-template-columns: 1fr; }
       .stats { grid-template-columns: repeat(2, 1fr); }
       .scope-grid { grid-template-columns: 1fr 1fr; max-height: 180px; }
       button, .nav-item, input, select, textarea { font-size: 16px; } /* prevent iOS zoom */
@@ -564,6 +599,7 @@
       </div>
       <div class="ai-drawer-body" id="aiChatLog"></div>
       <div class="ai-drawer-foot">
+        <select id="aiLlmGlobal" title="LLM connection"></select>
         <select id="aiCapGlobal" title="Capability"></select>
         <textarea id="aiPromptGlobal" rows="2" placeholder="Ask the sandboxed Admin AI…"></textarea>
         <button type="button" class="primary" id="aiSendGlobal">Send</button>
@@ -734,6 +770,14 @@
     document.querySelectorAll(".view").forEach((v) => {
       v.classList.toggle("active", v.id === "view-" + name);
     });
+    const app = document.querySelector(".app");
+    if (app) {
+      // Admin: full width — hide session context + bottom event/output panes
+      const focusAdmin = name === "admin";
+      const focusWide = name === "admin" || name === "ai";
+      app.classList.toggle("no-ctx", focusWide);
+      app.classList.toggle("no-bottom", focusAdmin);
+    }
     const meta = VIEWS[name] || VIEWS.dashboard;
     $("viewTitle").textContent = meta.title;
     $("viewSub").textContent = meta.sub;

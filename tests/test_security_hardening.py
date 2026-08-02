@@ -41,11 +41,26 @@ def test_ssrf_blocks_metadata_and_private():
     with pytest.raises(ValueError):
         validate_llm_base_url("https://127.0.0.1/v1")  # loopback only via http lab
     ok = validate_llm_base_url("https://api.openai.com/v1")
-    assert ok.startswith("https://")
+    assert ok == "https://api.openai.com/v1"
+    xai = validate_llm_base_url("https://api.x.ai/v1")
+    assert xai == "https://api.x.ai/v1"
     lab = validate_llm_base_url("http://127.0.0.1:11434/v1")
-    assert lab == "http://127.0.0.1:11434"
+    assert lab == "http://127.0.0.1:11434/v1"
     lab2 = validate_llm_base_url("http://localhost:11434/v1")
-    assert lab2 == "http://localhost:11434"
+    assert lab2 == "http://localhost:11434/v1"
+    with pytest.raises(ValueError):
+        validate_llm_base_url("https://api.openai.com/v1?x=1")
+
+
+def test_ensure_openai_compat_root_fixes_xai_path():
+    from squidc5.ai.admin_ai import _ensure_openai_compat_root
+
+    assert _ensure_openai_compat_root("https://api.x.ai", provider="xai") == "https://api.x.ai/v1"
+    assert _ensure_openai_compat_root("https://api.x.ai/v1", provider="xai") == "https://api.x.ai/v1"
+    assert (
+        _ensure_openai_compat_root("https://api.perplexity.ai", provider="perplexity")
+        == "https://api.perplexity.ai"
+    )
 
 
 def test_stage2_host_injection_blocked():
@@ -260,6 +275,12 @@ async def test_llm_ssrf_on_configure(tmp_path):
                 },
             )
             assert bad.status_code in (400, 500, 422) or bad.status_code >= 400
+            bad_models = await client.post(
+                "/api/v1/llm/models",
+                headers=h,
+                json={"base_url": "http://169.254.169.254/", "api_key": "k"},
+            )
+            assert bad_models.status_code >= 400
 
 
 @pytest.mark.asyncio

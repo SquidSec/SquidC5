@@ -110,25 +110,58 @@
     "anomaly_explain", "profile_mutate", "implant_build_plan", "phishing_asset", "doc_generate",
   ];
 
+  /** OpenAI-compatible providers (chat/completions + /models) */
+  const LLM_PROVIDERS = [
+    { id: "xai", label: "xAI (Grok)", base: "https://api.x.ai/v1", model: "grok-3", needKey: true },
+    { id: "openai", label: "OpenAI", base: "https://api.openai.com/v1", model: "gpt-4o-mini", needKey: true },
+    { id: "groq", label: "Groq", base: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile", needKey: true },
+    { id: "openrouter", label: "OpenRouter", base: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", needKey: true },
+    { id: "together", label: "Together AI", base: "https://api.together.xyz/v1", model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", needKey: true },
+    { id: "deepseek", label: "DeepSeek", base: "https://api.deepseek.com/v1", model: "deepseek-chat", needKey: true },
+    { id: "mistral", label: "Mistral", base: "https://api.mistral.ai/v1", model: "mistral-small-latest", needKey: true },
+    { id: "fireworks", label: "Fireworks", base: "https://api.fireworks.ai/inference/v1", model: "accounts/fireworks/models/llama-v3p1-8b-instruct", needKey: true },
+    { id: "perplexity", label: "Perplexity", base: "https://api.perplexity.ai", model: "sonar", needKey: true },
+    { id: "gemini", label: "Google Gemini (OpenAI compat)", base: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash", needKey: true },
+    { id: "ollama", label: "Ollama (localhost)", base: "http://127.0.0.1:11434/v1", model: "llama3.2", needKey: false },
+    { id: "lmstudio", label: "LM Studio (localhost)", base: "http://127.0.0.1:1234/v1", model: "local-model", needKey: false },
+    { id: "custom", label: "Custom OpenAI-compatible", base: "", model: "", needKey: true },
+  ];
+  const LLM_PROVIDER_MAP = Object.fromEntries(LLM_PROVIDERS.map((p) => [p.id, p]));
+
   function llmFormHtml(prefix) {
     const canSave = can("llm:manage") || can("admin");
+    const opts = LLM_PROVIDERS.map((p) =>
+      `<option value="${esc(p.id)}">${esc(p.label)}</option>`
+    ).join("");
     return `
-      <p class="muted" style="font-size:0.78rem;margin:0 0 8px">API keys encrypted at rest; never returned by API. xAI / OpenAI / local Ollama.</p>
-      <div class="form-grid">
-        <div><label>Name</label><input id="${prefix}Name" placeholder="grok-prod" /></div>
+      <p class="muted" style="font-size:0.78rem;margin:0 0 10px">
+        OpenAI-compatible providers. Keys encrypted at rest and never returned by the API.
+        Paste a key to load live models from the provider.
+      </p>
+      <div class="form-grid llm-form-grid">
+        <div><label>Connection name</label><input id="${prefix}Name" placeholder="grok-prod" /></div>
         <div><label>Provider</label>
-          <select id="${prefix}Provider">
-            <option value="xai">xAI (Grok)</option>
-            <option value="openai">OpenAI-compatible</option>
-            <option value="ollama">Ollama (localhost)</option>
-          </select>
+          <select id="${prefix}Provider">${opts}</select>
         </div>
-        <div class="full"><label>Model</label><input id="${prefix}Model" placeholder="grok-3" value="grok-3" /></div>
         <div class="full"><label>Base URL</label>
           <input id="${prefix}Base" placeholder="https://api.x.ai/v1" value="https://api.x.ai/v1" />
         </div>
         <div class="full"><label>API key</label>
           <input id="${prefix}Key" type="password" placeholder="xai-… / sk-… (never shown again)" autocomplete="off" />
+        </div>
+        <div class="full" id="${prefix}ModelWrap">
+          <label>Model</label>
+          <select id="${prefix}ModelSel" disabled>
+            <option value="">Paste API key to load models…</option>
+          </select>
+          <input id="${prefix}Model" class="hidden" placeholder="custom-model-id" />
+          <label class="chk-inline" style="margin-top:8px;text-transform:none;letter-spacing:0;font-size:0.78rem;color:var(--text);font-weight:500">
+            <input type="checkbox" id="${prefix}ModelOverride" /> Override — type model name manually
+          </label>
+          <div class="row" style="margin-top:6px">
+            <button type="button" id="${prefix}FetchModels" disabled>Refresh models</button>
+            <span class="muted" id="${prefix}ModelHint" style="font-size:0.72rem"></span>
+          </div>
         </div>
       </div>
       <div class="row">
@@ -138,28 +171,122 @@
       <div class="outbox empty" id="${prefix}Out">—</div>`;
   }
   function bindLlmForm(prefix) {
-    if (el(prefix + "Provider")) el(prefix + "Provider").onchange = () => {
-      const p = el(prefix + "Provider").value;
-      if (p === "xai") {
-        el(prefix + "Base").value = "https://api.x.ai/v1";
-        if (!el(prefix + "Model").value || el(prefix + "Model").value === "gpt-4o-mini") el(prefix + "Model").value = "grok-3";
-      } else if (p === "openai") {
-        el(prefix + "Base").value = "https://api.openai.com/v1";
-        if (!el(prefix + "Model").value || el(prefix + "Model").value === "grok-3") el(prefix + "Model").value = "gpt-4o-mini";
-      } else if (p === "ollama") {
-        el(prefix + "Base").value = "http://127.0.0.1:11434/v1";
-        el(prefix + "Model").value = el(prefix + "Model").value || "llama3.2";
+    const applyProvider = () => {
+      const id = el(prefix + "Provider")?.value || "xai";
+      const p = LLM_PROVIDER_MAP[id] || LLM_PROVIDER_MAP.custom;
+      if (p.base) el(prefix + "Base").value = p.base;
+      if (p.model && !el(prefix + "ModelOverride")?.checked) {
+        const sel = el(prefix + "ModelSel");
+        const custom = el(prefix + "Model");
+        if (sel && !sel.disabled && [...sel.options].some((o) => o.value === p.model)) {
+          sel.value = p.model;
+        } else if (custom) {
+          custom.value = p.model;
+        } else if (sel) {
+          // seed single default option until fetch
+          sel.innerHTML = `<option value="${esc(p.model)}">${esc(p.model)}</option>`;
+          sel.value = p.model;
+        }
+      }
+      updateModelUi();
+    };
+    const updateModelUi = () => {
+      const override = !!(el(prefix + "ModelOverride") && el(prefix + "ModelOverride").checked);
+      const sel = el(prefix + "ModelSel");
+      const inp = el(prefix + "Model");
+      const key = (el(prefix + "Key")?.value || "").trim();
+      const prov = el(prefix + "Provider")?.value || "";
+      const needKey = (LLM_PROVIDER_MAP[prov] || {}).needKey !== false;
+      const canFetch = !needKey || key.length > 0;
+      if (sel) {
+        sel.classList.toggle("hidden", override);
+        sel.disabled = override || (!canFetch && sel.options.length <= 1 && !sel.value);
+      }
+      if (inp) {
+        inp.classList.toggle("hidden", !override);
+        if (override && sel && sel.value && !inp.value) inp.value = sel.value;
+      }
+      if (el(prefix + "FetchModels")) el(prefix + "FetchModels").disabled = !canFetch;
+    };
+    const currentModel = () => {
+      if (el(prefix + "ModelOverride")?.checked) return (el(prefix + "Model")?.value || "").trim();
+      return (el(prefix + "ModelSel")?.value || el(prefix + "Model")?.value || "").trim();
+    };
+    const fetchModels = async () => {
+      const hint = el(prefix + "ModelHint");
+      const sel = el(prefix + "ModelSel");
+      try {
+        if (hint) hint.textContent = "Loading models…";
+        const body = {
+          base_url: (el(prefix + "Base")?.value || "").trim() || null,
+          api_key: (el(prefix + "Key")?.value || "").trim() || null,
+          provider: el(prefix + "Provider")?.value || null,
+        };
+        const r = await api("POST", "/api/v1/llm/models", body);
+        const models = r.models || [];
+        if (!sel) return;
+        const prev = currentModel();
+        if (!models.length) {
+          sel.innerHTML = `<option value="">(no models returned)</option>`;
+          sel.disabled = true;
+          if (hint) hint.textContent = "No models — use override";
+          return;
+        }
+        sel.innerHTML = models.map((m) =>
+          `<option value="${esc(m)}">${esc(m)}</option>`
+        ).join("");
+        sel.disabled = false;
+        if (prev && models.includes(prev)) sel.value = prev;
+        else {
+          const def = (LLM_PROVIDER_MAP[el(prefix + "Provider")?.value] || {}).model;
+          if (def && models.includes(def)) sel.value = def;
+        }
+        if (hint) hint.textContent = models.length + " model(s)";
+        updateModelUi();
+      } catch (e) {
+        if (hint) hint.textContent = "Fetch failed — use override";
+        showError(String(e.message || e));
+        // enable override path
+        if (el(prefix + "ModelOverride")) {
+          el(prefix + "ModelOverride").checked = true;
+          updateModelUi();
+          const p = LLM_PROVIDER_MAP[el(prefix + "Provider")?.value] || {};
+          if (el(prefix + "Model") && !el(prefix + "Model").value) el(prefix + "Model").value = p.model || "";
+        }
       }
     };
+    if (el(prefix + "Provider")) {
+      el(prefix + "Provider").onchange = () => {
+        applyProvider();
+        const key = (el(prefix + "Key")?.value || "").trim();
+        const prov = el(prefix + "Provider").value;
+        if (key || (LLM_PROVIDER_MAP[prov] || {}).needKey === false) fetchModels();
+      };
+    }
+    if (el(prefix + "Key")) {
+      let t = null;
+      el(prefix + "Key").oninput = () => {
+        updateModelUi();
+        clearTimeout(t);
+        t = setTimeout(() => {
+          const key = (el(prefix + "Key")?.value || "").trim();
+          if (key.length >= 8) fetchModels();
+        }, 600);
+      };
+    }
+    if (el(prefix + "ModelOverride")) el(prefix + "ModelOverride").onchange = updateModelUi;
+    if (el(prefix + "FetchModels")) el(prefix + "FetchModels").onclick = () => fetchModels();
     if (el(prefix + "Save")) el(prefix + "Save").onclick = async () => {
       try {
         const name = (el(prefix + "Name").value || "").trim();
-        const model = (el(prefix + "Model").value || "").trim();
+        const model = currentModel();
         const base_url = (el(prefix + "Base").value || "").trim();
         const api_key = (el(prefix + "Key").value || "").trim();
         const provider = el(prefix + "Provider").value || "openai";
+        const needKey = (LLM_PROVIDER_MAP[provider] || {}).needKey !== false;
         if (!name || !model) return showError("Name and model required");
-        if (!api_key && provider !== "ollama") return showError("API key required (except local Ollama)");
+        if (!api_key && needKey) return showError("API key required for this provider");
+        if (!base_url) return showError("Base URL required");
         const body = {
           name, provider, model,
           base_url: base_url || null,
@@ -170,7 +297,9 @@
         el(prefix + "Out").textContent = JSON.stringify(r, null, 2);
         el(prefix + "Out").classList.remove("empty");
         if (el(prefix + "Key")) el(prefix + "Key").value = "";
+        updateModelUi();
         showOk("LLM saved (key encrypted at rest)");
+        if (window.__SC5_refreshLlms) window.__SC5_refreshLlms();
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el(prefix + "List")) el(prefix + "List").onclick = async () => {
@@ -180,6 +309,37 @@
         el(prefix + "Out").classList.remove("empty");
       } catch (e) { showError(String(e.message || e)); }
     };
+    // defaults
+    if (el(prefix + "Provider") && !el(prefix + "Provider").dataset.bound) {
+      el(prefix + "Provider").value = "xai";
+      applyProvider();
+      el(prefix + "Provider").dataset.bound = "1";
+    }
+    updateModelUi();
+  }
+
+  async function loadSavedLlms() {
+    try {
+      return await api("GET", "/api/v1/llm") || [];
+    } catch (_) {
+      return [];
+    }
+  }
+  function fillLlmSelect(sel, llms, selected) {
+    if (!sel) return;
+    const list = Array.isArray(llms) ? llms : [];
+    if (!list.length) {
+      sel.innerHTML = `<option value="">(no LLM configured — use Configure panel)</option>`;
+      sel.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+    sel.innerHTML = list.map((L) => {
+      const id = L.id || L.name;
+      const label = `${L.name || id} · ${L.model || "?"} · ${L.provider || "?"}`;
+      return `<option value="${esc(id)}">${esc(label)}</option>`;
+    }).join("");
+    if (selected && list.some((L) => (L.id || L.name) === selected)) sel.value = selected;
   }
 
   /* —— Context rail —— */
@@ -912,14 +1072,16 @@
       return;
     }
     root.innerHTML = `
-      <div class="form-grid">
+      <div class="form-grid ai-layout">
         <div class="work-panel">
           <div class="wp-head">Run capability</div>
           <div class="wp-body">
+            <label>LLM connection</label>
+            <select id="aiLlmPick"><option value="">Loading…</option></select>
             <label>Capability</label>
             <select id="aiCap">${AI_CAPS.map((c) => `<option value="${c}">${c}</option>`).join("")}</select>
             <label>Input (untrusted — sanitized server-side)</label>
-            <textarea id="aiData" rows="4" placeholder="Describe target, paste metrics text, ask for recon assist…"></textarea>
+            <textarea id="aiData" rows="5" placeholder="Describe target, paste metrics text, ask for recon assist…"></textarea>
             <div class="row">
               <button type="button" class="primary" id="aiRun">Run</button>
               <button type="button" id="aiStatus">AI status</button>
@@ -935,6 +1097,18 @@
       </div>
     `;
     bindLlmForm("llm");
+    const refreshPick = async () => {
+      const llms = await loadSavedLlms();
+      const prev = el("aiLlmPick")?.value || loadSel("sc5_ops_llm") || "";
+      fillLlmSelect(el("aiLlmPick"), llms, prev);
+      fillLlmSelect(el("aiLlmGlobal"), llms, prev);
+    };
+    window.__SC5_refreshLlms = refreshPick;
+    refreshPick();
+    if (el("aiLlmPick")) el("aiLlmPick").onchange = () => {
+      saveSel("sc5_ops_llm", el("aiLlmPick").value || "");
+      if (el("aiLlmGlobal") && el("aiLlmPick").value) el("aiLlmGlobal").value = el("aiLlmPick").value;
+    };
     if (el("aiRun")) el("aiRun").onclick = () => runAi(el("aiCap").value, el("aiData").value, "aiOut");
     if (el("aiStatus")) el("aiStatus").onclick = async () => {
       try {
@@ -949,16 +1123,22 @@
 
   async function runAi(capability, user_data, outId) {
     try {
-      const r = await api("POST", "/api/v1/ai/run", {
+      const llm_id = (el("aiLlmPick") && el("aiLlmPick").value)
+        || (el("aiLlmGlobal") && el("aiLlmGlobal").value)
+        || loadSel("sc5_ops_llm")
+        || null;
+      const body = {
         capability: capability || "recon_assist",
         user_data: user_data || "",
-      });
+      };
+      if (llm_id) body.llm_id = llm_id;
+      const r = await api("POST", "/api/v1/ai/run", body);
       const text = typeof r === "string" ? r : JSON.stringify(r, null, 2);
       if (outId && el(outId)) {
         el(outId).textContent = text;
         el(outId).classList.remove("empty");
       }
-      appendAiChat("user", `[${capability}] ${user_data || "(empty)"}`);
+      appendAiChat("user", `[${capability}${llm_id ? " · " + llm_id.slice(0, 10) : ""}] ${user_data || "(empty)"}`);
       appendAiChat("bot", text);
       showOk("AI complete");
       return r;
@@ -1012,6 +1192,14 @@
       });
       sel.value = "recon_assist";
     }
+    // LLM picker in drawer
+    loadSavedLlms().then((llms) => {
+      fillLlmSelect(el("aiLlmGlobal"), llms, loadSel("sc5_ops_llm") || "");
+    });
+    if (el("aiLlmGlobal")) el("aiLlmGlobal").onchange = () => {
+      saveSel("sc5_ops_llm", el("aiLlmGlobal").value || "");
+      if (el("aiLlmPick") && el("aiLlmGlobal").value) el("aiLlmPick").value = el("aiLlmGlobal").value;
+    };
     fab.onclick = () => openAiDrawer();
     if (el("aiDrawerClose")) el("aiDrawerClose").onclick = () => openAiDrawer(false);
     if (el("aiSendGlobal")) el("aiSendGlobal").onclick = async () => {
@@ -1047,41 +1235,43 @@
       "tokens:manage", "llm:manage", "policy:manage", "plugins:manage", "admin",
     ];
     root.innerHTML = `
-      <div class="form-grid">
-        <div class="work-panel">
-          <div class="wp-head">Mint token</div>
-          <div class="wp-body">
-            <label>Name</label><input id="adName" placeholder="operator-1" />
-            <label>Scopes</label>
-            <div class="row" style="margin:4px 0">
-              <button type="button" id="adScopeOp">Operator preset</button>
-              <button type="button" id="adScopeNone">Clear</button>
-              <button type="button" id="adScopeAll">All non-admin</button>
+      <div class="admin-stack">
+        <div class="admin-row">
+          <div class="work-panel">
+            <div class="wp-head">Mint token</div>
+            <div class="wp-body">
+              <label>Name</label><input id="adName" placeholder="operator-1" />
+              <label>Scopes</label>
+              <div class="row" style="margin:4px 0">
+                <button type="button" id="adScopeOp">Operator preset</button>
+                <button type="button" id="adScopeNone">Clear</button>
+                <button type="button" id="adScopeAll">All non-admin</button>
+              </div>
+              <div class="scope-grid" id="adScopeGrid">
+                ${allScopes.map((s) => `
+                  <label><input type="checkbox" class="ad-scope" value="${esc(s)}"
+                    ${defaultScopes.has(s) ? "checked" : ""}
+                    ${s === "admin" && !can("admin") ? "disabled" : ""} /> ${esc(s)}</label>
+                `).join("")}
+              </div>
+              <div class="row"><button type="button" class="primary" id="adMint">Mint</button></div>
+              <div class="outbox empty" id="adMintOut">Token shown once</div>
             </div>
-            <div class="scope-grid" id="adScopeGrid">
-              ${allScopes.map((s) => `
-                <label><input type="checkbox" class="ad-scope" value="${esc(s)}"
-                  ${defaultScopes.has(s) ? "checked" : ""}
-                  ${s === "admin" && !can("admin") ? "disabled" : ""} /> ${esc(s)}</label>
-              `).join("")}
-            </div>
-            <div class="row"><button type="button" class="primary" id="adMint">Mint</button></div>
-            <div class="outbox empty" id="adMintOut">Token shown once</div>
           </div>
-        </div>
-        <div class="work-panel">
-          <div class="wp-head">Policy / features</div>
-          <div class="wp-body">
-            <div class="row">
-              <button type="button" id="adPolGet">Get policy</button>
-              <button type="button" id="adFeat">Features</button>
-              <button type="button" id="adTokList">List tokens</button>
+          <div class="work-panel">
+            <div class="wp-head">Policy / features</div>
+            <div class="wp-body">
+              <div class="row">
+                <button type="button" id="adPolGet">Get policy</button>
+                <button type="button" id="adFeat">Features</button>
+                <button type="button" id="adTokList">List tokens</button>
+              </div>
+              <div class="outbox empty" id="adOut" style="max-height:min(420px,50vh);flex:1">—</div>
             </div>
-            <div class="outbox empty" id="adOut" style="max-height:360px;flex:1">—</div>
           </div>
         </div>
         ${(can("llm:manage") || can("admin")) ? `
-        <div class="work-panel full">
+        <div class="work-panel admin-llm">
           <div class="wp-head">Configure LLM (BYO)</div>
           <div class="wp-body">${llmFormHtml("adLlm")}</div>
         </div>` : ""}
