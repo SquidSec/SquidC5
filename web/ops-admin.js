@@ -1134,14 +1134,7 @@
       );
       return `\u0000FENCE${i}\u0000`;
     });
-    s = escapeHtml(s);
-    s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
-    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    s = s.replace(/^(#{1,4})\s+(.+)$/gm, (_, h, t) => `<h${h.length}>${t}</h${h.length}>`);
-    s = s.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "<strong>$2</strong>");
-    s = s.replace(/(\*|_)(?=\S)([\s\S]*?\S)\1/g, "<em>$2</em>");
-    s = s.replace(/^&gt;\s?(.+)$/gm, "<blockquote>$1</blockquote>");
-    // GFM tables (must run before list/paragraph splitting)
+    // GFM tables on raw text — escape each cell at HTML build time (XSS-safe)
     s = s.replace(/(?:^[ \t]*\|.+\|[ \t]*\n){2,}/gm, (block) => {
       const lines = block.trim().split("\n").map((l) => l.trim()).filter(Boolean);
       if (lines.length < 2) return block;
@@ -1155,10 +1148,10 @@
         const cells = splitRow(line);
         return cells.length > 0 && cells.every((c) => /^:?-{1,}:?$/.test(c));
       };
-      let header = splitRow(lines[0]);
+      const header = splitRow(lines[0]);
       let bodyStart = 1;
       if (isSep(lines[1])) bodyStart = 2;
-      else if (lines.length >= 2 && isSep(lines[0])) return block;
+      else if (isSep(lines[0])) return block;
       const rows = lines.slice(bodyStart).filter((l) => !isSep(l)).map(splitRow);
       if (!header.length || !rows.length) return block;
       const coln = header.length;
@@ -1167,12 +1160,27 @@
         while (r.length < coln) r.push("");
         return r;
       };
-      const th = norm(header).map((c) => `<th>${c}</th>`).join("");
-      const trs = rows.map((r) => `<tr>${norm(r).map((c) => `<td>${c}</td>`).join("")}</tr>`).join("");
+      // Inline md in cells (bold/code only) after escape
+      const cellHtml = (raw) => {
+        let c = escapeHtml(raw);
+        c = c.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+        c = c.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "<strong>$2</strong>");
+        return c;
+      };
+      const th = norm(header).map((c) => `<th>${cellHtml(c)}</th>`).join("");
+      const trs = rows.map((r) => `<tr>${norm(r).map((c) => `<td>${cellHtml(c)}</td>`).join("")}</tr>`).join("");
       const i = tables.length;
       tables.push(`<div class="md-table-wrap"><table class="md-table"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table></div>`);
       return `\u0000TABLE${i}\u0000\n\n`;
     });
+    s = escapeHtml(s);
+    // Restore table/fence placeholders swallowed by escapeHtml (\u0000 stays)
+    s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    s = s.replace(/^(#{1,4})\s+(.+)$/gm, (_, h, t) => `<h${h.length}>${t}</h${h.length}>`);
+    s = s.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "<strong>$2</strong>");
+    s = s.replace(/(\*|_)(?=\S)([\s\S]*?\S)\1/g, "<em>$2</em>");
+    s = s.replace(/^&gt;\s?(.+)$/gm, "<blockquote>$1</blockquote>");
     // unordered lists
     s = s.replace(/(?:^(?:[-*+])\s+.+(?:\n|$))+?/gm, (block) => {
       const items = block.trim().split("\n").map((line) => line.replace(/^[-*+]\s+/, "").trim());

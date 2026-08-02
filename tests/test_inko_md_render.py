@@ -30,16 +30,6 @@ def render_markdown_safe(src: str) -> str:
         return f"\x00FENCE{i}\x00"
 
     s = re.sub(r"```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```", fence_repl, s)
-    s = _escape_html(s)
-    s = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", s)
-    s = re.sub(
-        r"\[([^\]]+)\]\((https?://[^)\s]+)\)",
-        r'<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>',
-        s,
-    )
-    s = re.sub(r"^(#{1,4})\s+(.+)$", lambda m: f"<h{len(m.group(1))}>{m.group(2)}</h{len(m.group(1))}>", s, flags=re.M)
-    s = re.sub(r"(\*\*|__)(?=\S)([\s\S]*?\S)\1", r"<strong>\2</strong>", s)
-    s = re.sub(r"(\*|_)(?=\S)([\s\S]*?\S)\1", r"<em>\2</em>", s)
     tables: list[str] = []
 
     def _split_row(line: str) -> list[str]:
@@ -53,6 +43,12 @@ def render_markdown_safe(src: str) -> str:
     def _is_sep(line: str) -> bool:
         cells = _split_row(line)
         return bool(cells) and all(re.fullmatch(r":?-{1,}:?", c or "") for c in cells)
+
+    def _cell_html(raw: str) -> str:
+        c = _escape_html(raw)
+        c = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", c)
+        c = re.sub(r"(\*\*|__)(?=\S)([\s\S]*?\S)\1", r"<strong>\2</strong>", c)
+        return c
 
     def _table_repl(m: re.Match[str]) -> str:
         lines = [ln.strip() for ln in m.group(0).strip().split("\n") if ln.strip()]
@@ -71,9 +67,9 @@ def render_markdown_safe(src: str) -> str:
                 r.append("")
             return r
 
-        th = "".join(f"<th>{c}</th>" for c in norm(header))
+        th = "".join(f"<th>{_cell_html(c)}</th>" for c in norm(header))
         trs = "".join(
-            "<tr>" + "".join(f"<td>{c}</td>" for c in norm(r)) + "</tr>" for r in rows
+            "<tr>" + "".join(f"<td>{_cell_html(c)}</td>" for c in norm(r)) + "</tr>" for r in rows
         )
         i = len(tables)
         tables.append(
@@ -83,6 +79,16 @@ def render_markdown_safe(src: str) -> str:
         return f"\x00TABLE{i}\x00\n\n"
 
     s = re.sub(r"(?:^[ \t]*\|.+\|[ \t]*\n){2,}", _table_repl, s, flags=re.M)
+    s = _escape_html(s)
+    s = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", s)
+    s = re.sub(
+        r"\[([^\]]+)\]\((https?://[^)\s]+)\)",
+        r'<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>',
+        s,
+    )
+    s = re.sub(r"^(#{1,4})\s+(.+)$", lambda m: f"<h{len(m.group(1))}>{m.group(2)}</h{len(m.group(1))}>", s, flags=re.M)
+    s = re.sub(r"(\*\*|__)(?=\S)([\s\S]*?\S)\1", r"<strong>\2</strong>", s)
+    s = re.sub(r"(\*|_)(?=\S)([\s\S]*?\S)\1", r"<em>\2</em>", s)
     parts = []
     for para in re.split(r"\n{2,}", s):
         p = para.strip()
@@ -139,3 +145,10 @@ def test_gfm_table_renders() -> None:
     assert "<td>Active beacons</td>" in out
     assert "<td>0</td>" in out
     assert "|------|" not in out
+
+
+def test_table_cells_escape_html() -> None:
+    md = "| A | B |\n|---|---|\n| <script>x</script> | ok |\n"
+    out = render_markdown_safe(md)
+    assert "<script>" not in out
+    assert "&lt;script&gt;" in out
