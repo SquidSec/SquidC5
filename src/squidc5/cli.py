@@ -145,14 +145,76 @@ def cmd_backup(args: argparse.Namespace) -> None:
     print(json.dumps({"ok": True, "source": str(src), "backup": str(out)}, indent=2))
 
 
+def cmd_factory_reset(args: argparse.Namespace) -> None:
+    """Wipe local data_dir to first-boot. Stop squidc5 before running."""
+    from squidc5.auth.tokens import TokenService
+    from squidc5.db.factory_reset import CONFIRM_PHRASE, wipe_data_dir
+    from squidc5.db.store import Database
+
+    data = Path(args.data_dir).expanduser() if args.data_dir else Path("data")
+    if not args.yes:
+        print(
+            f"This will DELETE the database and secrets under {data}.\n"
+            f'Type "{CONFIRM_PHRASE}" to continue:',
+            flush=True,
+        )
+        try:
+            typed = input().strip()
+        except EOFError:
+            typed = ""
+        if typed != CONFIRM_PHRASE:
+            print(json.dumps({"ok": False, "error": "aborted"}, indent=2))
+            raise SystemExit(1)
+
+    info = wipe_data_dir(
+        data,
+        keep_tls=not bool(args.wipe_tls),
+        keep_implant_psk=bool(args.keep_implant_psk),
+        regenerate_instance_tls=bool(args.regenerate_instance_tls),
+    )
+
+    # Recreate empty DB + bootstrap admin (same as server start)
+    import asyncio
+
+    async def _boot() -> str:
+        db = Database(data / "squidc5.db")
+        await db.connect()
+        tokens = TokenService(db)
+        raw = await tokens.bootstrap_admin(None)
+        await db.close()
+        if raw:
+            tf = data / "admin_token.txt"
+            tf.write_text(raw + "\n", encoding="utf-8")
+            try:
+                tf.chmod(0o600)
+            except OSError:
+                pass
+        return raw or ""
+
+    admin = asyncio.run(_boot())
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                **info,
+                "admin_token": admin,
+                "admin_name": "squidc5-admin",
+                "note": "Start squidc5 and login with admin_token",
+            },
+            indent=2,
+        )
+    )
+
+
 def cmd_restore(args: argparse.Namespace) -> None:
     """Restore SQLite from backup file. Stop squidc5 before restore."""
+
     from squidc5.config import Settings
     from squidc5.db.backup import restore_database
 
     settings = Settings(
         data_dir=Path(args.data_dir) if args.data_dir else Path("data"),
-        db_path=Path(args.db) if args.db else None,
+        db_path=Path(args.db) if getattr(args, "db", None) else None,
     )
     target = settings.resolve_db_path()
     out = restore_database(Path(args.backup), target)
@@ -873,6 +935,25 @@ def build_parser() -> argparse.ArgumentParser:
     cfg = sub.add_parser("config", help="Show saved config")
     cfg.add_argument("--show-token", action="store_true")
     cfg.set_defaults(func=cmd_config_show, needs_client=False)
+
+    fr = sub.add_parser(
+        "factory-reset",
+        help="Wipe local data_dir to first-boot (stop server first)",
+    )
+    fr.add_argument("--data-dir", default=None, help="Data directory (default: ./data)")
+    fr.add_argument(
+        "--yes",
+        action="store_true",
+        help='Skip interactive confirm (must type FACTORY RESET otherwise)',
+    )
+    fr.add_argument("--wipe-tls", action="store_true", help="Also delete data/tls/")
+    fr.add_argument("--keep-implant-psk", action="store_true", help="Keep implant_psk.txt")
+    fr.add_argument(
+        "--regenerate-instance-tls",
+        action="store_true",
+        help="Delete instance self-signed cert (keep library)",
+    )
+    fr.set_defaults(func=cmd_factory_reset, needs_client=False)
 
     bak = sub.add_parser("backup", help="Backup local SQLite DB (no API)")
     bak.add_argument(

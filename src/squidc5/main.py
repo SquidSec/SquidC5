@@ -226,9 +226,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         log.info("SquidC5 v%s listening on %s:%s", __version__, settings.host, settings.port)
         yield
-        await state.listeners.stop_all()
-        await state.db.audit(actor="system", actor_type="system", action="server.stop")
-        await state.db.close()
+        # Prefer live app_state (factory reset swaps it in-process)
+        cur = getattr(app.state, "app_state", None) or state
+        try:
+            await cur.listeners.stop_all()
+        except Exception:
+            log.exception("shutdown stop_all failed")
+        try:
+            await cur.db.audit(actor="system", actor_type="system", action="server.stop")
+        except Exception:
+            pass
+        try:
+            await cur.db.close()
+        except Exception:
+            log.exception("shutdown db.close failed")
         log.info("SquidC5 shutdown complete")
 
     # Hardened surface: no public Swagger/ReDoc/OpenAPI by default.
