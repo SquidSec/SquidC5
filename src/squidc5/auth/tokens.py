@@ -502,6 +502,8 @@ class TokenService:
         *,
         actor: str = "unknown",
         grantor_is_admin: bool = False,
+        skip_privilege_check: bool = False,
+        audit_action: str = "token.roll",
     ) -> tuple[dict[str, Any], str]:
         """Rotate the secret for an active token. Old secret stops working immediately.
 
@@ -511,7 +513,7 @@ class TokenService:
         if not row or row.get("revoked"):
             raise KeyError("token not found")
         before = self.parse_row(row)
-        if not grantor_is_admin:
+        if not skip_privilege_check and not grantor_is_admin:
             held_priv = set(before.get("scopes") or []) & self.PRIVILEGED_SCOPES
             if held_priv:
                 raise PermissionError(
@@ -524,7 +526,7 @@ class TokenService:
         await self.db.audit(
             actor=actor,
             actor_type="operator",
-            action="token.roll",
+            action=audit_action,
             resource=token_id,
             details={"name": before.get("name"), "scopes": before.get("scopes")},
             risk_score=6,
@@ -532,6 +534,109 @@ class TokenService:
         updated = await self.db.get_token_by_id(token_id)
         assert updated is not None
         return self.parse_row(updated), raw
+
+    async def create_connection_ticket(
+        self,
+        token_id: str,
+        *,
+        actor: str = "unknown",
+        grantor_is_admin: bool = False,
+        ttl_sec: int = 3600,
+        note: str = "",
+    ) -> dict[str, Any]:
+        """Mint a one-time connection ticket for an existing token (no secret exposed).
+
+        Recipient redeems the ticket; server rolls the token and returns the new secret once.
+        """
+        import time as _time
+
+        row = await self.db.get_token_by_id(token_id)
+        if not row or row.get("revoked"):
+            raise KeyError("token not found")
+        parsed = self.parse_row(row)
+        if not grantor_is_admin:
+            held_priv = set(parsed.get("scopes") or []) & self.PRIVILEGED_SCOPES
+            if held_priv:
+                raise PermissionError(
+                    f"Only admin may issue connection links for privileged tokens: {sorted(held_priv)}"
+                )
+        ttl = max(60, min(int(ttl_sec or 3600), 86_400))  # 1 min .. 24 h
+        # sc5t_ prefix so tickets are distinct from API secrets
+        raw_ticket = f"sc5t_{secrets.token_urlsafe(32)}"
+        expires_at = _time.time() + ttl
+        tid = await self.db.create_connection_ticket(
+            ticket_hash=hash_token(raw_ticket),
+            token_id=token_id,
+            created_by=actor,
+            expires_at=expires_at,
+            note=note,
+        )
+        await self.db.audit(
+            actor=actor,
+            actor_type="operator",
+            action="token.connection_ticket",
+            resource=token_id,
+            details={
+                "ticket_id": tid,
+                "expires_at": expires_at,
+                "ttl_sec": ttl,
+                "name": parsed.get("name"),
+            },
+            risk_score=4,
+        )
+        return {
+            "ticket_id": tid,
+            "ticket": raw_ticket,
+            "token_id": token_id,
+            "name": parsed.get("name"),
+            "scopes": parsed.get("scopes") or [],
+            "expires_at": expires_at,
+            "ttl_sec": ttl,
+        }
+
+    async def redeem_connection_ticket(self, raw_ticket: str) -> dict[str, Any]:
+        """Redeem a one-time ticket: roll target token and return new secret once."""
+        import time as _time
+
+        raw = (raw_ticket or "").strip()
+        if not raw.startswith("sc5t_"):
+            raise ValueError("invalid ticket")
+        row = await self.db.get_connection_ticket_by_hash(hash_token(raw))
+        if not row:
+            raise KeyError("ticket not found")
+        if row.get("used_at") is not None:
+            raise ValueError("ticket already used")
+        if float(row.get("expires_at") or 0) < _time.time():
+            raise ValueError("ticket expired")
+        token_id = row["token_id"]
+        # Mark used first (single-use); if roll fails, ticket stays consumed
+        marked = await self.db.mark_connection_ticket_used(row["id"])
+        if not marked:
+            raise ValueError("ticket already used")
+        try:
+            tok_row, new_raw = await self.roll(
+                token_id,
+                actor=row.get("created_by") or "ticket",
+                skip_privilege_check=True,
+                audit_action="token.roll_via_ticket",
+            )
+        except KeyError as e:
+            raise ValueError("target token missing or revoked") from e
+        await self.db.audit(
+            actor="ticket",
+            actor_type="system",
+            action="token.connection_ticket_redeem",
+            resource=token_id,
+            details={"ticket_id": row["id"], "name": tok_row.get("name")},
+            risk_score=5,
+        )
+        return {
+            "token": new_raw,
+            "id": tok_row["id"],
+            "name": tok_row.get("name"),
+            "scopes": tok_row.get("scopes") or [],
+            "rolled": True,
+        }
 
     def parse_row(self, row: dict[str, Any]) -> dict[str, Any]:
         out = dict(row)

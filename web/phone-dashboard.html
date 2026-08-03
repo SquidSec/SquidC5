@@ -1655,11 +1655,16 @@
     return h + "h " + m + "m";
   }
 
-  // Hash import for phone QR - auto-connect
+  // Hash import: direct secret (#sc5=) or one-time ticket (#sc5ticket=)
   let importedFromQr = false;
+  let pendingTicket = null;
   try {
-    if (location.hash && location.hash.indexOf("sc5=") >= 0) {
-      const raw = location.hash.replace(/^#/, "").replace(/^sc5=/, "");
+    const hash = (location.hash || "").replace(/^#/, "");
+    if (hash.indexOf("sc5ticket=") === 0) {
+      pendingTicket = decodeURIComponent(hash.slice("sc5ticket=".length));
+      history.replaceState(null, "", location.pathname + location.search);
+    } else if (hash.indexOf("sc5=") === 0 || hash.indexOf("sc5=") >= 0) {
+      const raw = hash.replace(/^sc5=/, "");
       let b64 = raw.replace(/-/g, "+").replace(/_/g, "/");
       while (b64.length % 4) b64 += "=";
       const json = JSON.parse(decodeURIComponent(escape(atob(b64))));
@@ -1744,14 +1749,63 @@
 
   loadForm();
   const savedView = (() => { try { return localStorage.getItem("sc5_ops_view"); } catch (_) { return null; } })();
-  if (cfg().token) {
-    connect().then(() => {
-      if (importedFromQr) showOk("Phone link applied - connected");
-      if (savedView && VIEWS[savedView]) setView(savedView);
-    }).catch(() => openModal());
-  } else {
-    openModal();
+
+  async function redeemPendingTicket() {
+    if (!pendingTicket) return false;
+    const ticket = pendingTicket;
+    pendingTicket = null;
+    try {
+      showOk("Redeeming connection link...");
+      // Unauthenticated redeem against this origin
+      const base = apiBase() || (location.origin || "");
+      const r = await fetch((base.replace(/\/$/, "")) + "/api/v1/auth/redeem-ticket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ ticket }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const detail = body.detail || body.message || r.statusText || "redeem failed";
+        throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+      }
+      if (body.url) localStorage.setItem(KEYS.url, String(body.url).replace(/\/$/, ""));
+      if (body.token) localStorage.setItem(KEYS.token, String(body.token));
+      if (body.refresh) localStorage.setItem(KEYS.refresh, String(body.refresh));
+      loadForm();
+      importedFromQr = true;
+      showOk("Connection link redeemed - secret loaded (previous secret invalidated)");
+      return true;
+    } catch (e) {
+      showError("Connection link failed: " + String(e.message || e));
+      openModal();
+      return false;
+    }
   }
+
+  (async () => {
+    if (pendingTicket) {
+      // Prefer same-origin URL for redeem
+      if (!cfg().url) {
+        try { localStorage.setItem(KEYS.url, location.origin); loadForm(); } catch (_) {}
+      }
+      const ok = await redeemPendingTicket();
+      if (ok && cfg().token) {
+        try {
+          await connect();
+          if (savedView && VIEWS[savedView]) setView(savedView);
+        } catch (_) { openModal(); }
+        return;
+      }
+    }
+    if (cfg().token) {
+      connect().then(() => {
+        if (importedFromQr) showOk("Phone link applied - connected");
+        if (savedView && VIEWS[savedView]) setView(savedView);
+      }).catch(() => openModal());
+    } else {
+      openModal();
+    }
+  })();
 
   // Expose for ops-admin
   window.__SC5_api = api;

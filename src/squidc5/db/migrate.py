@@ -231,11 +231,28 @@ CREATE INDEX IF NOT EXISTS idx_operator_assets_kind ON operator_assets(kind);
 CREATE INDEX IF NOT EXISTS idx_operator_assets_created ON operator_assets(created_at);
 """
 
+CONNECTION_TICKETS_SQL = """
+CREATE TABLE IF NOT EXISTS connection_tickets (
+    id TEXT PRIMARY KEY,
+    ticket_hash TEXT NOT NULL UNIQUE,
+    token_id TEXT NOT NULL,
+    created_by TEXT,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL,
+    used_at REAL,
+    note TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_conn_tickets_hash ON connection_tickets(ticket_hash);
+CREATE INDEX IF NOT EXISTS idx_conn_tickets_token ON connection_tickets(token_id);
+CREATE INDEX IF NOT EXISTS idx_conn_tickets_exp ON connection_tickets(expires_at);
+"""
+
 MIGRATIONS: Sequence[tuple[int, str, str]] = (
     (1, "baseline schema", BASELINE_SQL),
     (2, "HITL approval queue", HITL_REQUESTS_SQL),
     (3, "audit integrity chain columns", AUDIT_INTEGRITY_SQL),
     (4, "operator assets library", OPERATOR_ASSETS_SQL),
+    (5, "connection tickets for token handoff", CONNECTION_TICKETS_SQL),
 )
 
 SCHEMA_VERSION_TABLE = """
