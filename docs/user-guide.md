@@ -453,7 +453,15 @@ sc5 shell <session_id> "whoami"
 
 ### Why stage-2 stabilize
 
-Raw reverse shells die on network blips and often lack a clean line protocol. Auto-stabilize injects a reconnecting agent (Linux Python / Windows PowerShell) that re-checks in to `SQUIDC5_PUBLIC_HOST:<port>` and supports reliable command execution. Stage-2 reconnects skip re-staging. Exec probe must pass or the session is dropped.
+Raw reverse shells die on network blips and often lack a clean line protocol. Stage-2 injects a reconnecting agent (Linux Python / Windows PowerShell) that re-checks in to `SQUIDC5_PUBLIC_HOST:<port>` and supports reliable command execution. Stage-2 reconnects skip re-staging. Exec probe must pass or the session is dropped.
+
+**Default: auto-stabilize is OFF.** Prefer one-shot **Stabilize shell** on the session context rail (detects Linux vs Windows). Enable auto via Admin → Features → *Auto stage-2 on reverse-shell capture*, or `SQUIDC5_SHELL_AUTO_STABILIZE=true`.
+
+| Action | How |
+|--------|-----|
+| Manual stabilize | Ops → session → **Stabilize shell** → `POST /api/v1/sessions/{id}/stabilize` `{os:"auto"}` |
+| Force OS | `{os:"linux"}` or `{os:"windows"}` |
+| Auto on capture | Feature `shell_auto_stabilize` (default false) |
 
 ### Pitfalls
 

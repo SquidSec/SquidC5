@@ -527,6 +527,24 @@
         showOk("Spectator snapshot");
       } catch (e) { showError(String(e.message || e)); }
     };
+    if (el("ctxStabilize")) el("ctxStabilize").onclick = async () => {
+      if (!selectedId) return;
+      if (!confirm("Inject stage-2 stabilize agent? Detects Linux vs Windows and reconnects a durable channel.")) return;
+      try {
+        const r = await api(
+          "POST",
+          `/api/v1/sessions/${encodeURIComponent(selectedId)}/stabilize`,
+          { os: "auto" },
+        );
+        showOk(r.status === "already_stable" ? "Already stable" : ("Stabilized as " + (r.os || "?")));
+        if (el("ctxOut")) {
+          el("ctxOut").textContent = JSON.stringify(r, null, 2);
+          el("ctxOut").classList.remove("empty");
+        }
+        if (window.__SC5_refresh) await window.__SC5_refresh();
+        renderContext(true);
+      } catch (e) { showError(String(e.message || e)); }
+    };
     if (el("ctxRun")) el("ctxRun").onclick = async () => {
       const command = (el("ctxCmd").value || "").trim();
       if (!command) return showError("Command required");
@@ -607,6 +625,10 @@
         ${can("sessions:read") ? '<button type="button" class="ghost" id="ctxSpectate">Spectate</button>' : ""}
       </div>
       ${shellOk ? `
+        <div class="row" style="margin-top:8px">
+          <button type="button" class="primary" id="ctxStabilize" title="Detect Linux/Windows and inject stage-2 reconnect agent">Stabilize shell</button>
+        </div>
+        <p class="muted" style="font-size:0.68rem;margin:4px 0 8px">Injects OS-aware stage-2 (Python/PowerShell). Auto-stabilize is OFF by default — Admin → Features.</p>
         <label for="ctxCmd">Shell command</label>
         <textarea id="ctxCmd" rows="2" placeholder="whoami"></textarea>
         <div class="row"><button type="button" class="primary" id="ctxRun">Run</button></div>
@@ -2054,9 +2076,12 @@
             <div class="wp-body">
               <div class="row">
                 <button type="button" id="adPolGet">Get policy</button>
-                <button type="button" id="adFeat">Features</button>
+                <button type="button" id="adFeat">Reload features</button>
+                <button type="button" class="primary" id="adFeatSave">Save features</button>
               </div>
-              <div class="outbox empty" id="adOut" style="max-height:min(420px,50vh);flex:1">-</div>
+              <p class="muted" style="font-size:0.72rem;margin:8px 0">Runtime switches. <strong>Auto stage-2</strong> defaults OFF — use session <em>Stabilize shell</em> for one-shot.</p>
+              <div id="adFeatGrid" class="scope-grid" style="max-height:min(360px,45vh)"></div>
+              <div class="outbox empty" id="adOut" style="max-height:min(280px,35vh);flex:1">-</div>
             </div>
           </div>
         </div>
@@ -2494,7 +2519,51 @@
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("adPolGet")) el("adPolGet").onclick = () => dump("/api/v1/policy");
-    if (el("adFeat")) el("adFeat").onclick = () => dump("/api/v1/features");
+    async function loadFeatureToggles() {
+      const grid = el("adFeatGrid");
+      if (!grid) return;
+      try {
+        const r = await api("GET", "/api/v1/features");
+        const feats = r.features || r || {};
+        const labelBy = {};
+        (r.catalog || []).forEach((c) => {
+          if (c && c.key) labelBy[c.key] = c.label || c.key;
+        });
+        const keys = Object.keys(feats).sort();
+        grid.innerHTML = keys.map((k) => {
+          const lab = labelBy[k] || k;
+          const on = !!feats[k];
+          const locked = k === "public_docs";
+          return `<label title="${esc(k)}">
+            <input type="checkbox" class="ad-feat" data-feat="${esc(k)}" ${on ? "checked" : ""} ${locked ? "disabled" : ""} />
+            <span>${esc(lab)}</span>
+          </label>`;
+        }).join("") || '<span class="muted">No features</span>';
+        if (el("adOut")) {
+          el("adOut").classList.remove("empty");
+          el("adOut").textContent = JSON.stringify({ features: feats }, null, 2);
+        }
+      } catch (e) { showError(String(e.message || e)); }
+    }
+    if (el("adFeat")) el("adFeat").onclick = () => loadFeatureToggles();
+    if (el("adFeatSave")) el("adFeatSave").onclick = async () => {
+      const features = {};
+      document.querySelectorAll("input.ad-feat").forEach((inp) => {
+        const k = inp.getAttribute("data-feat");
+        if (k && !inp.disabled) features[k] = !!inp.checked;
+      });
+      try {
+        const r = await api("PUT", "/api/v1/features", { features });
+        showOk("Features saved");
+        if (el("adOut")) {
+          el("adOut").classList.remove("empty");
+          el("adOut").textContent = JSON.stringify(r, null, 2);
+        }
+        await loadFeatureToggles();
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    // Load feature grid when admin view builds
+    loadFeatureToggles();
   }
 
 
