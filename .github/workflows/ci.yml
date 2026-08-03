@@ -6,10 +6,21 @@ on:
   pull_request:
     branches: [main, master]
 
+# Self-hosted runners: labels [self-hosted, Linux|Windows, X64, squidsec]
+# Avoid fixed host ports (8443) - concurrent jobs and lab stacks share the machine.
+# SECURITY: never schedule untrusted fork PR code on self-hosted (CWE-284).
+# Same-repo PRs and pushes only (private SquidSec runners).
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, squidsec]
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
     steps:
@@ -18,9 +29,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
+          # pip cache on self-hosted is flaky across jobs; skip
+          cache: ""
       - name: Install dependencies
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
           pip install -e .
@@ -32,15 +45,20 @@ jobs:
           mypy --follow-imports=skip --ignore-missing-imports \
             src/squidc5/config.py src/squidc5/auth src/squidc5/policy \
             src/squidc5/implants/crypto.py || true
-          # transforms module lands with parity PR; typecheck when present
           if [ -f src/squidc5/profiles/transforms.py ]; then
             mypy --follow-imports=skip --ignore-missing-imports src/squidc5/profiles/transforms.py
           fi
       - name: Tests
-        run: pytest -q --cov=squidc5 --cov-report=term-missing --cov-fail-under=65
+        run: |
+          set -euo pipefail
+          # Isolate pytest temp / avoid leftover listeners on shared runners
+          export TMPDIR="${RUNNER_TEMP:-/tmp}/sc5-pytest-$$"
+          mkdir -p "$TMPDIR"
+          pytest -q --cov=squidc5 --cov-report=term-missing --cov-fail-under=65
 
   native-agent:
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, squidsec]
     needs: test
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +68,7 @@ jobs:
       - name: Test + build sc5beacon matrix
         working-directory: agents/sc5beacon
         run: |
+          set -euo pipefail
           go mod tidy
           go test -count=1 ./...
           mkdir -p ../../dist
@@ -61,75 +80,92 @@ jobs:
       - name: Lab soak smoke (config + sysinfo task path)
         working-directory: agents/sc5beacon
         run: |
-          # Unit-level soak: job manager + config blob without network
+          set -euo pipefail
           go test -count=1 -run 'TestLoadConfig|TestCOFF|TestSimulate' -v ./...
-          # Binary starts and exits on missing config
           set +e
-          ../../dist/sc5beacon-linux-amd64 2>/tmp/sc5beacon_err.txt
+          ../../dist/sc5beacon-linux-amd64 2>/tmp/sc5beacon_err_$$.txt
           code=$?
           set -e
           test "$code" -ne 0
-          grep -qi config /tmp/sc5beacon_err.txt || grep -qi psk /tmp/sc5beacon_err.txt || grep -qi required /tmp/sc5beacon_err.txt
+          grep -qi config /tmp/sc5beacon_err_$$.txt || grep -qi psk /tmp/sc5beacon_err_$$.txt || grep -qi required /tmp/sc5beacon_err_$$.txt
       - uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
           name: sc5beacon-native
           path: dist/sc5beacon*
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: warn
 
   docker:
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, squidsec]
     needs: test
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build -t squidc5:ci .
+        run: docker build -t "squidc5:ci-${{ github.run_id }}" .
       - name: Run container smoke test
         run: |
-          docker run -d --name squidc5-ci -p 8443:8443 squidc5:ci
-          for i in $(seq 1 30); do
-            if curl -skf https://127.0.0.1:8443/api/v1/health; then
+          set -euo pipefail
+          NAME="squidc5-ci-${{ github.run_id }}-$$"
+          # Ephemeral host port - never bind fixed 8443 on shared runners
+          HOST_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
+          docker rm -f "$NAME" 2>/dev/null || true
+          docker run -d --name "$NAME" -p "127.0.0.1:${HOST_PORT}:8443" "squidc5:ci-${{ github.run_id }}"
+          echo "container=$NAME host_port=$HOST_PORT"
+          ok=0
+          for i in $(seq 1 40); do
+            if curl -skf "https://127.0.0.1:${HOST_PORT}/api/v1/health"; then
+              echo
               echo "healthy"
-              exit 0
+              ok=1
+              break
             fi
             sleep 2
           done
-          docker logs squidc5-ci
-          exit 1
-      - name: Cleanup
+          if [ "$ok" != "1" ]; then
+            docker logs "$NAME" || true
+            docker rm -f "$NAME" || true
+            exit 1
+          fi
+          docker rm -f "$NAME" || true
+      - name: Cleanup image
         if: always()
-        run: docker rm -f squidc5-ci || true
+        run: |
+          docker rm -f "squidc5-ci-${{ github.run_id }}" 2>/dev/null || true
+          docker rmi "squidc5:ci-${{ github.run_id }}" 2>/dev/null || true
 
   security:
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, squidsec]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: ""
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Audit dependencies
-        # Fail the job on known vulnerable dependencies (A08)
         run: pip-audit -r requirements.txt
 
   # Standalone operator CLI + server binaries (no venv required).
-  # Runs on pushes to main/master after tests pass.
   binaries:
-    name: binaries (${{ matrix.os }})
+    name: binaries (${{ matrix.artifact }})
     needs: test
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - runner: [self-hosted, Linux, X64, squidsec]
             artifact: linux-x64
-          - os: windows-latest
+            is_windows: false
+          - runner: [self-hosted, Windows, X64, squidsec]
             artifact: windows-x64
-    runs-on: ${{ matrix.os }}
+            is_windows: true
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -137,22 +173,26 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
+          cache: ""
 
       - name: Install package + PyInstaller
+        shell: bash
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
           pip install "pyinstaller>=6.3"
 
       - name: Build binaries
+        shell: bash
         run: python packaging/build_binaries.py
 
       - name: Smoke-test CLI
         shell: bash
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
+          set -euo pipefail
+          if [[ "${{ matrix.is_windows }}" == "true" ]]; then
             ./dist/binaries/sc5.exe --help
             ./dist/binaries/sc5.exe --url http://127.0.0.1:9 health || true
           else
@@ -161,22 +201,27 @@ jobs:
           fi
 
       - name: Smoke-test server (Linux)
-        if: runner.os == 'Linux'
+        if: matrix.is_windows == false
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
+          export SQUIDC5_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
+          export SQUIDC5_DATA_DIR="${RUNNER_TEMP:-/tmp}/sc5-bin-smoke-$$"
+          mkdir -p "$SQUIDC5_DATA_DIR"
+          echo "smoke port=$SQUIDC5_PORT data=$SQUIDC5_DATA_DIR"
           ./dist/binaries/squidc5 &
           pid=$!
-          trap 'kill $pid 2>/dev/null || true' EXIT
-          for i in $(seq 1 40); do
-            if curl -skf https://127.0.0.1:8443/api/v1/health; then
+          trap 'kill $pid 2>/dev/null || true; wait $pid 2>/dev/null || true' EXIT
+          for i in $(seq 1 50); do
+            if curl -skf "https://127.0.0.1:${SQUIDC5_PORT}/api/v1/health"; then
               echo
-              curl -skf https://127.0.0.1:8443/ops | head -c 200
+              curl -skf "https://127.0.0.1:${SQUIDC5_PORT}/ops" | head -c 200
               echo
               exit 0
             fi
             sleep 1
           done
-          echo "server failed to become healthy"
+          echo "server failed to become healthy on port $SQUIDC5_PORT"
           exit 1
 
       - name: Upload binaries
@@ -195,12 +240,11 @@ jobs:
           retention-days: 3
 
   # Publish GitHub Release after tests. Builds Linux here (avoids Actions artifact quota).
-  # Windows assets are optional when artifact download is available.
   release:
     name: github-release
     needs: [test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     permissions:
       contents: write
     steps:
@@ -210,24 +254,29 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
+          cache: ""
 
       - name: Build Linux binaries
+        shell: bash
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
           pip install "pyinstaller>=6.3"
           python packaging/build_binaries.py
           ./dist/binaries/sc5 --help
+          export SQUIDC5_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
+          export SQUIDC5_DATA_DIR="${RUNNER_TEMP:-/tmp}/sc5-rel-smoke-$$"
+          mkdir -p "$SQUIDC5_DATA_DIR"
           ./dist/binaries/squidc5 &
           pid=$!
-          trap 'kill $pid 2>/dev/null || true' EXIT
-          for i in $(seq 1 40); do
-            curl -skf https://127.0.0.1:8443/api/v1/health && break
+          trap 'kill $pid 2>/dev/null || true; wait $pid 2>/dev/null || true' EXIT
+          for i in $(seq 1 50); do
+            curl -skf "https://127.0.0.1:${SQUIDC5_PORT}/api/v1/health" && break
             sleep 1
           done
-          curl -skf https://127.0.0.1:8443/api/v1/health
+          curl -skf "https://127.0.0.1:${SQUIDC5_PORT}/api/v1/health"
 
       - name: Try Windows artifacts (optional)
         continue-on-error: true
