@@ -67,6 +67,9 @@ async def test_all_views_use_page_tabs(tmp_path):
 
             # Graph pan/zoom
             assert "bindGraphPanZoom" in js
+            assert "sub-tab-btn" in js
+            assert "meta-rows" in js or "Address" in js
+            assert "bindSubTabs" in js
             assert "hostZoomIn" in js
 
 
