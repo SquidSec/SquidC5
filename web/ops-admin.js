@@ -28,6 +28,56 @@
   let viewBuilt = {}; // track which views already rendered structure
 
   function el(id) { return document.getElementById(id); }
+
+  async function askConfirm(message, opts) {
+    if (typeof window.__SC5_confirm === "function") {
+      return window.__SC5_confirm(message, opts || {});
+    }
+    return false;
+  }
+
+  /** Build tabbed page shell. tabs: [{id,label,html}] */
+  function tabbedHtml(tabs, opts) {
+    const o = opts || {};
+    const bar = tabs.map((t, i) =>
+      `<button type="button" class="page-tab-btn${i === 0 ? " active" : ""}" data-ptab="${esc(t.id)}">${esc(t.label)}</button>`
+    ).join("");
+    const panels = tabs.map((t, i) =>
+      `<div class="page-tab-panel${i === 0 ? " active" : ""}" data-ptab-panel="${esc(t.id)}">${t.html || ""}</div>`
+    ).join("");
+    return `<div class="page-tabs" id="${esc(o.id || "")}">
+      <div class="page-tab-bar">${bar}</div>
+      <div class="page-tab-panels">${panels}</div>
+    </div>`;
+  }
+
+  function bindPageTabs(root) {
+    const scope = root || document;
+    scope.querySelectorAll(".page-tabs").forEach((wrap) => {
+      if (wrap.dataset.tabsBound) return;
+      wrap.dataset.tabsBound = "1";
+      wrap.querySelectorAll(".page-tab-btn").forEach((btn) => {
+        btn.onclick = () => {
+          const id = btn.getAttribute("data-ptab");
+          wrap.querySelectorAll(".page-tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+          wrap.querySelectorAll(".page-tab-panel").forEach((p) => {
+            p.classList.toggle("active", p.getAttribute("data-ptab-panel") === id);
+          });
+        };
+      });
+    });
+  }
+
+  function activatePageTab(wrapOrId, tabId) {
+    const wrap = typeof wrapOrId === "string" ? el(wrapOrId) : wrapOrId;
+    if (!wrap) return;
+    wrap.querySelectorAll(".page-tab-btn").forEach((b) => {
+      b.classList.toggle("active", b.getAttribute("data-ptab") === tabId);
+    });
+    wrap.querySelectorAll(".page-tab-panel").forEach((p) => {
+      p.classList.toggle("active", p.getAttribute("data-ptab-panel") === tabId);
+    });
+  }
   function tools(html) { const t = el("viewTools"); if (t) t.innerHTML = html || ""; }
   function shortId(id) { return (id || "").length > 14 ? id.slice(0, 12) + "..." : (id || ""); }
   function metaOf(s) {
@@ -503,7 +553,7 @@
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("ctxForceClaim")) el("ctxForceClaim").onclick = async () => {
-      if (!confirm("Force-steal lock from current holder?")) return;
+      if (!(await askConfirm("Force-steal lock from current holder?"))) return;
       try {
         const r = await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/claim`, { force: true });
         showOk("Force claimed");
@@ -529,7 +579,7 @@
     };
     if (el("ctxStabilize")) el("ctxStabilize").onclick = async () => {
       if (!selectedId) return;
-      if (!confirm("Inject stage-2 stabilize agent? Detects Linux vs Windows and reconnects a durable channel.")) return;
+      if (!(await askConfirm("Inject stage-2 stabilize agent? Detects Linux vs Windows and reconnects a durable channel."))) return;
       try {
         const r = await api(
           "POST",
@@ -566,18 +616,69 @@
     };
   }
 
-  async function renderContext(force) {
-    const body = el("ctxBody");
+  function claimChipHtml(c) {
+    if (!c || !c.claimed_by) return '<span class="chip">unlocked</span>';
+    let extra = "";
+    if (c.claim_remaining_sec != null && c.claim_expires_at) {
+      const mleft = Math.max(0, Math.ceil(Number(c.claim_remaining_sec) / 60));
+      extra = " · " + mleft + "m left";
+    } else if (c.claim_expires_at == null && c.claimed_by) {
+      extra = " · no timeout";
+    }
+    return `<span class="chip warn">locked: ${esc(c.claimed_by)}${esc(extra)}</span>`;
+  }
+
+  function ctxPanelHtml(s, claim) {
+    const shellOk = can("shell:interact") && (s.kind === "reverse_shell" || s.interactive || s.verified);
+    const canLock = can("shell:interact") || can("collab:use") || can("admin");
+    return `
+      <div class="ctx-compact">
+        <div id="ctxMeta">
+          <div style="font-weight:700;margin-bottom:6px">${esc(s.hostname || s.remote_addr || "session")}</div>
+          <div class="chips" style="margin-bottom:8px">
+            <span class="chip">${esc(s.kind || "?")}</span>
+            <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
+            ${claimChipHtml(claim)}
+          </div>
+          <dl class="ctx-meta-grid">
+            <dt>ID</dt><dd class="mono" style="font-size:0.7rem">${esc(s.id)}</dd>
+            <dt>User</dt><dd>${esc(s.username || "-")}</dd>
+            <dt>OS</dt><dd>${esc(s.os_info || "-")}</dd>
+            <dt>Addr</dt><dd class="mono" style="font-size:0.72rem">${esc(s.remote_addr || "-")}</dd>
+          </dl>
+        </div>
+        <div class="ctx-actions">
+          ${canLock ? '<button type="button" class="primary sm" id="ctxClaim">Claim</button>' : ""}
+          ${canLock ? '<button type="button" class="ghost sm" id="ctxRelease">Release</button>' : ""}
+          ${can("admin") ? '<button type="button" class="danger sm" id="ctxForceClaim">Force</button>' : ""}
+          ${can("sessions:read") ? '<button type="button" class="ghost sm" id="ctxSpectate">Spectate</button>' : ""}
+          ${shellOk ? '<button type="button" class="primary sm" id="ctxStabilize">Stabilize</button>' : ""}
+        </div>
+        ${shellOk ? `
+          <label for="ctxCmd">Shell</label>
+          <textarea id="ctxCmd" rows="2" placeholder="whoami"></textarea>
+          <div class="row"><button type="button" class="primary sm" id="ctxRun">Run</button></div>
+        ` : ""}
+        ${can("tasks:write") ? `
+          <label for="ctxTask">Task</label>
+          <input id="ctxTask" placeholder="id / sysinfo / pwd" />
+          <div class="row"><button type="button" class="primary sm" id="ctxTaskBtn">Queue</button></div>
+        ` : ""}
+        <div class="outbox empty" id="ctxOut" style="max-height:140px;margin-top:8px">Output</div>
+      </div>`;
+  }
+
+  async function renderContextInto(body, force) {
     if (!body) return;
     if (!selectedId) {
       ctxBoundSid = null;
-      body.innerHTML = `<div class="ctx-empty">Select a session from <strong>Sessions</strong> to claim, shell, or task it.</div>`;
+      body.innerHTML = `<div class="muted" style="padding:12px;text-align:center">Select a session to claim, stabilize, or shell it.</div>`;
       return;
     }
     let s = cache.sessions.find((x) => x.id === selectedId);
     try { s = await api("GET", "/api/v1/sessions/" + encodeURIComponent(selectedId)); } catch (_) {}
     if (!s) {
-      body.innerHTML = '<div class="ctx-empty">Session not found (may be closed).</div>';
+      body.innerHTML = '<div class="muted" style="padding:12px;text-align:center">Session not found (may be closed).</div>';
       ctxBoundSid = null;
       return;
     }
@@ -588,75 +689,21 @@
       claim_remaining_sec: m.claim_remaining_sec,
       locked: !!m.claimed_by,
     };
-    function claimChipHtml(c) {
-      if (!c || !c.claimed_by) return '<span class="chip">unlocked</span>';
-      let extra = "";
-      if (c.claim_remaining_sec != null && c.claim_expires_at) {
-        const mleft = Math.max(0, Math.ceil(Number(c.claim_remaining_sec) / 60));
-        extra = " · " + mleft + "m left";
-      } else if (c.claim_expires_at == null && c.claimed_by) {
-        extra = " · no timeout";
-      }
-      return `<span class="chip warn">locked: ${esc(c.claimed_by)}${esc(extra)}</span>`;
-    }
-    // Soft update: keep form fields if same session already bound
-    if (!force && ctxBoundSid === selectedId && el("ctxMeta")) {
-      el("ctxMeta").innerHTML = `
-        <div class="mono" style="font-size:0.7rem;color:var(--muted);margin-bottom:6px">${esc(s.id)}</div>
-        <div style="font-weight:700;margin-bottom:4px">${esc(s.hostname || s.remote_addr || "session")}</div>
-        <div class="chips" style="margin-bottom:10px">
-          <span class="chip">${esc(s.kind || "?")}</span>
-          <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
-          ${claimChipHtml(claim)}
-        </div>
-        <div class="muted" style="font-size:0.78rem;margin-bottom:8px">
-          User: ${esc(s.username || "-")}<br/>OS: ${esc(s.os_info || "-")}<br/>Addr: ${esc(s.remote_addr || "-")}
-        </div>`;
-      return;
-    }
-    const shellOk = can("shell:interact") && (s.kind === "reverse_shell" || s.interactive || s.verified);
-    const canLock = can("shell:interact") || can("collab:use") || can("admin");
-    body.innerHTML = `
-      <div id="ctxMeta"></div>
-      <div class="row">
-        ${canLock ? '<button type="button" class="primary" id="ctxClaim">Claim lock</button>' : ""}
-        ${canLock ? '<button type="button" class="ghost" id="ctxRelease">Release</button>' : ""}
-        ${can("admin") ? '<button type="button" class="danger sm" id="ctxForceClaim">Force claim</button>' : ""}
-        ${can("sessions:read") ? '<button type="button" class="ghost" id="ctxSpectate">Spectate</button>' : ""}
-      </div>
-      ${shellOk ? `
-        <div class="row" style="margin-top:8px">
-          <button type="button" class="primary" id="ctxStabilize" title="Detect Linux/Windows and inject stage-2 reconnect agent">Stabilize shell</button>
-        </div>
-        <p class="muted" style="font-size:0.68rem;margin:4px 0 8px">Injects OS-aware stage-2 (Python/PowerShell). Auto-stabilize is OFF by default — Admin → Features.</p>
-        <label for="ctxCmd">Shell command</label>
-        <textarea id="ctxCmd" rows="2" placeholder="whoami"></textarea>
-        <div class="row"><button type="button" class="primary" id="ctxRun">Run</button></div>
-      ` : ""}
-      ${can("tasks:write") ? `
-        <label for="ctxTask">Beacon task</label>
-        <input id="ctxTask" placeholder="id / sysinfo / pwd" />
-        <div class="row"><button type="button" class="primary" id="ctxTaskBtn">Queue task</button></div>
-      ` : ""}
-      <div class="outbox empty" id="ctxOut">-</div>
-    `;
+    body.innerHTML = ctxPanelHtml(s, claim);
     ctxBoundSid = selectedId;
-    // fill meta
-    const metaEl = el("ctxMeta");
-    if (metaEl) {
-      metaEl.innerHTML = `
-        <div class="mono" style="font-size:0.7rem;color:var(--muted);margin-bottom:6px">${esc(s.id)}</div>
-        <div style="font-weight:700;margin-bottom:4px">${esc(s.hostname || s.remote_addr || "session")}</div>
-        <div class="chips" style="margin-bottom:10px">
-          <span class="chip">${esc(s.kind || "?")}</span>
-          <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
-          ${claimChipHtml(claim)}
-        </div>
-        <div class="muted" style="font-size:0.78rem;margin-bottom:8px">
-          User: ${esc(s.username || "-")}<br/>OS: ${esc(s.os_info || "-")}<br/>Addr: ${esc(s.remote_addr || "-")}
-        </div>`;
-    }
     bindContextHandlers();
+  }
+
+  async function renderContext(force) {
+    const body = el("ctxBody");
+    await renderContextInto(body, force);
+    // Also mirror into Assets Session tab when present
+    if (el("hostCtxMount") && el("hostCtxMount") !== body) {
+      await renderContextInto(el("hostCtxMount"), force);
+    }
+    if (el("sesCtxMount") && el("sesCtxMount") !== body) {
+      await renderContextInto(el("sesCtxMount"), true);
+    }
   }
 
   function isMobileShell() {
@@ -693,6 +740,8 @@
         box.classList.add("empty");
       }
     }
+    syncHostCtxTab();
+    if (el("sesCtxMount")) renderContextInto(el("sesCtxMount"), true);
     if (el("pxSid")) el("pxSid").textContent = selectedId || "(none - pick in Sessions)";
     renderContext();
     openCtxSheet(!!selectedId);
@@ -741,52 +790,40 @@
       fillSessionRows(el("sesTbody"));
       const count = el("sesCount");
       if (count) count.textContent = String((cache.sessions || []).length);
+      if (el("sesCtxMount")) renderContextInto(el("sesCtxMount"), false);
       return;
     }
     const rows = cache.sessions || [];
-    root.innerHTML = `
-      <div class="split">
-        <div class="list-panel">
-          <div class="lp-head">Active <span id="sesCount" style="margin-left:auto" class="muted">${rows.length}</span></div>
-          <div class="lp-body" id="sesListBody">
-            ${rows.length
-              ? `<table class="data"><thead><tr><th>Session</th><th>Kind</th><th>Host</th></tr></thead><tbody id="sesTbody"></tbody></table>`
-              : '<div class="empty-state" id="sesEmpty"><strong>No sessions</strong>Land a beacon or reverse shell.</div>'}
-          </div>
+    root.innerHTML = tabbedHtml([
+      { id: "slist", label: "Sessions", html: `
+        <div class="toolbar">
+          <span class="muted" id="sesCount">${rows.length} active</span>
+          ${can("sessions:write") ? '<button type="button" class="ghost sm" id="sesReap">Reap dead</button>' : ""}
+          ${can("sessions:write") ? '<button type="button" class="danger sm" id="sesClose">Close</button>' : ""}
+          <button type="button" class="ghost sm" id="sesRefresh">Refresh</button>
         </div>
-        <div class="work-panel">
-          <div class="wp-head">Session actions</div>
-          <div class="wp-body">
-            <div class="toolbar">
-              ${can("sessions:write") ? '<button type="button" id="sesReap">Reap dead</button>' : ""}
-              ${can("sessions:write") ? '<button type="button" class="danger" id="sesClose">Close selected</button>' : ""}
-              <button type="button" id="sesRefresh">Refresh</button>
-            </div>
-            <p class="muted" style="font-size:0.85rem;margin:0">
-              Click a row to load the <strong>context rail</strong>. Claim before multi-op tasking.
-              Shell = verified reverse shells; Tasks = beacons.
-            </p>
-            <div id="sesDetail" class="outbox empty" style="margin-top:12px">Select a session...</div>
-            <div class="wp-head" style="margin-top:12px;border-top:1px solid var(--border);padding-top:8px">
-              Pending tasks
-            </div>
-            <div class="toolbar" style="margin-top:6px">
-              <button type="button" id="tskReload">Reload tasks</button>
-              ${can("tasks:write") ? '<button type="button" class="danger" id="tskCancel">Cancel selected</button>' : ""}
-              ${can("tasks:write") ? '<button type="button" id="tskSave">Save edit</button>' : ""}
-            </div>
-            <div id="tskList" class="lp-body" style="max-height:180px;border:1px solid var(--border);border-radius:6px;margin-top:6px"></div>
-            <label for="tskCmd">Edit command (pending only)</label>
-            <input id="tskCmd" placeholder="select a pending task" />
-            <p class="muted mono" id="tskHint" style="font-size:0.7rem;margin:4px 0 0">-</p>
-          </div>
+        <div style="flex:1;min-height:0;overflow:auto">
+          ${rows.length
+            ? `<table class="data"><thead><tr><th>Session</th><th>Kind</th><th>Host</th></tr></thead><tbody id="sesTbody"></tbody></table>`
+            : '<div class="empty-state" id="sesEmpty"><strong>No sessions</strong>Land a beacon or reverse shell.</div>'}
         </div>
-      </div>
-    `;
+        <div id="sesDetail" class="outbox empty" style="max-height:100px;margin-top:8px;flex-shrink:0">Select a session...</div>
+      `},
+      { id: "sctx", label: "Session", html: `<div id="sesCtxMount" style="flex:1;min-height:0;overflow:auto"></div>` },
+      { id: "stasks", label: "Tasks", html: `
+        <div class="toolbar">
+          <button type="button" class="ghost sm" id="tskReload">Reload</button>
+          ${can("tasks:write") ? '<button type="button" class="danger sm" id="tskCancel">Cancel</button>' : ""}
+          ${can("tasks:write") ? '<button type="button" class="ghost sm" id="tskSave">Save edit</button>' : ""}
+        </div>
+        <div id="tskList" style="flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:6px"></div>
+        <label for="tskCmd">Edit command (pending only)</label>
+        <input id="tskCmd" placeholder="select a pending task" />
+      `},
+    ], { id: "sessionsTabs" });
     viewBuilt.sessions = true;
-    if (rows.length) {
-      fillSessionRows(el("sesTbody"));
-    }
+    bindPageTabs(root);
+    if (rows.length) fillSessionRows(el("sesTbody"));
     if (el("sesReap")) el("sesReap").onclick = async () => {
       try {
         const r = await api("POST", "/api/v1/sessions/reap", {});
@@ -816,13 +853,8 @@
     if (el("tskReload")) el("tskReload").onclick = () => loadTasksPanel();
     if (el("tskCancel")) el("tskCancel").onclick = () => cancelSelectedTask();
     if (el("tskSave")) el("tskSave").onclick = () => saveSelectedTask();
-    tools(`<button type="button" class="primary" id="toolNewShell">Context</button>`);
-    if (el("toolNewShell")) el("toolNewShell").onclick = () => {
-      if (!selectedId) return showError("Select a session first");
-      renderContext(true);
-      openCtxSheet(true);
-    };
     if (selectedId) selectSession(selectedId);
+    else if (el("sesCtxMount")) renderContextInto(el("sesCtxMount"), true);
     loadTasksPanel();
   }
 
@@ -1730,51 +1762,35 @@
       { t: "Shell (HITL)", d: "Send to verified reverse shells when policy allows." },
       { t: "General ops Q&A", d: "Explain C5 concepts, ROE-safe guidance, and results." },
     ];
-    root.innerHTML = `
-      <div class="form-grid" style="align-items:stretch">
-        <div class="work-panel">
-          <div class="wp-head" style="flex-wrap:wrap;gap:6px">
-            <span class="inko-brand">INKO</span>
-            <span class="muted" style="margin-left:4px;font-size:0.75rem;font-weight:600;text-transform:none;letter-spacing:0">Intelligent Neural Kinetic Operator</span>
-          </div>
-          <div class="wp-body">
+    root.innerHTML = tabbedHtml([
+      { id: "aihome", label: "Workspace", html: `
             <p class="muted" style="font-size:0.82rem;margin:0 0 10px;line-height:1.45">
-              Chat lives in the top-bar <strong>INKO</strong> flyout - not on this page.
-              Here you pick the default LLM, review what INKO can do, and inspect status / tool catalog.
-              Configure providers under <strong>Admin</strong>.
+              Chat lives in the top-bar <strong>INKO</strong> flyout.
+              Pick the default LLM here; configure providers under <strong>Admin</strong>.
             </p>
             <div class="row" style="margin-bottom:12px">
               <button type="button" class="primary" id="aiOpenDrawer">Open INKO chat</button>
-              <button type="button" id="aiClearPage">Clear chat history</button>
+              <button type="button" class="ghost" id="aiClearPage">Clear chat history</button>
             </div>
             <label>LLM connection</label>
             <select id="aiLlmPick"><option value="">Loading...</option></select>
             <label>Model</label>
             <select id="aiModelPick" disabled><option value="">Select connection...</option></select>
-            <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Models load from the provider for the selected connection. Switching model updates the connection default.</p>
             <h3 style="margin:16px 0 6px;font-size:0.85rem;color:var(--text)">What INKO can do</h3>
             <div class="inko-cap-grid">
               ${CAP_CARDS.map((c) => `
                 <div class="inko-cap-card"><h4>${esc(c.t)}</h4><p>${esc(c.d)}</p></div>
               `).join("")}
             </div>
-            <p class="muted" style="font-size:0.75rem;margin:8px 0 0">
-              Example: <em>"setup reverse shell on 4444"</em>  /  <em>"list active sessions"</em>  /  <em>"show recent events"</em>
-            </p>
-          </div>
-        </div>
-        <div class="work-panel">
-          <div class="wp-head">Status &amp; tools</div>
-          <div class="wp-body" style="display:flex;flex-direction:column;min-height:0;flex:1">
+      `},
+      { id: "aistatus", label: "Status & tools", html: `
             <div class="row">
               <button type="button" class="primary" id="aiStatus">AI status</button>
               <button type="button" id="aiTools">Tool catalog</button>
             </div>
-            <div class="outbox empty inko-outbox" id="aiOut">Run Status or Tools - output appears here (scrollable).</div>
-          </div>
-        </div>
-      </div>
-    `;
+            <div class="outbox empty inko-outbox" id="aiOut" style="flex:1;max-height:none">Run Status or Tools — output appears here.</div>
+      `},
+    ], { id: "aiTabs" });
     const refreshPick = async () => {
       const llms = await loadSavedLlms();
       const prev = el("aiLlmPick")?.value || loadSel("sc5_ops_llm") || "";
@@ -2031,7 +2047,7 @@
                 </div>
                 <p class="muted" id="adSecretMeta" style="margin:8px 0 0;font-size:0.68rem"></p>
               </div>
-              <label>Name</label><input id="adName" placeholder="operator-1" />
+              <label>Name</label><input id="adName" placeholder="squidc5-admin" />
               <input type="hidden" id="adEditId" value="" />
               <label>Presets</label>
               <div class="row" style="margin:4px 0;gap:6px" id="adPresetRow">${presetBtns}</div>
@@ -2086,11 +2102,11 @@
           </div>
         </div>
         <div class="work-panel">
-          <div class="wp-head">Your actor name</div>
+          <div class="wp-head">Display name (squidc5-admin by default)</div>
           <div class="wp-body">
             <p class="muted" style="font-size:0.78rem;margin:0 0 8px">Shown in collab, audit, and the ops chrome. Renames this API token.</p>
             <label>Actor / display name</label>
-            <input id="adActorName" placeholder="operator-1" value="${esc(state.actor || "")}" />
+            <input id="adActorName" placeholder="squidc5-admin" value="${esc(state.actor || "")}" />
             <div class="row"><button type="button" class="primary" id="adActorSave">Save name</button></div>
           </div>
         </div>
@@ -2401,7 +2417,7 @@
           b.onclick = async () => {
             const id = b.getAttribute("data-tok-roll");
             const tok = list.find((x) => x.id === id);
-            if (!id || !confirm("Roll secret for " + (tok && tok.name ? tok.name : id) + "? The old secret stops working immediately.")) return;
+            if (!id || !(await askConfirm("Roll secret for " + (tok && tok.name ? tok.name : id) + "? The old secret stops working immediately."))) return;
             try {
               const r = await api("POST", "/api/v1/tokens/" + encodeURIComponent(id) + "/roll");
               showSecretBanner({
@@ -2420,7 +2436,7 @@
         box.querySelectorAll("[data-tok-rev]").forEach((b) => {
           b.onclick = async () => {
             const id = b.getAttribute("data-tok-rev");
-            if (!id || !confirm("Revoke token " + id + "?")) return;
+            if (!id || !(await askConfirm("Revoke token " + id + "?"))) return;
             try {
               await api("DELETE", "/api/v1/tokens/" + encodeURIComponent(id));
               showOk("Revoked");
@@ -2766,6 +2782,7 @@
 
   /* -- Assets / hosts graph -- */
   let _hostsCache = { hosts: [], edges: [], claim_ttl_sec: 0, selected: null, showHidden: false, activeOnly: false, hidden: [] };
+  let _graphXf = { scale: 1, tx: 0, ty: 0 };
 
   function renderHostsView(force) {
     const root = el("view-hosts");
@@ -2775,49 +2792,55 @@
       return;
     }
     root.innerHTML = `
-      <div class="split" style="grid-template-columns: minmax(260px, 340px) 1fr">
-        <div class="list-panel">
-          <div class="lp-head">Assets
-            <button type="button" class="ghost sm" id="hostReload" style="margin-left:auto">Reload</button>
+      <div class="assets-layout">
+        <div class="assets-graph-wrap">
+          <div class="assets-graph-toolbar">
+            <span class="muted" id="hostGraphMeta" style="font-size:0.72rem;flex:1">Asset graph</span>
+            <button type="button" class="ghost sm" id="hostZoomIn" title="Zoom in">+</button>
+            <button type="button" class="ghost sm" id="hostZoomOut" title="Zoom out">−</button>
+            <button type="button" class="ghost sm" id="hostZoomReset" title="Reset view">Reset</button>
+            <button type="button" class="ghost sm" id="hostReload">Reload</button>
           </div>
-          <div class="lp-body">
-            <div style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 8px;align-items:center">
-              <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:0.75rem">
-                <input type="checkbox" id="hostActiveOnly" /> Live only
-              </label>
-              <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:0.75rem">
-                <input type="checkbox" id="hostShowHidden" /> Show dismissed
-              </label>
-              <button type="button" class="danger sm" id="hostDropInactive" title="Hide all hosts with no live shell/implant">Drop inactive</button>
-            </div>
-            <table class="data"><thead><tr>
-              <th>Host</th><th>Access</th><th></th>
-            </tr></thead><tbody id="hostTbody"></tbody></table>
+          <div class="assets-graph-canvas" id="hostGraph"></div>
+          <div class="chips" style="padding:6px 8px;flex-shrink:0">
+            <span class="chip ok">active</span>
+            <span class="chip warn">locked</span>
+            <span class="chip">historical</span>
           </div>
         </div>
-        <div class="work-panel">
-          <div class="wp-head">Asset graph <span class="muted" id="hostGraphMeta" style="font-weight:400;margin-left:8px;font-size:0.72rem"></span></div>
-          <div class="wp-body hosts-work-body">
-            <div class="hosts-graph-pane">
-              <p class="muted" style="font-size:0.75rem;margin:0">Exec-verified shells and named implants. Click a host for sessions / OS / locks below.</p>
-              <div class="chips">
-                <span class="chip ok">active shell/implant</span>
-                <span class="chip warn">locked</span>
-                <span class="chip">historical only</span>
+        <div class="assets-side">
+          ${tabbedHtml([
+            { id: "alist", label: "Assets", html: `
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;align-items:center">
+                <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:0.75rem">
+                  <input type="checkbox" id="hostActiveOnly" /> Live only
+                </label>
+                <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:0.75rem">
+                  <input type="checkbox" id="hostShowHidden" /> Show dismissed
+                </label>
+                <button type="button" class="danger sm" id="hostDropInactive">Drop inactive</button>
               </div>
-              <div id="hostGraph"></div>
-            </div>
-            <div class="hosts-detail-split" id="hostDetailSplit" title="Drag to resize host detail" role="separator" aria-orientation="horizontal"></div>
-            <div class="hosts-detail-pane">
-              <div class="hosts-detail-head">Host detail</div>
-              <div id="hostDetail" class="hosts-detail-body empty">Select a host from the list or graph</div>
-            </div>
-          </div>
+              <div style="flex:1;min-height:0;overflow:auto">
+                <table class="data"><thead><tr>
+                  <th>Host</th><th>Access</th><th></th>
+                </tr></thead><tbody id="hostTbody"></tbody></table>
+              </div>` },
+            { id: "adetail", label: "Host detail", html: `
+              <div id="hostDetail" class="hosts-detail-body empty" style="flex:1;padding:0">Select a host from the list or graph</div>` },
+            { id: "actx", label: "Session", html: `
+              <div id="hostCtxMount" class="ctx-compact" style="flex:1;min-height:0;overflow:auto">
+                <div class="muted" style="padding:12px;text-align:center">Select a session to operate (claim, stabilize, shell).</div>
+              </div>` },
+          ], { id: "assetsTabs" })}
         </div>
       </div>`;
     viewBuilt.hosts = true;
-    bindHostDetailResize();
+    bindPageTabs(root);
+    bindGraphPanZoom();
     if (el("hostReload")) el("hostReload").onclick = () => loadHostsGraph();
+    if (el("hostZoomIn")) el("hostZoomIn").onclick = () => graphZoom(1.2);
+    if (el("hostZoomOut")) el("hostZoomOut").onclick = () => graphZoom(1 / 1.2);
+    if (el("hostZoomReset")) el("hostZoomReset").onclick = () => { _graphXf = { scale: 1, tx: 0, ty: 0 }; applyGraphXf(); };
     if (el("hostShowHidden")) {
       el("hostShowHidden").checked = !!_hostsCache.showHidden;
       el("hostShowHidden").onchange = () => {
@@ -2834,7 +2857,7 @@
     }
     if (el("hostDropInactive")) {
       el("hostDropInactive").onclick = async () => {
-        if (!confirm("Drop all inactive hosts from the Assets graph? Live shells/implants stay. You can restore via Show dismissed.")) return;
+        if (!(await askConfirm("Drop all inactive hosts from the Assets graph? Live shells/implants stay. You can restore via Show dismissed."))) return;
         try {
           const r = await api("POST", "/api/v1/hosts/hide-inactive", {});
           showOk("Dropped " + (r.hidden || 0) + " inactive · kept " + (r.kept_live || 0) + " live");
@@ -2843,6 +2866,43 @@
       };
     }
     loadHostsGraph();
+  }
+
+  function graphZoom(factor) {
+    _graphXf.scale = Math.max(0.35, Math.min(4, _graphXf.scale * factor));
+    applyGraphXf();
+  }
+  function applyGraphXf() {
+    const g = el("hostGraphInner");
+    if (!g) return;
+    g.setAttribute("transform", `translate(${_graphXf.tx},${_graphXf.ty}) scale(${_graphXf.scale})`);
+  }
+  function bindGraphPanZoom() {
+    const canvas = el("hostGraph");
+    if (!canvas || canvas.dataset.panBound) return;
+    canvas.dataset.panBound = "1";
+    let panning = false, lx = 0, ly = 0;
+    canvas.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".host-node")) return;
+      panning = true;
+      lx = e.clientX; ly = e.clientY;
+      canvas.classList.add("panning");
+      canvas.setPointerCapture?.(e.pointerId);
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!panning) return;
+      _graphXf.tx += e.clientX - lx;
+      _graphXf.ty += e.clientY - ly;
+      lx = e.clientX; ly = e.clientY;
+      applyGraphXf();
+    });
+    const end = () => { panning = false; canvas.classList.remove("panning"); };
+    canvas.addEventListener("pointerup", end);
+    canvas.addEventListener("pointercancel", end);
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      graphZoom(e.deltaY < 0 ? 1.12 : 1 / 1.12);
+    }, { passive: false });
   }
 
   async function loadHostsGraph() {
@@ -2870,28 +2930,23 @@
       };
       if (el("hostGraphMeta")) {
         const ttl = _hostsCache.claim_ttl_sec;
-        const bits = [
-          hosts.filter((h) => !h.hidden).length + " asset(s)",
-        ];
+        const bits = [hosts.filter((h) => !h.hidden).length + " asset(s)"];
         if (_hostsCache.hidden_count) bits.push(_hostsCache.hidden_count + " dismissed");
-        if (_hostsCache.skipped_noise) bits.push(_hostsCache.skipped_noise + " noise skipped");
-        bits.push("claim TTL " + (ttl > 0 ? Math.round(ttl / 60) + "m" : "off"));
+        if (_hostsCache.skipped_noise) bits.push(_hostsCache.skipped_noise + " noise");
+        bits.push("TTL " + (ttl > 0 ? Math.round(ttl / 60) + "m" : "off"));
         el("hostGraphMeta").textContent = bits.join(" · ");
       }
       const canWrite = can("sessions:write") || can("admin");
       tbody.innerHTML = hosts.map((h) => {
-        const lock = h.claimed_by
-          ? `<span class="chip warn">${esc(h.claimed_by)}</span>`
-          : "";
+        const lock = h.claimed_by ? `<span class="chip warn">${esc(h.claimed_by)}</span>` : "";
         const hideBtn = canWrite
           ? (h.hidden
             ? `<button type="button" class="ghost sm host-unhide" data-host="${esc(h.id)}">Restore</button>`
-            : `<button type="button" class="ghost sm host-hide" data-host="${esc(h.id)}" title="Drop from graph">Drop</button>`)
+            : `<button type="button" class="ghost sm host-hide" data-host="${esc(h.id)}">Drop</button>`)
           : "";
         return `<tr data-host="${esc(h.id)}" class="${h.hidden ? "muted" : ""}">
           <td><strong>${esc(h.label)}</strong>${h.hidden ? ' <span class="chip">dismissed</span>' : ""}
             <div class="muted mono" style="font-size:0.65rem">${esc((h.addrs || []).join(", ") || "")}</div>
-            <div class="muted" style="font-size:0.65rem">${esc((h.kinds || []).join(", "))} · ${esc((h.usernames || []).slice(0, 3).join(", ") || "-")}</div>
           </td>
           <td>${esc(String(h.active_sessions || 0))}/${esc(String(h.session_count || 0))} ${lock}</td>
           <td style="white-space:nowrap">${hideBtn}</td>
@@ -2903,7 +2958,10 @@
         });
         const h = hosts.find((x) => x.id === id);
         _hostsCache.selected = id;
-        if (h) showHostDetail(h, detail);
+        if (h) {
+          showHostDetail(h, detail);
+          activatePageTab("assetsTabs", "adetail");
+        }
         drawHostGraph(graph, hosts.filter((x) => !x.hidden || _hostsCache.showHidden), pick, id);
       };
       tbody.querySelectorAll("tr[data-host]").forEach((tr) => {
@@ -2916,17 +2974,14 @@
         btn.onclick = async (ev) => {
           ev.stopPropagation();
           const id = btn.getAttribute("data-host");
-          if (!id || !confirm("Drop " + id + " from the Assets graph? Sessions stay in Sessions list.")) return;
+          if (!id || !(await askConfirm("Drop " + id + " from the Assets graph? Sessions stay in Sessions list."))) return;
           try {
             await api("POST", "/api/v1/hosts/" + encodeURIComponent(id) + "/hide", {});
             showOk("Dropped from graph");
-              if (_hostsCache.selected === id) {
-                _hostsCache.selected = null;
-                if (detail) {
-                  detail.classList.add("empty");
-                  detail.textContent = "Select a host from the list or graph";
-                }
-              }
+            if (_hostsCache.selected === id) {
+              _hostsCache.selected = null;
+              if (detail) { detail.classList.add("empty"); detail.textContent = "Select a host from the list or graph"; }
+            }
             await loadHostsGraph();
           } catch (e) { showError(String(e.message || e)); }
         };
@@ -2945,59 +3000,29 @@
       });
       const visible = hosts.filter((x) => !x.hidden || _hostsCache.showHidden);
       const sel = _hostsCache.selected && visible.some((h) => h.id === _hostsCache.selected)
-        ? _hostsCache.selected
-        : null;
+        ? _hostsCache.selected : null;
       drawHostGraph(graph, visible.filter((h) => !h.hidden), pick, sel);
       if (sel) {
         const h = hosts.find((x) => x.id === sel);
         if (h) showHostDetail(h, detail);
       }
+      // Sync session tab when a session is selected
+      syncHostCtxTab();
     } catch (e) {
       showError(String(e.message || e));
       tbody.innerHTML = '<tr><td colspan="3" class="muted">Failed to load hosts</td></tr>';
     }
   }
 
-  function bindHostDetailResize() {
-    const handle = el("hostDetailSplit");
-    const body = document.querySelector(".hosts-work-body");
-    if (!handle || !body || handle.dataset.bound) return;
-    handle.dataset.bound = "1";
-    try {
-      const saved = parseFloat(localStorage.getItem("sc5_hosts_detail_fr") || "");
-      if (saved >= 0.25 && saved <= 0.7) {
-        body.style.gridTemplateRows = `minmax(120px, 1fr) 6px minmax(160px, ${saved}fr)`;
-      }
-    } catch (_) {}
-    let dragging = false;
-    const onMove = (clientY) => {
-      const rect = body.getBoundingClientRect();
-      if (rect.height < 80) return;
-      // detail fraction of body height (handle ~6px)
-      const fromBottom = rect.bottom - clientY;
-      let frac = fromBottom / rect.height;
-      frac = Math.max(0.22, Math.min(0.65, frac));
-      body.style.gridTemplateRows = `minmax(120px, 1fr) 6px minmax(160px, ${frac}fr)`;
-      try { localStorage.setItem("sc5_hosts_detail_fr", String(frac)); } catch (_) {}
-    };
-    const up = () => {
-      dragging = false;
-      handle.classList.remove("dragging");
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", up);
-    };
-    const move = (e) => {
-      if (!dragging) return;
-      onMove(e.clientY);
-    };
-    handle.addEventListener("pointerdown", (e) => {
-      dragging = true;
-      handle.classList.add("dragging");
-      handle.setPointerCapture?.(e.pointerId);
-      document.addEventListener("pointermove", move);
-      document.addEventListener("pointerup", up);
-      e.preventDefault();
-    });
+  function syncHostCtxTab() {
+    const mount = el("hostCtxMount");
+    if (!mount) return;
+    if (!selectedId) {
+      mount.innerHTML = '<div class="muted" style="padding:12px;text-align:center">Select a session to operate (claim, stabilize, shell).</div>';
+      return;
+    }
+    // Reuse context body content into tab
+    renderContextInto(mount, true);
   }
 
   function showHostDetail(h, detail) {
@@ -3007,9 +3032,7 @@
     const sess = (h.sessions || []).map((s) => {
       const c = s.claim || {};
       const lock = c.claimed_by ? c.claimed_by : "-";
-      const left = (c.claim_remaining_sec != null)
-        ? ` · ${Math.ceil(c.claim_remaining_sec / 60)}m`
-        : "";
+      const left = (c.claim_remaining_sec != null) ? ` · ${Math.ceil(c.claim_remaining_sec / 60)}m` : "";
       return `<tr data-sid="${esc(s.id)}" style="cursor:pointer">
         <td class="mono">${esc(String(s.id || "").slice(0, 12))}</td>
         <td>${esc(s.kind || "")}</td>
@@ -3020,37 +3043,41 @@
     }).join("");
     const dropBtn = canWrite
       ? (h.hidden
-        ? `<button type="button" class="ghost sm" id="hostDetailUnhide">Restore to graph</button>`
-        : `<button type="button" class="danger sm" id="hostDetailHide">Drop from graph</button>`)
+        ? `<button type="button" class="ghost sm" id="hostDetailUnhide">Restore</button>`
+        : `<button type="button" class="danger sm" id="hostDetailHide">Drop</button>`)
       : "";
     detail.innerHTML = `
       <div style="margin-bottom:10px;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap">
-        <div style="flex:1;min-width:160px">
+        <div style="flex:1;min-width:140px">
           <strong style="font-size:1.05rem">${esc(h.label)}</strong>
-          <div class="muted" style="font-size:0.8rem;margin-top:6px;line-height:1.45">
-            <div><strong>OS</strong> ${esc(h.os_info || "-")}</div>
-            <div><strong>Addrs</strong> ${esc((h.addrs || []).join(", ") || "-")}</div>
-            <div><strong>Users</strong> ${esc((h.usernames || []).join(", ") || "-")}</div>
-            <div><strong>Kinds</strong> ${esc((h.kinds || []).join(", ") || "-")}</div>
-            <div><strong>Access</strong> ${esc(String(h.active_sessions || 0))}/${esc(String(h.session_count || 0))} sessions</div>
-          </div>
+          <dl class="ctx-meta-grid" style="margin-top:8px">
+            <dt>OS</dt><dd>${esc(h.os_info || "-")}</dd>
+            <dt>Addrs</dt><dd>${esc((h.addrs || []).join(", ") || "-")}</dd>
+            <dt>Users</dt><dd>${esc((h.usernames || []).join(", ") || "-")}</dd>
+            <dt>Kinds</dt><dd>${esc((h.kinds || []).join(", ") || "-")}</dd>
+            <dt>Access</dt><dd>${esc(String(h.active_sessions || 0))}/${esc(String(h.session_count || 0))}</dd>
+          </dl>
         </div>
         ${dropBtn}
       </div>
-      <div class="muted" style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Sessions on this host</div>
+      <div class="muted" style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Sessions</div>
       <table class="data"><thead><tr>
         <th>Session</th><th>Kind</th><th>Status</th><th>User</th><th>Lock</th>
       </tr></thead><tbody>${sess || '<tr><td colspan="5" class="muted">No sessions</td></tr>'}</tbody></table>
-      <p class="muted" style="font-size:0.72rem;margin:10px 0 0">Click a session row to open the context rail (claim / shell).</p>`;
+      <p class="muted" style="font-size:0.72rem;margin:10px 0 0">Click a session → Session tab for claim / stabilize / shell.</p>`;
     detail.querySelectorAll("tr[data-sid]").forEach((tr) => {
       tr.onclick = () => {
         const sid = tr.getAttribute("data-sid");
-        if (sid) selectSession(sid);
+        if (sid) {
+          selectSession(sid);
+          activatePageTab("assetsTabs", "actx");
+          syncHostCtxTab();
+        }
       };
     });
     if (el("hostDetailHide")) {
       el("hostDetailHide").onclick = async () => {
-        if (!confirm("Drop " + h.label + " from the Assets graph?")) return;
+        if (!(await askConfirm("Drop " + h.label + " from the Assets graph?"))) return;
         try {
           await api("POST", "/api/v1/hosts/" + encodeURIComponent(h.id) + "/hide", {});
           showOk("Dropped from graph");
@@ -3074,16 +3101,15 @@
 
   function drawHostGraph(container, hosts, onClick, selectedId) {
     if (!container) return;
-    const w = Math.max(320, container.clientWidth || 480);
-    const hgt = Math.max(280, container.clientHeight || 320);
+    const w = Math.max(280, container.clientWidth || 400);
+    const hgt = Math.max(220, container.clientHeight || 300);
     if (!hosts.length) {
       container.innerHTML = `<div class="empty-state" style="height:100%;display:flex;align-items:center;justify-content:center;margin:0">
-        <div><strong>No asset nodes</strong><div class="muted" style="margin-top:6px">Only exec-verified shells and named implants appear. Use Sessions for raw connections.</div></div>
+        <div><strong>No asset nodes</strong><div class="muted" style="margin-top:6px">Verified shells & named implants. Drag to pan · scroll to zoom.</div></div>
       </div>`;
       return;
     }
-    // Prefer live hosts on the graph; cap layout so rings stay readable
-    const MAX_GRAPH = 36;
+    const MAX_GRAPH = 48;
     const sorted = hosts.slice().sort((a, b) => {
       const la = (a.active_sessions || 0) > 0 ? 0 : 1;
       const lb = (b.active_sessions || 0) > 0 ? 0 : 1;
@@ -3094,33 +3120,25 @@
     const omitted = sorted.length - drawList.length;
     const n = drawList.length;
     const cx = w / 2;
-    const cy = hgt / 2 - (omitted ? 8 : 0);
+    const cy = hgt / 2;
     const cols = Math.ceil(Math.sqrt(n));
     const rowsN = Math.ceil(n / cols);
     const cellW = w / Math.max(cols, 1);
-    const cellH = (hgt - (omitted ? 22 : 0)) / Math.max(rowsN, 1);
+    const cellH = hgt / Math.max(rowsN, 1);
     const nodes = drawList.map((host, i) => {
-      if (n <= 8) {
+      if (n <= 10) {
         const ang = (i / n) * Math.PI * 2 - Math.PI / 2;
-        const R = Math.min(w, hgt) * (n === 1 ? 0 : 0.32);
-        return {
-          host,
-          x: n === 1 ? cx : cx + Math.cos(ang) * R,
-          y: n === 1 ? cy : cy + Math.sin(ang) * R,
-        };
+        const R = Math.min(w, hgt) * (n === 1 ? 0 : 0.3);
+        return { host, x: n === 1 ? cx : cx + Math.cos(ang) * R, y: n === 1 ? cy : cy + Math.sin(ang) * R };
       }
       const c = i % cols;
       const rr = Math.floor(i / cols);
-      return {
-        host,
-        x: cellW * c + cellW / 2,
-        y: cellH * rr + cellH / 2,
-      };
+      return { host, x: cellW * c + cellW / 2, y: cellH * rr + cellH / 2 };
     });
-    let svg = `<svg width="100%" height="100%" viewBox="0 0 ${w} ${hgt}" xmlns="http://www.w3.org/2000/svg">`;
-    if (n > 1 && n <= 8) {
+    let inner = "";
+    if (n > 1 && n <= 10) {
       nodes.forEach((nd) => {
-        svg += `<line x1="${cx}" y1="${cy}" x2="${nd.x}" y2="${nd.y}" stroke="rgba(233,30,140,0.12)" stroke-width="1" stroke-dasharray="4 4"/>`;
+        inner += `<line x1="${cx}" y1="${cy}" x2="${nd.x}" y2="${nd.y}" stroke="rgba(233,30,140,0.12)" stroke-width="1" stroke-dasharray="4 4"/>`;
       });
     }
     nodes.forEach((node, idx) => {
@@ -3130,24 +3148,26 @@
       const sel = selectedId && host.id === selectedId;
       const fill = locked ? "rgba(251,191,36,0.28)" : active ? "rgba(233,30,140,0.38)" : "rgba(255,255,255,0.07)";
       const stroke = sel ? "#fff" : locked ? "rgba(251,191,36,0.9)" : active ? "rgba(233,30,140,0.7)" : "rgba(180,180,200,0.35)";
-      const sw = sel ? 3 : 2;
-      const r = Math.min(22, Math.max(14, Math.min(cellW, cellH) * 0.22));
-      const label = (host.label || host.id || "?").slice(0, 18);
+      const r = Math.min(20, Math.max(12, Math.min(cellW, cellH) * 0.2));
+      const label = (host.label || host.id || "?").slice(0, 16);
       const sub = (host.active_sessions || 0) + "/" + (host.session_count || 0);
-      svg += `<g class="host-node" data-idx="${idx}" style="cursor:pointer">
+      inner += `<g class="host-node" data-idx="${idx}" style="cursor:pointer">
         <circle cx="${node.x}" cy="${node.y}" r="${r + 3}" fill="none" stroke="${sel ? "rgba(233,30,140,0.35)" : "transparent"}" stroke-width="5"/>
-        <circle cx="${node.x}" cy="${node.y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>
+        <circle cx="${node.x}" cy="${node.y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sel ? 3 : 2}"/>
         <text x="${node.x}" y="${node.y + 4}" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">${esc(sub)}</text>
         <text x="${node.x}" y="${node.y + r + 14}" text-anchor="middle" fill="#c8c8d4" font-size="10" font-family="ui-monospace,monospace">${esc(label)}</text>
       </g>`;
     });
     if (omitted > 0) {
-      svg += `<text x="${cx}" y="${hgt - 8}" text-anchor="middle" fill="#888" font-size="11">+${omitted} more in list (not drawn)</text>`;
+      inner += `<text x="${cx}" y="${hgt - 10}" text-anchor="middle" fill="#888" font-size="11">+${omitted} more in list</text>`;
     }
-    svg += "</svg>";
-    container.innerHTML = svg;
+    container.innerHTML = `<svg width="100%" height="100%" viewBox="0 0 ${w} ${hgt}" xmlns="http://www.w3.org/2000/svg">
+      <g id="hostGraphInner" transform="translate(${_graphXf.tx},${_graphXf.ty}) scale(${_graphXf.scale})">${inner}</g>
+    </svg>`;
     container.querySelectorAll(".host-node").forEach((g) => {
-      g.onclick = () => {
+      g.addEventListener("pointerdown", (e) => e.stopPropagation());
+      g.onclick = (e) => {
+        e.stopPropagation();
         const i = Number(g.getAttribute("data-idx"));
         if (nodes[i] && onClick) onClick(nodes[i].host.id);
       };

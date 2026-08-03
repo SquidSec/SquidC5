@@ -231,5 +231,8 @@ async def test_hosts_ui_markers(tmp_path):
                 "hostDropInactive",
                 "hostActiveOnly",
                 "hide-inactive",
+                "assets-layout",
+                "bindGraphPanZoom",
+                "askConfirm",
             ):
                 assert m in js, m
