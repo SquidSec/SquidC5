@@ -32,6 +32,32 @@ def _policy_http_error(decision: PolicyDecision) -> HTTPException:
     return HTTPException(status_code=403, detail=detail)
 
 
+def _ops_base_url(request: Request, preferred: str | None = None) -> str:
+    """Ops/API base for connection links.
+
+    Prefer an explicit client-supplied base (ops header / saved URL) after
+    validation. Fall back to request.base_url (ASGI). Never use
+    SQUIDC5_PUBLIC_HOST - that is for implant/OAST callbacks.
+    """
+    from urllib.parse import urlparse
+
+    cand = (preferred or "").strip().rstrip("/")
+    if cand:
+        p = urlparse(cand)
+        if p.scheme not in ("http", "https"):
+            raise HTTPException(400, "base_url must be http or https")
+        if not p.netloc or p.username or p.password:
+            raise HTTPException(400, "base_url host invalid")
+        # Reject path/query/fragment noise - ops root only
+        if p.path not in ("", "/") or p.query or p.fragment:
+            raise HTTPException(400, "base_url must be origin only (no path)")
+        host = p.netloc.lower()
+        if any(c in host for c in (" ", "\n", "\r", "\t", "\\")):
+            raise HTTPException(400, "base_url host invalid")
+        return f"{p.scheme}://{p.netloc}"
+    return str(request.base_url).rstrip("/")
+
+
 class TokenCreate(BaseModel):
     name: str
     scopes: list[str]
@@ -47,6 +73,8 @@ class TokenUpdate(BaseModel):
 class ConnectionTicketCreate(BaseModel):
     ttl_sec: int = 3600
     note: str = ""
+    # Ops console origin as the admin browser sees it (e.g. https://squidc5.example:8443)
+    base_url: str | None = None
 
 
 class ConnectionTicketRedeem(BaseModel):
@@ -564,17 +592,8 @@ def build_api_router() -> APIRouter:
             raise HTTPException(404, "token not found") from e
         except PermissionError as e:
             raise HTTPException(403, str(e)) from e
-        # Build ops handoff URL (same host as this request when possible)
-        base = str(request.base_url).rstrip("/")
-        # Prefer configured public host if set
-        public = (getattr(state.settings, "public_host", None) or "").strip()
-        if public:
-            scheme = "https" if state.settings.tls_enabled else "http"
-            port = int(state.settings.port or 8443)
-            if port in (80, 443):
-                base = f"{scheme}://{public}"
-            else:
-                base = f"{scheme}://{public}:{port}"
+        # Prefer admin-supplied ops origin (header/connect URL); not PUBLIC_HOST
+        base = _ops_base_url(request, body.base_url)
         link = f"{base}/ops#sc5ticket={issued['ticket']}"
         return {
             "ticket_id": issued["ticket_id"],
@@ -603,16 +622,8 @@ def build_api_router() -> APIRouter:
             raise HTTPException(404, "invalid or unknown ticket") from None
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
-        # API base for client config
-        base = str(request.base_url).rstrip("/")
-        public = (getattr(state.settings, "public_host", None) or "").strip()
-        if public:
-            scheme = "https" if state.settings.tls_enabled else "http"
-            port = int(state.settings.port or 8443)
-            if port in (80, 443):
-                base = f"{scheme}://{public}"
-            else:
-                base = f"{scheme}://{public}:{port}"
+        # Recipient redeems on the ops host they opened - use that ASGI base
+        base = _ops_base_url(request, None)
         return {
             "url": base,
             "token": out["token"],
