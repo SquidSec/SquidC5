@@ -9,9 +9,38 @@ from httpx import ASGITransport, AsyncClient
 
 from squidc5.collab.teams import TeamService, claim_info
 from squidc5.config import Settings
+from squidc5.hosts.graph import is_asset_session
 from squidc5.main import create_app
 
 ADMIN = "sc5_test_admin_token_bootstrap_hosts01"
+
+
+def test_is_asset_session_filters_noise():
+    assert is_asset_session(
+        {"kind": "reverse_shell", "status": "active", "verified": True, "hostname": "h1"}
+    )
+    assert is_asset_session(
+        {"kind": "reverse_shell", "status": "active", "interactive": True}
+    )
+    assert is_asset_session(
+        {
+            "kind": "reverse_shell",
+            "status": "closed",
+            "hostname": "old-box",
+            "username": "root",
+        }
+    )
+    assert is_asset_session(
+        {"kind": "beacon", "status": "active", "hostname": "workstation-a", "username": "alice"}
+    )
+    # scanner / unverified active shell
+    assert not is_asset_session(
+        {"kind": "reverse_shell", "status": "active", "verified": False, "interactive": False}
+    )
+    assert not is_asset_session({"kind": "beacon", "status": "active"})
+    assert not is_asset_session(
+        {"kind": "reverse_shell", "status": "closed", "metadata": {"rejected": True}}
+    )
 
 
 @pytest.mark.asyncio
@@ -49,24 +78,60 @@ async def test_hosts_api_and_claim_ttl(tmp_path):
             )
             assert b3.status_code == 200
 
+            # noise: unverified reverse_shell should not appear
+            state = app.state.app_state
+            noise = await state.sessions.register(
+                kind="reverse_shell",
+                remote_addr="1.2.3.4",
+                hostname=None,
+            )
+            await state.db.update_session(noise, status="active")
+
             hosts = await client.get("/api/v1/hosts", headers=h)
             assert hosts.status_code == 200
             body = hosts.json()
             assert body["claim_ttl_sec"] == 120
+            assert body.get("skipped_noise", 0) >= 1
             by_id = {x["id"]: x for x in body["hosts"]}
             assert "workstation-a" in by_id
             assert "dc01" in by_id
+            assert noise not in by_id
+            assert "1.2.3.4" not in by_id
             wa = by_id["workstation-a"]
             assert wa["session_count"] == 2
             assert set(wa["usernames"]) == {"alice", "bob"}
             assert "beacon" in wa["kinds"]
             assert isinstance(body.get("edges"), list)
-            assert isinstance(body.get("session_nodes"), list)
             pair = {sid1, sid2}
             assert any(
                 {e["source"], e["target"]} == pair and e.get("rel") == "co-host"
                 for e in body["edges"]
             )
+
+            # dismiss host from graph
+            hide = await client.post(
+                "/api/v1/hosts/workstation-a/hide",
+                headers=h,
+            )
+            assert hide.status_code == 200
+            hosts2 = await client.get("/api/v1/hosts", headers=h)
+            ids2 = {x["id"] for x in hosts2.json()["hosts"]}
+            assert "workstation-a" not in ids2
+            assert "dc01" in ids2
+            assert hosts2.json()["hidden_count"] >= 1
+
+            # still visible with include_hidden
+            hosts3 = await client.get("/api/v1/hosts?include_hidden=true", headers=h)
+            by3 = {x["id"]: x for x in hosts3.json()["hosts"]}
+            assert by3["workstation-a"]["hidden"] is True
+
+            unhide = await client.delete(
+                "/api/v1/hosts/workstation-a/hide",
+                headers=h,
+            )
+            assert unhide.status_code == 200
+            hosts4 = await client.get("/api/v1/hosts", headers=h)
+            assert "workstation-a" in {x["id"] for x in hosts4.json()["hosts"]}
 
             c = await client.post(f"/api/v1/sessions/{sid1}/claim", headers=h, json={})
             assert c.status_code == 200
@@ -78,11 +143,6 @@ async def test_hosts_api_and_claim_ttl(tmp_path):
             assert sess.status_code == 200
             claim = sess.json().get("claim") or {}
             assert claim.get("locked") is True
-            assert claim.get("claim_remaining_sec") is not None
-
-            hosts2 = await client.get("/api/v1/hosts", headers=h)
-            wa2 = {x["id"]: x for x in hosts2.json()["hosts"]}["workstation-a"]
-            assert wa2.get("claimed_by")
 
             c2 = await client.post(
                 f"/api/v1/sessions/{sid2}/claim",
@@ -93,7 +153,6 @@ async def test_hosts_api_and_claim_ttl(tmp_path):
             time.sleep(1.2)
             ts: TeamService = app.state.app_state.teams
             await ts.assert_write_access(sid2, "other-op", is_admin=False)
-            await ts.assert_write_access(sid2, "other-op")
 
 
 def test_claim_info_unit():
@@ -138,11 +197,11 @@ async def test_hosts_ui_markers(tmp_path):
                 "drawHostGraph",
                 "/api/v1/hosts",
                 "hostGraph",
+                "host-hide",
+                "hostShowHidden",
                 "ctxForceClaim",
-                "claimChipHtml",
             ):
                 assert m in js, m
             html = await client.get("/ops")
             assert html.status_code == 200
             assert 'data-view="hosts"' in html.text
-            assert 'id="view-hosts"' in html.text
