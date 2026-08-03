@@ -472,6 +472,91 @@
       max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word;
       color: #d4d4de; margin-top: 8px;
     }
+    /* Assets: graph + host detail must both stay usable */
+    .hosts-work-body {
+      display: grid !important;
+      grid-template-rows: minmax(140px, 1fr) 6px minmax(200px, 0.9fr);
+      gap: 0;
+      padding: 0 !important;
+      overflow: hidden !important;
+      height: 100%;
+      min-height: 0;
+    }
+    .hosts-graph-pane {
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 10px 12px 6px;
+      gap: 6px;
+    }
+    .hosts-graph-pane #hostGraph {
+      flex: 1 1 auto;
+      min-height: 120px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0a0a10;
+      position: relative;
+      overflow: hidden;
+    }
+    .hosts-detail-split {
+      cursor: row-resize;
+      background: rgba(255,255,255,0.06);
+      position: relative;
+      z-index: 2;
+      touch-action: none;
+    }
+    .hosts-detail-split::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 1px;
+      transform: translateX(-50%);
+      width: 36px;
+      height: 3px;
+      border-radius: 2px;
+      background: rgba(233,30,140,0.45);
+    }
+    .hosts-detail-split:hover,
+    .hosts-detail-split.dragging {
+      background: rgba(233,30,140,0.2);
+    }
+    .hosts-detail-pane {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--border);
+      background: #08080c;
+      overflow: hidden;
+    }
+    .hosts-detail-head {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg3);
+    }
+    .hosts-detail-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      padding: 10px 12px;
+      font-size: 0.8rem;
+      color: var(--text);
+    }
+    .hosts-detail-body.empty {
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 0.85rem;
+    }
+    .hosts-detail-body table.data { font-size: 0.78rem; }
     .outbox.empty { color: var(--muted); }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip {
@@ -723,6 +808,57 @@
       padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
     .ai-drawer-foot select, .ai-drawer-foot textarea { width: 100%; }
+    .ai-llm-bar {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(0,0,0,0.2);
+      overflow: hidden;
+    }
+    .ai-llm-bar-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-align: left;
+      padding: 6px 10px;
+      min-height: 34px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .ai-llm-bar-toggle:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+    .ai-llm-bar-toggle .ai-llm-summary {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .ai-llm-bar-toggle .ai-llm-chevron {
+      flex-shrink: 0;
+      opacity: 0.7;
+      font-size: 0.65rem;
+      transition: transform 0.15s ease;
+    }
+    .ai-llm-bar.open .ai-llm-chevron { transform: rotate(90deg); }
+    .ai-llm-bar-body {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      padding: 0 8px 8px;
+    }
+    .ai-llm-bar.open .ai-llm-bar-body { display: flex; }
+    .ai-llm-bar-body label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin: 0;
+    }
     @media (max-width: 900px) {
       .ai-drawer {
         width: 100vw; left: 0; right: 0;
@@ -1077,8 +1213,19 @@
       </div>
       <div class="ai-drawer-body" id="aiChatLog"></div>
       <div class="ai-drawer-foot" id="aiDrawerFoot">
-        <select id="aiLlmGlobal" title="LLM connection"></select>
-        <select id="aiModelGlobal" title="Model" disabled><option value="">Model...</option></select>
+        <div class="ai-llm-bar" id="aiLlmBar">
+          <button type="button" class="ai-llm-bar-toggle" id="aiLlmBarToggle" aria-expanded="false" title="Show or hide LLM settings">
+            <span class="ai-llm-chevron" aria-hidden="true">&#9654;</span>
+            <span class="ai-llm-summary" id="aiLlmSummary">LLM · pick connection</span>
+            <span class="muted" style="flex-shrink:0;font-size:0.65rem">change</span>
+          </button>
+          <div class="ai-llm-bar-body" id="aiLlmBarBody" hidden>
+            <label for="aiLlmGlobal">Connection</label>
+            <select id="aiLlmGlobal" title="LLM connection"></select>
+            <label for="aiModelGlobal">Model</label>
+            <select id="aiModelGlobal" title="Model" disabled><option value="">Model...</option></select>
+          </div>
+        </div>
         <textarea id="aiPromptGlobal" rows="3" placeholder="Ask INKO anything - list sessions, spin up a listener..."></textarea>
         <div class="row" style="margin:0;gap:6px">
           <button type="button" class="primary" id="aiSendGlobal" style="flex:1">Send</button>

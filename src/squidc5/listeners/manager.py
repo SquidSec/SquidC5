@@ -744,10 +744,29 @@ class ListenerManager:
 
     async def mark_verified(self, session_id: str) -> None:
         self._verified.add(session_id)
-        await self.db.update_session(
-            session_id,
-            metadata={"exec_ok": True, "verified": True},
-        )
+        row = await self.db.get_session(session_id)
+        meta: dict[str, Any] = {}
+        if row:
+            raw = row.get("metadata") or {}
+            if isinstance(raw, str):
+                try:
+                    meta = json.loads(raw) if raw else {}
+                except json.JSONDecodeError:
+                    meta = {}
+            elif isinstance(raw, dict):
+                meta = dict(raw)
+        meta["exec_ok"] = True
+        meta["verified"] = True
+        await self.db.update_session(session_id, metadata=meta)
+        # Ensure host reappears on Assets if previously bulk-dismissed
+        try:
+            from squidc5.hosts.graph import host_key_for_session
+
+            if row:
+                key = host_key_for_session({**dict(row), "verified": True, "metadata": meta})
+                await self.db.unhide_host_graph(key)
+        except Exception:
+            log.debug("host unhide after verify failed", exc_info=True)
 
     async def _verify_or_drop(self, session_id: str, remote: str) -> None:
         """After connect (+ optional stabilize), require real command execution."""
