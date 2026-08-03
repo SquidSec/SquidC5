@@ -181,6 +181,7 @@ jobs:
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: squidc5-${{ matrix.artifact }}
           path: |
@@ -191,12 +192,13 @@ jobs:
             dist/binaries/README.txt
             dist/binaries/*/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
-  # Publish GitHub Release with Linux + Windows binaries when main/master CI succeeds.
+  # Publish GitHub Release after tests. Builds Linux here (avoids Actions artifact quota).
+  # Windows assets are optional when artifact download is available.
   release:
     name: github-release
-    needs: [binaries, test]
+    needs: [test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     permissions:
@@ -204,13 +206,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Linux binaries
-        uses: actions/download-artifact@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          name: squidc5-linux-x64
-          path: artifacts/linux
+          python-version: "3.12"
+          cache: pip
 
-      - name: Download Windows binaries
+      - name: Build Linux binaries
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+          pip install "pyinstaller>=6.3"
+          python packaging/build_binaries.py
+          ./dist/binaries/sc5 --help
+          ./dist/binaries/squidc5 &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            curl -skf https://127.0.0.1:8443/api/v1/health && break
+            sleep 1
+          done
+          curl -skf https://127.0.0.1:8443/api/v1/health
+
+      - name: Try Windows artifacts (optional)
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: squidc5-windows-x64
@@ -221,28 +241,24 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          # Linux
-          test -f artifacts/linux/sc5
-          test -f artifacts/linux/squidc5
-          cp artifacts/linux/sc5 release/sc5-linux-x64
-          cp artifacts/linux/squidc5 release/squidc5-linux-x64
+          test -f dist/binaries/sc5
+          test -f dist/binaries/squidc5
+          cp dist/binaries/sc5 release/sc5-linux-x64
+          cp dist/binaries/squidc5 release/squidc5-linux-x64
           chmod +x release/sc5-linux-x64 release/squidc5-linux-x64
-          # Windows
-          test -f artifacts/windows/sc5.exe
-          test -f artifacts/windows/squidc5.exe
-          cp artifacts/windows/sc5.exe release/sc5-windows-x64.exe
-          cp artifacts/windows/squidc5.exe release/squidc5-windows-x64.exe
-          # SBOM (CycloneDX JSON via pip)
+          if [[ -f artifacts/windows/sc5.exe && -f artifacts/windows/squidc5.exe ]]; then
+            cp artifacts/windows/sc5.exe release/sc5-windows-x64.exe
+            cp artifacts/windows/squidc5.exe release/squidc5-windows-x64.exe
+          fi
           python -m pip install --quiet cyclonedx-bom
           pip install -q -r requirements.txt
           cyclonedx-py requirements requirements.txt -o release/sbom.cdx.json || \
             echo '{"bomFormat":"CycloneDX","specVersion":"1.5","components":[]}' > release/sbom.cdx.json
-          # Checksums + short readme
           (
             cd release
             sha256sum * > SHA256SUMS.txt
           )
-          cat > release/README.txt << EOF
+          cat > release/README.txt << 'EOF'
           SquidC5 standalone binaries (no Python/venv required)
 
           sc5-linux-x64 / sc5-windows-x64.exe     Operator CLI
@@ -273,8 +289,8 @@ jobs:
           |------|----------|------|
           | \`sc5-linux-x64\` | Linux x64 | Operator CLI |
           | \`squidc5-linux-x64\` | Linux x64 | C2 server |
-          | \`sc5-windows-x64.exe\` | Windows x64 | Operator CLI |
-          | \`squidc5-windows-x64.exe\` | Windows x64 | C2 server |
+          | \`sc5-windows-x64.exe\` | Windows x64 | Operator CLI (when available) |
+          | \`squidc5-windows-x64.exe\` | Windows x64 | C2 server (when available) |
           | \`SHA256SUMS.txt\` | - | Checksums |
 
           ### Server (Linux)
@@ -285,28 +301,17 @@ jobs:
           # console: https://HOST:8443/ops
           \`\`\`
 
-          ### CLI
-          \`\`\`bash
-          ./sc5-linux-x64 login --url https://HOST:8443 --token sc5_... --insecure
-          ./sc5-linux-x64 sessions list
-          \`\`\`
-
           Authorized red-team / pen-test use only.
           EOF
           )"
-          # Unique release per successful main build; mark as latest
+          ASSETS=(release/sc5-linux-x64 release/squidc5-linux-x64 release/SHA256SUMS.txt release/README.txt release/sbom.cdx.json)
+          [[ -f release/sc5-windows-x64.exe ]] && ASSETS+=(release/sc5-windows-x64.exe)
+          [[ -f release/squidc5-windows-x64.exe ]] && ASSETS+=(release/squidc5-windows-x64.exe)
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
             --title "$TITLE" \
             --notes "$NOTES" \
             --latest \
-            release/sc5-linux-x64 \
-            release/squidc5-linux-x64 \
-            release/sc5-windows-x64.exe \
-            release/squidc5-windows-x64.exe \
-            release/SHA256SUMS.txt \
-            release/README.txt \
-            release/sbom.cdx.json
+            "${ASSETS[@]}"
           echo "Published release: $TAG"
-          echo "url=https://github.com/${{ github.repository }}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
