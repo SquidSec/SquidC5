@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     public_ip: str = ""  # A-record for OAST DNS answers (SQUIDC5_PUBLIC_IP)
     shell_stabilize_delay_sec: float = 0.8
     shell_probe_wait_sec: float = 1.5
+    # Session claim/lock TTL (0 = no expiry). Renewed on claim-holder write activity when enabled.
+    session_claim_ttl_sec: int = 3600
+    session_claim_renew_on_activity: bool = True
     # OAST Collaborator (SQUIDC5_OAST_*)
     oast_enabled: bool = True
     oast_zone: str = "oast.lab.invalid"
@@ -77,7 +80,12 @@ class Settings(BaseSettings):
             raise ValueError("port must be 1-65535")
         return int(v)
 
-    @field_validator("max_body_bytes", "rate_limit_per_minute", "auth_fail_limit_per_minute")
+    @field_validator(
+        "max_body_bytes",
+        "rate_limit_per_minute",
+        "auth_fail_limit_per_minute",
+        "session_claim_ttl_sec",
+    )
     @classmethod
     def _non_negative(cls, v: int) -> int:
         if int(v) < 0:

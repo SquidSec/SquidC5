@@ -223,7 +223,7 @@ The `/ops` console is an **app shell** (multi-page nav + context rail + dock).
 | Region | Purpose |
 |--------|---------|
 | **Top bar** | Host, online status, Connect, Refresh, **INKO** flyout |
-| **Left nav** | Dashboard - Sessions - Listeners - Payloads - **Profiles** - **Artifacts** - Post-Ex - Collab - **INKO** - Observe - Admin |
+| **Left nav** | Dashboard - Sessions - **Assets** - Listeners - Payloads - **Profiles** - **Artifacts** - Post-Ex - Collab - **INKO** - Observe - Admin |
 | **Main** | Active workspace for the selected nav item |
 | **Right rail** | Selected session context (claim, shell, task) |
 | **Bottom dock** | Live event stream + command output (resizable) |
@@ -1151,19 +1151,21 @@ sc5 tokens revoke <id>
 
 ### What
 
-Teams, **session claim/lock**, handoff packs, spectator snapshots, operator presence, team-scoped chat, and per-operator audit filters.
+Teams, **session claim/lock** (TTL + renew on activity), handoff packs, spectator snapshots, operator presence, team-scoped chat, per-operator audit filters, and the **Assets** host graph.
 
-**UI:** Ops -> **Collab**.
+**UI:** Ops -> **Collab** (teams/chat) · Ops -> **Assets** (host graph).
 
 ### Why
 
-Two operators must not stomp the same shell; shift changes need context; leads need read-only watch.
+Two operators must not stomp the same shell; shift changes need context; leads need read-only watch; operators need a host-centric map of implants/access.
 
 ### How
 
 | Action | API / UI |
 |--------|----------|
-| Claim session | `POST /api/v1/sessions/{id}/claim` - Context -> Claim |
+| Host inventory / graph | `GET /api/v1/hosts` - Ops -> **Assets** |
+| Claim session | `POST /api/v1/sessions/{id}/claim` `{force?, ttl_sec?}` - Context -> Claim lock |
+| Force claim | same endpoint with `force: true` (admin) |
 | Release | `POST /api/v1/sessions/{id}/release` |
 | Handoff pack | `POST /api/v1/sessions/{id}/handoff` `{to, note}` |
 | Spectate | `GET /api/v1/sessions/{id}/spectator` |
@@ -1171,7 +1173,7 @@ Two operators must not stomp the same shell; shift changes need context; leads n
 | Team chat | `POST /api/v1/collab/chat` with optional `team_id` |
 | My audit | `GET /api/v1/audit/me` or `?mine=true` |
 
-Claim lock is enforced on shell, tasks, and file ops (admins bypass). Feature flag: `collab_teams`.
+Claim lock is enforced on shell, tasks, and file ops (admins bypass). Default TTL: `SQUIDC5_SESSION_CLAIM_TTL_SEC` (3600; `0` = no expiry). Feature flag: `collab_teams`.
 
 ### Example
 

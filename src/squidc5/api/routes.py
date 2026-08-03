@@ -19,6 +19,7 @@ from squidc5.auth.tokens import (
     AuthContext,
     scope_catalog,
 )
+from squidc5.collab.teams import claim_info
 from squidc5.paths import web_file
 from squidc5.policy.engine import PolicyDecision
 
@@ -275,6 +276,7 @@ class HandoffRequest(BaseModel):
 
 class ClaimRequest(BaseModel):
     force: bool = False
+    ttl_sec: int | None = None  # override default claim TTL; 0 = no expiry
 
 
 class PresenceHeartbeat(BaseModel):
@@ -705,7 +707,141 @@ def build_api_router() -> APIRouter:
                 else:
                     filtered.append(r)
             rows = filtered
-        return rows
+        # Attach normalized claim info for UI locks
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            row = dict(r)
+            meta = row.get("metadata") or {}
+            if isinstance(meta, str):
+                try:
+                    meta = json.loads(meta)
+                except json.JSONDecodeError:
+                    meta = {}
+            info = claim_info(meta if isinstance(meta, dict) else {})
+            row["claim"] = info
+            out.append(row)
+        return out
+
+    @api.get("/hosts")
+    async def list_hosts(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("sessions:read", "admin")),
+    ) -> dict[str, Any]:
+        """Engagement host inventory: group sessions into host nodes for the Assets graph."""
+        state = get_state(request)
+        await state.policy.check_and_audit(auth, "sessions.list")
+        await state.sessions.close_orphaned_shells()
+        rows = await state.sessions.list(status=None)
+        hosts: dict[str, dict[str, Any]] = {}
+        edges: list[dict[str, str]] = []
+        for r in rows:
+            if r.get("status") == "closed":
+                # still include closed for inventory but mark inactive
+                pass
+            meta = r.get("metadata") or {}
+            if isinstance(meta, str):
+                try:
+                    meta = json.loads(meta)
+                except json.JSONDecodeError:
+                    meta = {}
+            if not isinstance(meta, dict):
+                meta = {}
+            info = claim_info(meta)
+            host_key = (r.get("hostname") or r.get("remote_addr") or r.get("id") or "unknown").strip()
+            node = hosts.get(host_key)
+            if not node:
+                node = {
+                    "id": host_key,
+                    "label": host_key,
+                    "hostname": r.get("hostname"),
+                    "addrs": [],
+                    "sessions": [],
+                    "kinds": set(),
+                    "active": 0,
+                    "claimed_by": None,
+                    "os_info": r.get("os_info"),
+                    "usernames": set(),
+                }
+                hosts[host_key] = node
+            addr = r.get("remote_addr")
+            if addr and addr not in node["addrs"]:
+                node["addrs"].append(addr)
+            if r.get("os_info") and not node.get("os_info"):
+                node["os_info"] = r.get("os_info")
+            if r.get("username"):
+                node["usernames"].add(r.get("username"))
+            kind = r.get("kind") or "?"
+            node["kinds"].add(kind)
+            if r.get("status") == "active":
+                node["active"] += 1
+            if info.get("claimed_by") and not node.get("claimed_by"):
+                node["claimed_by"] = info.get("claimed_by")
+            node["sessions"].append(
+                {
+                    "id": r.get("id"),
+                    "kind": kind,
+                    "status": r.get("status"),
+                    "verified": r.get("verified"),
+                    "username": r.get("username"),
+                    "remote_addr": addr,
+                    "last_seen_at": r.get("last_seen_at"),
+                    "claim": info,
+                }
+            )
+            # Simple edge: reverse_shell -> beacon on same host (access path)
+            # represented later when serializing
+        nodes = []
+        for h in hosts.values():
+            kinds = sorted(h["kinds"])
+            nodes.append(
+                {
+                    "id": h["id"],
+                    "label": h["label"],
+                    "hostname": h.get("hostname"),
+                    "addrs": h["addrs"],
+                    "os_info": h.get("os_info"),
+                    "usernames": sorted(h["usernames"]),
+                    "kinds": kinds,
+                    "active_sessions": h["active"],
+                    "session_count": len(h["sessions"]),
+                    "claimed_by": h.get("claimed_by"),
+                    "sessions": h["sessions"],
+                }
+            )
+            # Edges between sessions on same host for graph layout
+            sess = h["sessions"]
+            for i, a in enumerate(sess):
+                for b in sess[i + 1 :]:
+                    edges.append(
+                        {
+                            "source": a["id"],
+                            "target": b["id"],
+                            "host": h["id"],
+                            "rel": "co-host",
+                        }
+                    )
+        # Also emit session-level nodes for drill-down graph
+        session_nodes = []
+        for h in nodes:
+            for s in h["sessions"]:
+                session_nodes.append(
+                    {
+                        "id": s["id"],
+                        "type": "session",
+                        "host": h["id"],
+                        "kind": s.get("kind"),
+                        "status": s.get("status"),
+                        "verified": s.get("verified"),
+                        "claimed_by": (s.get("claim") or {}).get("claimed_by"),
+                        "label": f"{s.get('kind')}:{(s.get('id') or '')[:8]}",
+                    }
+                )
+        return {
+            "hosts": nodes,
+            "session_nodes": session_nodes,
+            "edges": edges,
+            "claim_ttl_sec": int(getattr(state.settings, "session_claim_ttl_sec", 0) or 0),
+        }
 
     @api.get("/sessions/{session_id}")
     async def get_session(
@@ -718,7 +854,15 @@ def build_api_router() -> APIRouter:
         s = await state.sessions.get(session_id)
         if not s:
             raise HTTPException(404, "session not found")
-        return s
+        row = dict(s)
+        meta = row.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except json.JSONDecodeError:
+                meta = {}
+        row["claim"] = claim_info(meta if isinstance(meta, dict) else {})
+        return row
 
     @api.post("/sessions/{session_id}/close")
     async def close_session(
@@ -2579,12 +2723,14 @@ def build_api_router() -> APIRouter:
         """M1: claim session lock (only claim holder or admin may task)."""
         state = get_state(request)
         force = bool(body and body.force)
+        ttl = body.ttl_sec if body else None
         try:
             result = await state.teams.claim(
                 session_id,
                 auth.name,
                 force=force,
                 is_admin=auth.has_scope("admin"),
+                ttl_sec=ttl,
             )
         except KeyError:
             raise HTTPException(404, "session not found") from None

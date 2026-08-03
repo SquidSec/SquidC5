@@ -40,16 +40,25 @@
     button, input, select, textarea { font: inherit; color: inherit; }
     button {
       cursor: pointer; border: 1px solid var(--border2); background: var(--bg3);
-      border-radius: 6px; padding: 6px 12px; color: var(--text);
+      border-radius: 6px; padding: 6px 12px; min-height: 32px; color: var(--text);
+      font-size: 0.82rem; font-weight: 500; line-height: 1.2;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     }
     button:hover { border-color: rgba(233,30,140,0.45); background: #22222c; }
     button.primary { background: rgba(233,30,140,0.2); border-color: rgba(233,30,140,0.5); color: var(--pink2); font-weight: 600; }
     button.primary:hover { background: rgba(233,30,140,0.35); }
-    button.danger { border-color: rgba(248,113,113,0.4); color: var(--bad); }
+    button.danger { border-color: rgba(248,113,113,0.4); color: var(--bad); background: rgba(248,113,113,0.08); }
+    button.danger:hover { background: rgba(248,113,113,0.16); }
+    button.ghost {
+      background: transparent; border-color: var(--border); color: var(--muted); font-weight: 500;
+    }
+    button.ghost:hover { color: var(--text); border-color: rgba(233,30,140,0.4); background: rgba(255,255,255,0.03); }
+    button.sm { padding: 4px 10px; min-height: 28px; font-size: 0.75rem; }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
     button.active, .nav-item.active {
       background: rgba(233,30,140,0.18); border-color: rgba(233,30,140,0.4); color: var(--pink2);
     }
+    .toolbar button, .row button { flex-shrink: 0; }
     input, select, textarea {
       width: 100%; background: #0e0e14; border: 1px solid var(--border2);
       border-radius: 6px; padding: 7px 10px; outline: none;
@@ -986,6 +995,7 @@
       <div class="side-nav" id="sideNav">
         <button type="button" class="nav-item active" data-view="dashboard">Dashboard</button>
         <button type="button" class="nav-item" data-view="sessions">Sessions <span class="badge-n" id="navNSes">0</span></button>
+        <button type="button" class="nav-item" data-view="hosts">Assets</button>
         <button type="button" class="nav-item" data-view="listeners">Listeners <span class="badge-n" id="navNLis">0</span></button>
         <button type="button" class="nav-item" data-view="payloads">Payloads</button>
         <button type="button" class="nav-item" data-view="profiles">Profiles</button>
@@ -1039,6 +1049,7 @@
           </div>
         </div>
         <div class="view" id="view-sessions"></div>
+        <div class="view" id="view-hosts"></div>
         <div class="view" id="view-listeners"></div>
         <div class="view" id="view-payloads"></div>
         <div class="view" id="view-profiles"></div>
@@ -1212,6 +1223,7 @@
   /* Nav data-view -> any-of scopes (dashboard always shown when connected) */
   const NAV_GATES = {
     sessions: ["sessions:read"],
+    hosts: ["sessions:read"],
     listeners: ["listeners:read"],
     payloads: ["payloads:generate"],
     profiles: ["profiles:read"],
@@ -1239,7 +1251,7 @@
     const need = NAV_GATES[preferred];
     if (!need || canAny(need)) return preferred;
     const order = [
-      "sessions", "listeners", "payloads", "profiles", "artifacts",
+      "sessions", "hosts", "listeners", "payloads", "profiles", "artifacts",
       "postex", "collab", "ai", "observe", "admin",
     ];
     for (const v of order) {
@@ -1275,6 +1287,7 @@
   const VIEWS = {
     dashboard: { title: "Dashboard", sub: "Teamserver health and shortcuts", doc: "status-overview" },
     sessions: { title: "Sessions", sub: "Beacons and reverse shells", doc: "sessions" },
+    hosts: { title: "Assets", sub: "Host graph - implants, access, system info", doc: "sessions" },
     listeners: { title: "Listeners", sub: "Bind ports and manage acceptors", doc: "listeners" },
     payloads: { title: "Payloads", sub: "Generate implants and templates", doc: "payloads-and-implants" },
     profiles: { title: "Profiles", sub: "Malleable C2 profiles - activate, edit, push", doc: "c2-profiles" },

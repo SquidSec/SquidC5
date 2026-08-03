@@ -52,6 +52,10 @@
       { a: "tasks", t: "Tasks / beacons" },
       { a: "verified-reverse-shells", t: "Verified shells" },
     ],
+    hosts: [
+      { a: "sessions", t: "Sessions / hosts" },
+      { a: "multi-operator-collab", t: "Session locks" },
+    ],
     listeners: [
       { a: "listeners", t: "Listeners" },
       { a: "oast-collaborator", t: "OAST" },
@@ -448,16 +452,28 @@
     if (el("ctxClaim")) el("ctxClaim").onclick = async () => {
       try {
         const r = await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/claim`, {});
-        showOk("Claimed");
+        showOk("Lock claimed");
         if (el("ctxOut")) { el("ctxOut").textContent = JSON.stringify(r, null, 2); el("ctxOut").classList.remove("empty"); }
         if (window.__SC5_refresh) await window.__SC5_refresh();
+        renderContext(true);
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("ctxForceClaim")) el("ctxForceClaim").onclick = async () => {
+      if (!confirm("Force-steal lock from current holder?")) return;
+      try {
+        const r = await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/claim`, { force: true });
+        showOk("Force claimed");
+        if (el("ctxOut")) { el("ctxOut").textContent = JSON.stringify(r, null, 2); el("ctxOut").classList.remove("empty"); }
+        if (window.__SC5_refresh) await window.__SC5_refresh();
+        renderContext(true);
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("ctxRelease")) el("ctxRelease").onclick = async () => {
       try {
         await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/release`);
-        showOk("Released");
+        showOk("Lock released");
         if (window.__SC5_refresh) await window.__SC5_refresh();
+        renderContext(true);
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("ctxSpectate")) el("ctxSpectate").onclick = async () => {
@@ -504,6 +520,23 @@
       return;
     }
     const m = metaOf(s);
+    const claim = s.claim || {
+      claimed_by: m.claimed_by,
+      claim_expires_at: m.claim_expires_at,
+      claim_remaining_sec: m.claim_remaining_sec,
+      locked: !!m.claimed_by,
+    };
+    function claimChipHtml(c) {
+      if (!c || !c.claimed_by) return '<span class="chip">unlocked</span>';
+      let extra = "";
+      if (c.claim_remaining_sec != null && c.claim_expires_at) {
+        const mleft = Math.max(0, Math.ceil(Number(c.claim_remaining_sec) / 60));
+        extra = " · " + mleft + "m left";
+      } else if (c.claim_expires_at == null && c.claimed_by) {
+        extra = " · no timeout";
+      }
+      return `<span class="chip warn">locked: ${esc(c.claimed_by)}${esc(extra)}</span>`;
+    }
     // Soft update: keep form fields if same session already bound
     if (!force && ctxBoundSid === selectedId && el("ctxMeta")) {
       el("ctxMeta").innerHTML = `
@@ -512,7 +545,7 @@
         <div class="chips" style="margin-bottom:10px">
           <span class="chip">${esc(s.kind || "?")}</span>
           <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
-          ${m.claimed_by ? `<span class="chip warn">${esc(m.claimed_by)}</span>` : '<span class="chip">unlocked</span>'}
+          ${claimChipHtml(claim)}
         </div>
         <div class="muted" style="font-size:0.78rem;margin-bottom:8px">
           User: ${esc(s.username || "-")}<br/>OS: ${esc(s.os_info || "-")}<br/>Addr: ${esc(s.remote_addr || "-")}
@@ -520,12 +553,14 @@
       return;
     }
     const shellOk = can("shell:interact") && (s.kind === "reverse_shell" || s.interactive || s.verified);
+    const canLock = can("shell:interact") || can("collab:use") || can("admin");
     body.innerHTML = `
       <div id="ctxMeta"></div>
       <div class="row">
-        ${can("shell:interact") || can("collab:use") ? '<button type="button" class="primary" id="ctxClaim">Claim</button>' : ""}
-        ${can("shell:interact") || can("collab:use") ? '<button type="button" id="ctxRelease">Release</button>' : ""}
-        ${can("sessions:read") ? '<button type="button" id="ctxSpectate">Spectate</button>' : ""}
+        ${canLock ? '<button type="button" class="primary" id="ctxClaim">Claim lock</button>' : ""}
+        ${canLock ? '<button type="button" class="ghost" id="ctxRelease">Release</button>' : ""}
+        ${can("admin") ? '<button type="button" class="danger sm" id="ctxForceClaim">Force claim</button>' : ""}
+        ${can("sessions:read") ? '<button type="button" class="ghost" id="ctxSpectate">Spectate</button>' : ""}
       </div>
       ${shellOk ? `
         <label for="ctxCmd">Shell command</label>
@@ -549,7 +584,7 @@
         <div class="chips" style="margin-bottom:10px">
           <span class="chip">${esc(s.kind || "?")}</span>
           <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
-          ${m.claimed_by ? `<span class="chip warn">${esc(m.claimed_by)}</span>` : '<span class="chip">unlocked</span>'}
+          ${claimChipHtml(claim)}
         </div>
         <div class="muted" style="font-size:0.78rem;margin-bottom:8px">
           User: ${esc(s.username || "-")}<br/>OS: ${esc(s.os_info || "-")}<br/>Addr: ${esc(s.remote_addr || "-")}
@@ -2602,11 +2637,210 @@
   }
 
 
+  /* -- Assets / hosts graph -- */
+  let _hostsCache = { hosts: [], edges: [], claim_ttl_sec: 0, selected: null };
+
+  function renderHostsView(force) {
+    const root = el("view-hosts");
+    if (!root) return;
+    if (!force && viewBuilt.hosts && root.querySelector("#hostGraph")) {
+      loadHostsGraph();
+      return;
+    }
+    root.innerHTML = `
+      <div class="split" style="grid-template-columns: minmax(260px, 340px) 1fr">
+        <div class="list-panel">
+          <div class="lp-head">Hosts
+            <button type="button" class="ghost sm" id="hostReload" style="margin-left:auto">Reload</button>
+          </div>
+          <div class="lp-body"><table class="data"><thead><tr>
+            <th>Host</th><th>Sessions</th><th>Lock</th>
+          </tr></thead><tbody id="hostTbody"></tbody></table></div>
+        </div>
+        <div class="work-panel">
+          <div class="wp-head">Asset graph <span class="muted" id="hostGraphMeta" style="font-weight:400;margin-left:8px;font-size:0.72rem"></span></div>
+          <div class="wp-body" style="display:flex;flex-direction:column;min-height:0;height:100%">
+            <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Compromised hosts as nodes. Pink = active access; amber = session lock held. Click host for implants; click a session row to open the lock rail.</p>
+            <div class="chips" style="margin-bottom:8px">
+              <span class="chip ok">active</span>
+              <span class="chip warn">locked</span>
+              <span class="chip">idle / closed only</span>
+            </div>
+            <div id="hostGraph" style="flex:1;min-height:300px;border:1px solid var(--border);border-radius:10px;background:#0a0a10;position:relative;overflow:hidden"></div>
+            <div id="hostDetail" class="outbox empty" style="margin-top:10px;max-height:240px;overflow:auto">Select a host</div>
+          </div>
+        </div>
+      </div>`;
+    viewBuilt.hosts = true;
+    if (el("hostReload")) el("hostReload").onclick = () => loadHostsGraph();
+    loadHostsGraph();
+  }
+
+  async function loadHostsGraph() {
+    const tbody = el("hostTbody");
+    const graph = el("hostGraph");
+    const detail = el("hostDetail");
+    if (!tbody || !graph) return;
+    try {
+      const data = await api("GET", "/api/v1/hosts");
+      const hosts = data.hosts || [];
+      _hostsCache = {
+        hosts,
+        edges: data.edges || [],
+        claim_ttl_sec: data.claim_ttl_sec || 0,
+        selected: _hostsCache.selected,
+      };
+      if (el("hostGraphMeta")) {
+        const ttl = _hostsCache.claim_ttl_sec;
+        el("hostGraphMeta").textContent =
+          hosts.length + " host(s) · claim TTL " + (ttl > 0 ? Math.round(ttl / 60) + "m" : "off");
+      }
+      tbody.innerHTML = hosts.map((h) => {
+        const lock = h.claimed_by
+          ? `<span class="chip warn">${esc(h.claimed_by)}</span>`
+          : `<span class="chip">-</span>`;
+        return `<tr data-host="${esc(h.id)}">
+          <td><strong>${esc(h.label)}</strong>
+            <div class="muted mono" style="font-size:0.65rem">${esc((h.addrs || []).join(", ") || "")}</div>
+          </td>
+          <td>${esc(String(h.active_sessions || 0))}/${esc(String(h.session_count || 0))}</td>
+          <td>${lock}</td>
+        </tr>`;
+      }).join("") || '<tr><td colspan="3" class="muted">No hosts yet — catch a beacon or shell</td></tr>';
+      const pick = (id) => {
+        tbody.querySelectorAll("tr").forEach((x) => {
+          x.classList.toggle("selected", x.getAttribute("data-host") === id);
+        });
+        const h = hosts.find((x) => x.id === id);
+        _hostsCache.selected = id;
+        if (h) showHostDetail(h, detail);
+        drawHostGraph(graph, hosts, pick, id);
+      };
+      tbody.querySelectorAll("tr[data-host]").forEach((tr) => {
+        tr.onclick = () => pick(tr.getAttribute("data-host"));
+      });
+      const sel = _hostsCache.selected && hosts.some((h) => h.id === _hostsCache.selected)
+        ? _hostsCache.selected
+        : null;
+      drawHostGraph(graph, hosts, pick, sel);
+      if (sel) {
+        const h = hosts.find((x) => x.id === sel);
+        if (h) showHostDetail(h, detail);
+      }
+    } catch (e) {
+      showError(String(e.message || e));
+      tbody.innerHTML = '<tr><td colspan="3" class="muted">Failed to load hosts</td></tr>';
+    }
+  }
+
+  function showHostDetail(h, detail) {
+    if (!detail || !h) return;
+    detail.classList.remove("empty");
+    const sess = (h.sessions || []).map((s) => {
+      const c = s.claim || {};
+      const lock = c.claimed_by ? c.claimed_by : "-";
+      const left = (c.claim_remaining_sec != null)
+        ? ` · ${Math.ceil(c.claim_remaining_sec / 60)}m`
+        : "";
+      return `<tr data-sid="${esc(s.id)}" style="cursor:pointer">
+        <td class="mono">${esc(String(s.id || "").slice(0, 12))}</td>
+        <td>${esc(s.kind || "")}</td>
+        <td>${esc(s.status || "")}${s.verified ? " ✓" : ""}</td>
+        <td>${esc(s.username || "-")}</td>
+        <td>${c.claimed_by ? `<span class="chip warn">${esc(lock)}${esc(left)}</span>` : '<span class="chip">unlocked</span>'}</td>
+      </tr>`;
+    }).join("");
+    detail.innerHTML = `
+      <div style="margin-bottom:8px">
+        <strong style="font-size:1rem">${esc(h.label)}</strong>
+        <div class="muted" style="font-size:0.78rem;margin-top:4px">
+          OS: ${esc(h.os_info || "-")} · Addrs: ${esc((h.addrs || []).join(", ") || "-")}<br/>
+          Users: ${esc((h.usernames || []).join(", ") || "-")} · Kinds: ${esc((h.kinds || []).join(", "))}
+        </div>
+      </div>
+      <table class="data"><thead><tr>
+        <th>Session</th><th>Kind</th><th>Status</th><th>User</th><th>Lock</th>
+      </tr></thead><tbody>${sess || '<tr><td colspan="5" class="muted">No sessions</td></tr>'}</tbody></table>`;
+    detail.querySelectorAll("tr[data-sid]").forEach((tr) => {
+      tr.onclick = () => {
+        const sid = tr.getAttribute("data-sid");
+        if (sid) selectSession(sid);
+      };
+    });
+  }
+
+  function drawHostGraph(container, hosts, onClick, selectedId) {
+    if (!container) return;
+    const w = Math.max(320, container.clientWidth || 480);
+    const hgt = Math.max(280, container.clientHeight || 320);
+    if (!hosts.length) {
+      container.innerHTML = `<div class="empty-state" style="height:100%;display:flex;align-items:center;justify-content:center;margin:0">
+        <div><strong>No host nodes</strong><div class="muted" style="margin-top:6px">Beacons and shells appear here grouped by hostname / remote address.</div></div>
+      </div>`;
+      return;
+    }
+    const n = hosts.length;
+    const cx = w / 2;
+    const cy = hgt / 2;
+    const R = Math.min(w, hgt) * (n === 1 ? 0 : 0.34);
+    const nodes = hosts.map((host, i) => {
+      const ang = (i / n) * Math.PI * 2 - Math.PI / 2;
+      return {
+        host,
+        x: n === 1 ? cx : cx + Math.cos(ang) * R,
+        y: n === 1 ? cy : cy + Math.sin(ang) * R,
+      };
+    });
+    const byId = Object.fromEntries(nodes.map((nd) => [nd.host.id, nd]));
+    let svg = `<svg width="100%" height="100%" viewBox="0 0 ${w} ${hgt}" xmlns="http://www.w3.org/2000/svg">`;
+    // Hub spokes + ring for multi-host engagement topology
+    if (n > 1) {
+      nodes.forEach((nd) => {
+        svg += `<line x1="${cx}" y1="${cy}" x2="${nd.x}" y2="${nd.y}" stroke="rgba(233,30,140,0.12)" stroke-width="1" stroke-dasharray="4 4"/>`;
+      });
+      for (let i = 0; i < n; i++) {
+        const a = nodes[i];
+        const b = nodes[(i + 1) % n];
+        svg += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="rgba(233,30,140,0.18)" stroke-width="1.5"/>`;
+      }
+    }
+    // Co-host session edges collapsed to host pairs (thicker when many sessions share host - already same node)
+    // Cross-host: none from API; keep topology visual only
+    void byId;
+    nodes.forEach((node, idx) => {
+      const host = node.host;
+      const active = (host.active_sessions || 0) > 0;
+      const locked = !!host.claimed_by;
+      const sel = selectedId && host.id === selectedId;
+      const fill = locked ? "rgba(251,191,36,0.28)" : active ? "rgba(233,30,140,0.38)" : "rgba(255,255,255,0.07)";
+      const stroke = sel ? "#fff" : locked ? "rgba(251,191,36,0.9)" : "rgba(233,30,140,0.7)";
+      const sw = sel ? 3 : 2;
+      const r = 20 + Math.min(16, (host.session_count || 1) * 3);
+      const label = (host.label || host.id || "?").slice(0, 20);
+      const sub = (host.active_sessions || 0) + "/" + (host.session_count || 0);
+      svg += `<g class="host-node" data-idx="${idx}" style="cursor:pointer">
+        <circle cx="${node.x}" cy="${node.y}" r="${r + 4}" fill="none" stroke="${sel ? "rgba(233,30,140,0.35)" : "transparent"}" stroke-width="6"/>
+        <circle cx="${node.x}" cy="${node.y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>
+        <text x="${node.x}" y="${node.y + 4}" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">${esc(sub)}</text>
+        <text x="${node.x}" y="${node.y + r + 16}" text-anchor="middle" fill="#c8c8d4" font-size="11" font-family="ui-monospace,monospace">${esc(label)}</text>
+      </g>`;
+    });
+    svg += "</svg>";
+    container.innerHTML = svg;
+    container.querySelectorAll(".host-node").forEach((g) => {
+      g.onclick = () => {
+        const i = Number(g.getAttribute("data-idx"));
+        if (nodes[i] && onClick) onClick(nodes[i].host.id);
+      };
+    });
+  }
+
   /* -- View router -- */
   function renderView(name) {
     // Soft by default - preserve form focus/values; only build once per view
     switch (name) {
       case "sessions": renderSessionsView(false); break;
+      case "hosts": renderHostsView(false); break;
       case "listeners": renderListenersView(false); break;
       case "payloads": renderPayloadsView(false); break;
       case "profiles": renderProfilesView(false); break;
@@ -2643,6 +2877,7 @@
       renderSessionsView(false);
       if (el("tskList") && !typing) loadTasksPanel();
     }
+    if (currentIs("hosts") && !typing) renderHostsView(false);
     if (currentIs("listeners")) renderListenersView(false);
     if (el("pxSid") && !typing) el("pxSid").textContent = selectedId || "(none - pick in Sessions)";
     document.querySelectorAll("tr[data-sid]").forEach((tr) => {
