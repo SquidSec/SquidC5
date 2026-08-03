@@ -1762,51 +1762,35 @@
       { t: "Shell (HITL)", d: "Send to verified reverse shells when policy allows." },
       { t: "General ops Q&A", d: "Explain C5 concepts, ROE-safe guidance, and results." },
     ];
-    root.innerHTML = `
-      <div class="form-grid" style="align-items:stretch">
-        <div class="work-panel">
-          <div class="wp-head" style="flex-wrap:wrap;gap:6px">
-            <span class="inko-brand">INKO</span>
-            <span class="muted" style="margin-left:4px;font-size:0.75rem;font-weight:600;text-transform:none;letter-spacing:0">Intelligent Neural Kinetic Operator</span>
-          </div>
-          <div class="wp-body">
+    root.innerHTML = tabbedHtml([
+      { id: "aihome", label: "Workspace", html: `
             <p class="muted" style="font-size:0.82rem;margin:0 0 10px;line-height:1.45">
-              Chat lives in the top-bar <strong>INKO</strong> flyout - not on this page.
-              Here you pick the default LLM, review what INKO can do, and inspect status / tool catalog.
-              Configure providers under <strong>Admin</strong>.
+              Chat lives in the top-bar <strong>INKO</strong> flyout.
+              Pick the default LLM here; configure providers under <strong>Admin</strong>.
             </p>
             <div class="row" style="margin-bottom:12px">
               <button type="button" class="primary" id="aiOpenDrawer">Open INKO chat</button>
-              <button type="button" id="aiClearPage">Clear chat history</button>
+              <button type="button" class="ghost" id="aiClearPage">Clear chat history</button>
             </div>
             <label>LLM connection</label>
             <select id="aiLlmPick"><option value="">Loading...</option></select>
             <label>Model</label>
             <select id="aiModelPick" disabled><option value="">Select connection...</option></select>
-            <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Models load from the provider for the selected connection. Switching model updates the connection default.</p>
             <h3 style="margin:16px 0 6px;font-size:0.85rem;color:var(--text)">What INKO can do</h3>
             <div class="inko-cap-grid">
               ${CAP_CARDS.map((c) => `
                 <div class="inko-cap-card"><h4>${esc(c.t)}</h4><p>${esc(c.d)}</p></div>
               `).join("")}
             </div>
-            <p class="muted" style="font-size:0.75rem;margin:8px 0 0">
-              Example: <em>"setup reverse shell on 4444"</em>  /  <em>"list active sessions"</em>  /  <em>"show recent events"</em>
-            </p>
-          </div>
-        </div>
-        <div class="work-panel">
-          <div class="wp-head">Status &amp; tools</div>
-          <div class="wp-body" style="display:flex;flex-direction:column;min-height:0;flex:1">
+      `},
+      { id: "aistatus", label: "Status & tools", html: `
             <div class="row">
               <button type="button" class="primary" id="aiStatus">AI status</button>
               <button type="button" id="aiTools">Tool catalog</button>
             </div>
-            <div class="outbox empty inko-outbox" id="aiOut">Run Status or Tools - output appears here (scrollable).</div>
-          </div>
-        </div>
-      </div>
-    `;
+            <div class="outbox empty inko-outbox" id="aiOut" style="flex:1;max-height:none">Run Status or Tools — output appears here.</div>
+      `},
+    ], { id: "aiTabs" });
     const refreshPick = async () => {
       const llms = await loadSavedLlms();
       const prev = el("aiLlmPick")?.value || loadSel("sc5_ops_llm") || "";
