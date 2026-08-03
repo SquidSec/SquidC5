@@ -11,7 +11,7 @@ from squidc5.db.store import Database
 DEFAULT_FEATURES: dict[str, bool] = {
     "ai_enabled": True,
     "mcp_enabled": False,  # external AI off until explicitly enabled
-    "shell_auto_stabilize": True,
+    "shell_auto_stabilize": False,  # manual Stabilize preferred; enable for auto stage-2
     "shell_exec_probe": True,
     "shell_broadcast": True,
     "false_shell_filter": True,
@@ -33,7 +33,7 @@ DEFAULT_FEATURES: dict[str, bool] = {
 FEATURE_LABELS: dict[str, str] = {
     "ai_enabled": "Admin AI (LLM capabilities)",
     "mcp_enabled": "External MCP tools",
-    "shell_auto_stabilize": "Reverse-shell auto stage-2",
+    "shell_auto_stabilize": "Auto stage-2 on reverse-shell capture (default OFF)",
     "shell_exec_probe": "Shell exec verification / zombie drop",
     "shell_broadcast": "Shell broadcast to all verified",
     "false_shell_filter": "TLS/HTTP false-shell filter",

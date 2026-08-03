@@ -41,7 +41,7 @@ Ops UI: `/ops` (admin UI loaded only after server-side admin token check)
 | MCP external tools | **OFF** until settings/feature enable |
 | Shell exec probe | **ON** |
 | False-shell filter | **ON** |
-| Auto stage-2 stabilize | **ON** |
+| Auto stage-2 stabilize | **OFF** (manual Stabilize or feature flag) |
 | Health details | **minimal** (`{"status":"ok"}`) |
 | Security headers | **ON** (nosniff, DENY frame, CSP, no-store) |
 | Admin ops UI | **server-gated** by admin scope |

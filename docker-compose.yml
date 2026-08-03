@@ -15,7 +15,7 @@ services:
       # Secure-by-default: MCP off until explicitly needed
       SQUIDC5_MCP_ENABLED: ${SQUIDC5_MCP_ENABLED:-false}
       SQUIDC5_AI_ENABLED: ${SQUIDC5_AI_ENABLED:-true}
-      SQUIDC5_SHELL_AUTO_STABILIZE: ${SQUIDC5_SHELL_AUTO_STABILIZE:-true}
+      SQUIDC5_SHELL_AUTO_STABILIZE: ${SQUIDC5_SHELL_AUTO_STABILIZE:-false}
       SQUIDC5_EXPOSE_HEALTH_DETAILS: ${SQUIDC5_EXPOSE_HEALTH_DETAILS:-false}
       SQUIDC5_SECURITY_HEADERS: ${SQUIDC5_SECURITY_HEADERS:-true}
       # Stage-2 reconnect callback host - set in .env (never commit real IPs)

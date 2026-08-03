@@ -48,8 +48,9 @@ class Settings(BaseSettings):
     # Implant beacon AEAD (ChaCha20-Poly1305). PSK auto-generated under data/implant_psk.txt
     implant_psk: str | None = None
     implant_require_auth: bool = True
-    # Reverse-shell auto-stabilization (stage-2 reconnect agents)
-    shell_auto_stabilize: bool = True
+    # Reverse-shell auto-stabilization (stage-2 reconnect agents). Default OFF —
+    # operators enable via feature flag or one-shot Stabilize on a session.
+    shell_auto_stabilize: bool = False
     # Host/IP implants should call back to (defaults to request/local bind if empty)
     public_host: str = ""
     public_ip: str = ""  # A-record for OAST DNS answers (SQUIDC5_PUBLIC_IP)

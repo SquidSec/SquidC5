@@ -279,6 +279,12 @@ class ClaimRequest(BaseModel):
     ttl_sec: int | None = None  # override default claim TTL; 0 = no expiry
 
 
+class StabilizeRequest(BaseModel):
+    """One-shot stage-2. os: auto|linux|windows (default auto = probe)."""
+
+    os: str | None = "auto"
+
+
 class PresenceHeartbeat(BaseModel):
     status: str = "online"
     viewing_session: str | None = None
@@ -1721,6 +1727,54 @@ def build_api_router() -> APIRouter:
         if not result.get("sent"):
             await state.sessions.close(body.session_id)
             raise HTTPException(404, result.get("error") or "No live reverse shell for session")
+        return result
+
+    @api.post("/sessions/{session_id}/stabilize")
+    async def stabilize_session(
+        session_id: str,
+        request: Request,
+        body: StabilizeRequest | None = None,
+        auth: AuthContext = Depends(require_scope("shell:interact", "sessions:write", "admin")),
+    ) -> dict[str, Any]:
+        """One-shot stage-2: detect Linux/Windows and inject reconnect agent."""
+        state = get_state(request)
+        decision = await state.policy.check_and_audit(
+            auth,
+            "shell.stabilize",
+            resource=session_id,
+            extra={"os": (body.os if body else None) or "auto"},
+        )
+        if not decision.allowed:
+            raise _policy_http_error(decision)
+        try:
+            await state.teams.assert_write_access(
+                session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        if not state.listeners.is_live(session_id):
+            raise HTTPException(
+                404,
+                "No live TCP channel — stabilize needs an open reverse shell",
+            )
+        os_hint = (body.os if body else None) or "auto"
+        if os_hint.strip().lower() in ("", "auto", "detect"):
+            os_hint = None
+        try:
+            result = await state.listeners.stabilize_session(
+                session_id,
+                os_hint=os_hint,
+                actor=auth.name,
+                delay=False,
+            )
+        except RuntimeError as e:
+            raise HTTPException(400, str(e)) from e
+        await state.metrics.emit(
+            "shell.stabilize.manual",
+            {"session_id": session_id, "actor": auth.name, "result": result.get("status")},
+        )
         return result
 
     @api.post("/shell/broadcast")

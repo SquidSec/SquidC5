@@ -13,7 +13,7 @@ Environment=SQUIDC5_DATA_DIR=/opt/squidc5/data
 Environment=SQUIDC5_PUBLIC_HOST=
 Environment=SQUIDC5_MCP_ENABLED=false
 Environment=SQUIDC5_AI_ENABLED=true
-Environment=SQUIDC5_SHELL_AUTO_STABILIZE=true
+Environment=SQUIDC5_SHELL_AUTO_STABILIZE=false
 Environment=SQUIDC5_EXPOSE_HEALTH_DETAILS=false
 Environment=SQUIDC5_SECURITY_HEADERS=true
 Environment=SQUIDC5_TLS_ENABLED=true
