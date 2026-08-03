@@ -1163,7 +1163,9 @@ Two operators must not stomp the same shell; shift changes need context; leads n
 
 | Action | API / UI |
 |--------|----------|
-| Host inventory / graph | `GET /api/v1/hosts` - Ops -> **Assets** |
+| Host inventory / graph | `GET /api/v1/hosts` - Ops -> **Assets** (verified/interactive shells + implants only) |
+| Drop host from graph | `POST /api/v1/hosts/{id}/hide` - Assets → **Drop** (sessions kept) |
+| Restore host | `DELETE /api/v1/hosts/{id}/hide` - **Show dismissed** → Restore |
 | Claim session | `POST /api/v1/sessions/{id}/claim` `{force?, ttl_sec?}` - Context -> Claim lock |
 | Force claim | same endpoint with `force: true` (admin) |
 | Release | `POST /api/v1/sessions/{id}/release` |
@@ -1481,9 +1483,4 @@ sc5 health
 
 ## Authorized use reminder
 
-SquidC5 is for **authorized** security testing and education only. Unauthorized access to computer systems is illegal. Operators are responsible for obtaining proper authorization and staying within ROE.
-
-### See also
-
-- [SECURITY.md](../SECURITY.md)
-- [Threat model](threat-model.md)
+SquidC5 is for **authorized** security testing and educati

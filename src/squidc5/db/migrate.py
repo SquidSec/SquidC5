@@ -247,12 +247,22 @@ CREATE INDEX IF NOT EXISTS idx_conn_tickets_token ON connection_tickets(token_id
 CREATE INDEX IF NOT EXISTS idx_conn_tickets_exp ON connection_tickets(expires_at);
 """
 
+HOST_GRAPH_HIDDEN_SQL = """
+CREATE TABLE IF NOT EXISTS host_graph_hidden (
+    host_id TEXT PRIMARY KEY,
+    hidden_by TEXT,
+    hidden_at REAL NOT NULL,
+    note TEXT NOT NULL DEFAULT ''
+);
+"""
+
 MIGRATIONS: Sequence[tuple[int, str, str]] = (
     (1, "baseline schema", BASELINE_SQL),
     (2, "HITL approval queue", HITL_REQUESTS_SQL),
     (3, "audit integrity chain columns", AUDIT_INTEGRITY_SQL),
     (4, "operator assets library", OPERATOR_ASSETS_SQL),
     (5, "connection tickets for token handoff", CONNECTION_TICKETS_SQL),
+    (6, "host graph dismiss list", HOST_GRAPH_HIDDEN_SQL),
 )
 
 SCHEMA_VERSION_TABLE = """

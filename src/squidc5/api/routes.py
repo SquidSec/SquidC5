@@ -725,19 +725,24 @@ def build_api_router() -> APIRouter:
     @api.get("/hosts")
     async def list_hosts(
         request: Request,
+        include_hidden: bool = False,
         auth: AuthContext = Depends(require_scope("sessions:read", "admin")),
     ) -> dict[str, Any]:
-        """Engagement host inventory: group sessions into host nodes for the Assets graph."""
+        """Engagement host inventory: real shells/implants only (Assets graph)."""
+        from squidc5.hosts.graph import host_key_for_session, is_asset_session
+
         state = get_state(request)
         await state.policy.check_and_audit(auth, "sessions.list")
         await state.sessions.close_orphaned_shells()
         rows = await state.sessions.list(status=None)
+        hidden_ids = await state.db.list_hidden_host_ids()
         hosts: dict[str, dict[str, Any]] = {}
         edges: list[dict[str, str]] = []
+        skipped_noise = 0
         for r in rows:
-            if r.get("status") == "closed":
-                # still include closed for inventory but mark inactive
-                pass
+            if not is_asset_session(r):
+                skipped_noise += 1
+                continue
             meta = r.get("metadata") or {}
             if isinstance(meta, str):
                 try:
@@ -747,7 +752,7 @@ def build_api_router() -> APIRouter:
             if not isinstance(meta, dict):
                 meta = {}
             info = claim_info(meta)
-            host_key = (r.get("hostname") or r.get("remote_addr") or r.get("id") or "unknown").strip()
+            host_key = host_key_for_session(r)
             node = hosts.get(host_key)
             if not node:
                 node = {
@@ -761,11 +766,15 @@ def build_api_router() -> APIRouter:
                     "claimed_by": None,
                     "os_info": r.get("os_info"),
                     "usernames": set(),
+                    "hidden": host_key in hidden_ids,
                 }
                 hosts[host_key] = node
             addr = r.get("remote_addr")
             if addr and addr not in node["addrs"]:
                 node["addrs"].append(addr)
+            if r.get("hostname") and not node.get("hostname"):
+                node["hostname"] = r.get("hostname")
+                node["label"] = r.get("hostname") or node["label"]
             if r.get("os_info") and not node.get("os_info"):
                 node["os_info"] = r.get("os_info")
             if r.get("username"):
@@ -782,16 +791,18 @@ def build_api_router() -> APIRouter:
                     "kind": kind,
                     "status": r.get("status"),
                     "verified": r.get("verified"),
+                    "interactive": r.get("interactive"),
                     "username": r.get("username"),
                     "remote_addr": addr,
                     "last_seen_at": r.get("last_seen_at"),
+                    "os_info": r.get("os_info"),
                     "claim": info,
                 }
             )
-            # Simple edge: reverse_shell -> beacon on same host (access path)
-            # represented later when serializing
         nodes = []
         for h in hosts.values():
+            if h.get("hidden") and not include_hidden:
+                continue
             kinds = sorted(h["kinds"])
             nodes.append(
                 {
@@ -805,10 +816,10 @@ def build_api_router() -> APIRouter:
                     "active_sessions": h["active"],
                     "session_count": len(h["sessions"]),
                     "claimed_by": h.get("claimed_by"),
+                    "hidden": bool(h.get("hidden")),
                     "sessions": h["sessions"],
                 }
             )
-            # Edges between sessions on same host for graph layout
             sess = h["sessions"]
             for i, a in enumerate(sess):
                 for b in sess[i + 1 :]:
@@ -820,7 +831,6 @@ def build_api_router() -> APIRouter:
                             "rel": "co-host",
                         }
                     )
-        # Also emit session-level nodes for drill-down graph
         session_nodes = []
         for h in nodes:
             for s in h["sessions"]:
@@ -836,12 +846,55 @@ def build_api_router() -> APIRouter:
                         "label": f"{s.get('kind')}:{(s.get('id') or '')[:8]}",
                     }
                 )
+        hidden_rows = await state.db.list_hidden_hosts() if include_hidden or hidden_ids else []
         return {
             "hosts": nodes,
             "session_nodes": session_nodes,
             "edges": edges,
             "claim_ttl_sec": int(getattr(state.settings, "session_claim_ttl_sec", 0) or 0),
+            "hidden_count": len(hidden_ids),
+            "skipped_noise": skipped_noise,
+            "hidden": [
+                {"id": r["host_id"], "hidden_by": r.get("hidden_by"), "hidden_at": r.get("hidden_at")}
+                for r in hidden_rows
+            ]
+            if include_hidden
+            else [],
         }
+
+    @api.post("/hosts/{host_id:path}/hide")
+    async def hide_host(
+        host_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("sessions:write", "admin")),
+    ) -> dict[str, Any]:
+        """Drop a host node from the Assets graph (sessions kept; can unhide)."""
+        state = get_state(request)
+        hid = (host_id or "").strip()
+        if not hid or hid in (".", "..") or len(hid) > 512:
+            raise HTTPException(400, "invalid host id")
+        await state.policy.check_and_audit(auth, "hosts.hide", resource=hid)
+        await state.db.hide_host_graph(hid, hidden_by=auth.name)
+        await state.metrics.emit("hosts.hide", {"host_id": hid, "actor": auth.name})
+        return {"status": "hidden", "id": hid}
+
+    @api.delete("/hosts/{host_id:path}/hide")
+    async def unhide_host(
+        host_id: str,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("sessions:write", "admin")),
+    ) -> dict[str, Any]:
+        """Restore a dismissed host on the Assets graph."""
+        state = get_state(request)
+        hid = (host_id or "").strip()
+        if not hid or len(hid) > 512:
+            raise HTTPException(400, "invalid host id")
+        await state.policy.check_and_audit(auth, "hosts.unhide", resource=hid)
+        ok = await state.db.unhide_host_graph(hid)
+        if not ok:
+            raise HTTPException(404, "host not hidden")
+        await state.metrics.emit("hosts.unhide", {"host_id": hid, "actor": auth.name})
+        return {"status": "visible", "id": hid}
 
     @api.get("/sessions/{session_id}")
     async def get_session(

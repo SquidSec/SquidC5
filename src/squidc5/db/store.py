@@ -245,6 +245,32 @@ class Database:
         cur = await self.execute("DELETE FROM operator_assets WHERE id = ?", (asset_id,))
         return cur.rowcount > 0
 
+    # --- Host graph dismiss ---
+
+    async def hide_host_graph(self, host_id: str, *, hidden_by: str | None = None, note: str = "") -> None:
+        await self.execute(
+            """INSERT INTO host_graph_hidden (host_id, hidden_by, hidden_at, note)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(host_id) DO UPDATE SET
+                 hidden_by = excluded.hidden_by,
+                 hidden_at = excluded.hidden_at,
+                 note = excluded.note""",
+            (host_id, hidden_by, _now(), note or ""),
+        )
+
+    async def unhide_host_graph(self, host_id: str) -> bool:
+        cur = await self.execute("DELETE FROM host_graph_hidden WHERE host_id = ?", (host_id,))
+        return cur.rowcount > 0
+
+    async def list_hidden_host_ids(self) -> set[str]:
+        rows = await self.fetchall("SELECT host_id FROM host_graph_hidden")
+        return {str(r["host_id"]) for r in rows if r.get("host_id")}
+
+    async def list_hidden_hosts(self) -> list[dict[str, Any]]:
+        return await self.fetchall(
+            "SELECT host_id, hidden_by, hidden_at, note FROM host_graph_hidden ORDER BY hidden_at DESC"
+        )
+
     # --- Sessions ---
 
     async def create_session(

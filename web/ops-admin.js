@@ -2638,7 +2638,7 @@
 
 
   /* -- Assets / hosts graph -- */
-  let _hostsCache = { hosts: [], edges: [], claim_ttl_sec: 0, selected: null };
+  let _hostsCache = { hosts: [], edges: [], claim_ttl_sec: 0, selected: null, showHidden: false, hidden: [] };
 
   function renderHostsView(force) {
     const root = el("view-hosts");
@@ -2650,21 +2650,26 @@
     root.innerHTML = `
       <div class="split" style="grid-template-columns: minmax(260px, 340px) 1fr">
         <div class="list-panel">
-          <div class="lp-head">Hosts
+          <div class="lp-head">Assets
             <button type="button" class="ghost sm" id="hostReload" style="margin-left:auto">Reload</button>
           </div>
-          <div class="lp-body"><table class="data"><thead><tr>
-            <th>Host</th><th>Sessions</th><th>Lock</th>
-          </tr></thead><tbody id="hostTbody"></tbody></table></div>
+          <div class="lp-body">
+            <label class="muted" style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:0.75rem">
+              <input type="checkbox" id="hostShowHidden" /> Show dismissed
+            </label>
+            <table class="data"><thead><tr>
+              <th>Host</th><th>Access</th><th></th>
+            </tr></thead><tbody id="hostTbody"></tbody></table>
+          </div>
         </div>
         <div class="work-panel">
           <div class="wp-head">Asset graph <span class="muted" id="hostGraphMeta" style="font-weight:400;margin-left:8px;font-size:0.72rem"></span></div>
           <div class="wp-body" style="display:flex;flex-direction:column;min-height:0;height:100%">
-            <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Compromised hosts as nodes. Pink = active access; amber = session lock held. Click host for implants; click a session row to open the lock rail.</p>
+            <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Verified shells, interactive shells, and implants only — scanners/noise excluded. Drop removes the node from the graph (sessions kept).</p>
             <div class="chips" style="margin-bottom:8px">
-              <span class="chip ok">active</span>
+              <span class="chip ok">active shell/implant</span>
               <span class="chip warn">locked</span>
-              <span class="chip">idle / closed only</span>
+              <span class="chip">historical only</span>
             </div>
             <div id="hostGraph" style="flex:1;min-height:300px;border:1px solid var(--border);border-radius:10px;background:#0a0a10;position:relative;overflow:hidden"></div>
             <div id="hostDetail" class="outbox empty" style="margin-top:10px;max-height:240px;overflow:auto">Select a host</div>
@@ -2673,6 +2678,13 @@
       </div>`;
     viewBuilt.hosts = true;
     if (el("hostReload")) el("hostReload").onclick = () => loadHostsGraph();
+    if (el("hostShowHidden")) {
+      el("hostShowHidden").checked = !!_hostsCache.showHidden;
+      el("hostShowHidden").onchange = () => {
+        _hostsCache.showHidden = !!el("hostShowHidden").checked;
+        loadHostsGraph();
+      };
+    }
     loadHostsGraph();
   }
 
@@ -2682,31 +2694,48 @@
     const detail = el("hostDetail");
     if (!tbody || !graph) return;
     try {
-      const data = await api("GET", "/api/v1/hosts");
+      const q = _hostsCache.showHidden ? "?include_hidden=true" : "";
+      const data = await api("GET", "/api/v1/hosts" + q);
       const hosts = data.hosts || [];
       _hostsCache = {
         hosts,
         edges: data.edges || [],
         claim_ttl_sec: data.claim_ttl_sec || 0,
         selected: _hostsCache.selected,
+        showHidden: _hostsCache.showHidden,
+        hidden: data.hidden || [],
+        hidden_count: data.hidden_count || 0,
+        skipped_noise: data.skipped_noise || 0,
       };
       if (el("hostGraphMeta")) {
         const ttl = _hostsCache.claim_ttl_sec;
-        el("hostGraphMeta").textContent =
-          hosts.length + " host(s) · claim TTL " + (ttl > 0 ? Math.round(ttl / 60) + "m" : "off");
+        const bits = [
+          hosts.filter((h) => !h.hidden).length + " asset(s)",
+        ];
+        if (_hostsCache.hidden_count) bits.push(_hostsCache.hidden_count + " dismissed");
+        if (_hostsCache.skipped_noise) bits.push(_hostsCache.skipped_noise + " noise skipped");
+        bits.push("claim TTL " + (ttl > 0 ? Math.round(ttl / 60) + "m" : "off"));
+        el("hostGraphMeta").textContent = bits.join(" · ");
       }
+      const canWrite = can("sessions:write") || can("admin");
       tbody.innerHTML = hosts.map((h) => {
         const lock = h.claimed_by
           ? `<span class="chip warn">${esc(h.claimed_by)}</span>`
-          : `<span class="chip">-</span>`;
-        return `<tr data-host="${esc(h.id)}">
-          <td><strong>${esc(h.label)}</strong>
+          : "";
+        const hideBtn = canWrite
+          ? (h.hidden
+            ? `<button type="button" class="ghost sm host-unhide" data-host="${esc(h.id)}">Restore</button>`
+            : `<button type="button" class="ghost sm host-hide" data-host="${esc(h.id)}" title="Drop from graph">Drop</button>`)
+          : "";
+        return `<tr data-host="${esc(h.id)}" class="${h.hidden ? "muted" : ""}">
+          <td><strong>${esc(h.label)}</strong>${h.hidden ? ' <span class="chip">dismissed</span>' : ""}
             <div class="muted mono" style="font-size:0.65rem">${esc((h.addrs || []).join(", ") || "")}</div>
+            <div class="muted" style="font-size:0.65rem">${esc((h.kinds || []).join(", "))} · ${esc((h.usernames || []).slice(0, 3).join(", ") || "-")}</div>
           </td>
-          <td>${esc(String(h.active_sessions || 0))}/${esc(String(h.session_count || 0))}</td>
-          <td>${lock}</td>
+          <td>${esc(String(h.active_sessions || 0))}/${esc(String(h.session_count || 0))} ${lock}</td>
+          <td style="white-space:nowrap">${hideBtn}</td>
         </tr>`;
-      }).join("") || '<tr><td colspan="3" class="muted">No hosts yet — catch a beacon or shell</td></tr>';
+      }).join("") || '<tr><td colspan="3" class="muted">No shell/implant assets yet</td></tr>';
       const pick = (id) => {
         tbody.querySelectorAll("tr").forEach((x) => {
           x.classList.toggle("selected", x.getAttribute("data-host") === id);
@@ -2714,15 +2743,47 @@
         const h = hosts.find((x) => x.id === id);
         _hostsCache.selected = id;
         if (h) showHostDetail(h, detail);
-        drawHostGraph(graph, hosts, pick, id);
+        drawHostGraph(graph, hosts.filter((x) => !x.hidden || _hostsCache.showHidden), pick, id);
       };
       tbody.querySelectorAll("tr[data-host]").forEach((tr) => {
-        tr.onclick = () => pick(tr.getAttribute("data-host"));
+        tr.onclick = (ev) => {
+          if (ev.target.closest("button")) return;
+          pick(tr.getAttribute("data-host"));
+        };
       });
-      const sel = _hostsCache.selected && hosts.some((h) => h.id === _hostsCache.selected)
+      tbody.querySelectorAll("button.host-hide").forEach((btn) => {
+        btn.onclick = async (ev) => {
+          ev.stopPropagation();
+          const id = btn.getAttribute("data-host");
+          if (!id || !confirm("Drop " + id + " from the Assets graph? Sessions stay in Sessions list.")) return;
+          try {
+            await api("POST", "/api/v1/hosts/" + encodeURIComponent(id) + "/hide", {});
+            showOk("Dropped from graph");
+            if (_hostsCache.selected === id) {
+              _hostsCache.selected = null;
+              if (detail) { detail.classList.add("empty"); detail.textContent = "Select a host"; }
+            }
+            await loadHostsGraph();
+          } catch (e) { showError(String(e.message || e)); }
+        };
+      });
+      tbody.querySelectorAll("button.host-unhide").forEach((btn) => {
+        btn.onclick = async (ev) => {
+          ev.stopPropagation();
+          const id = btn.getAttribute("data-host");
+          if (!id) return;
+          try {
+            await api("DELETE", "/api/v1/hosts/" + encodeURIComponent(id) + "/hide");
+            showOk("Restored to graph");
+            await loadHostsGraph();
+          } catch (e) { showError(String(e.message || e)); }
+        };
+      });
+      const visible = hosts.filter((x) => !x.hidden || _hostsCache.showHidden);
+      const sel = _hostsCache.selected && visible.some((h) => h.id === _hostsCache.selected)
         ? _hostsCache.selected
         : null;
-      drawHostGraph(graph, hosts, pick, sel);
+      drawHostGraph(graph, visible.filter((h) => !h.hidden), pick, sel);
       if (sel) {
         const h = hosts.find((x) => x.id === sel);
         if (h) showHostDetail(h, detail);
@@ -2736,6 +2797,7 @@
   function showHostDetail(h, detail) {
     if (!detail || !h) return;
     detail.classList.remove("empty");
+    const canWrite = can("sessions:write") || can("admin");
     const sess = (h.sessions || []).map((s) => {
       const c = s.claim || {};
       const lock = c.claimed_by ? c.claimed_by : "-";
@@ -2745,18 +2807,26 @@
       return `<tr data-sid="${esc(s.id)}" style="cursor:pointer">
         <td class="mono">${esc(String(s.id || "").slice(0, 12))}</td>
         <td>${esc(s.kind || "")}</td>
-        <td>${esc(s.status || "")}${s.verified ? " ✓" : ""}</td>
+        <td>${esc(s.status || "")}${s.verified ? " ✓" : ""}${s.interactive ? " ⎆" : ""}</td>
         <td>${esc(s.username || "-")}</td>
         <td>${c.claimed_by ? `<span class="chip warn">${esc(lock)}${esc(left)}</span>` : '<span class="chip">unlocked</span>'}</td>
       </tr>`;
     }).join("");
+    const dropBtn = canWrite
+      ? (h.hidden
+        ? `<button type="button" class="ghost sm" id="hostDetailUnhide">Restore to graph</button>`
+        : `<button type="button" class="danger sm" id="hostDetailHide">Drop from graph</button>`)
+      : "";
     detail.innerHTML = `
-      <div style="margin-bottom:8px">
-        <strong style="font-size:1rem">${esc(h.label)}</strong>
-        <div class="muted" style="font-size:0.78rem;margin-top:4px">
-          OS: ${esc(h.os_info || "-")} · Addrs: ${esc((h.addrs || []).join(", ") || "-")}<br/>
-          Users: ${esc((h.usernames || []).join(", ") || "-")} · Kinds: ${esc((h.kinds || []).join(", "))}
+      <div style="margin-bottom:8px;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px">
+          <strong style="font-size:1rem">${esc(h.label)}</strong>
+          <div class="muted" style="font-size:0.78rem;margin-top:4px">
+            OS: ${esc(h.os_info || "-")} · Addrs: ${esc((h.addrs || []).join(", ") || "-")}<br/>
+            Users: ${esc((h.usernames || []).join(", ") || "-")} · Kinds: ${esc((h.kinds || []).join(", "))}
+          </div>
         </div>
+        ${dropBtn}
       </div>
       <table class="data"><thead><tr>
         <th>Session</th><th>Kind</th><th>Status</th><th>User</th><th>Lock</th>
@@ -2767,6 +2837,26 @@
         if (sid) selectSession(sid);
       };
     });
+    if (el("hostDetailHide")) {
+      el("hostDetailHide").onclick = async () => {
+        if (!confirm("Drop " + h.label + " from the Assets graph?")) return;
+        try {
+          await api("POST", "/api/v1/hosts/" + encodeURIComponent(h.id) + "/hide", {});
+          showOk("Dropped from graph");
+          _hostsCache.selected = null;
+          await loadHostsGraph();
+        } catch (e) { showError(String(e.message || e)); }
+      };
+    }
+    if (el("hostDetailUnhide")) {
+      el("hostDetailUnhide").onclick = async () => {
+        try {
+          await api("DELETE", "/api/v1/hosts/" + encodeURIComponent(h.id) + "/hide");
+          showOk("Restored to graph");
+          await loadHostsGraph();
+        } catch (e) { showError(String(e.message || e)); }
+      };
+    }
   }
 
   function drawHostGraph(container, hosts, onClick, selectedId) {
@@ -2775,7 +2865,7 @@
     const hgt = Math.max(280, container.clientHeight || 320);
     if (!hosts.length) {
       container.innerHTML = `<div class="empty-state" style="height:100%;display:flex;align-items:center;justify-content:center;margin:0">
-        <div><strong>No host nodes</strong><div class="muted" style="margin-top:6px">Beacons and shells appear here grouped by hostname / remote address.</div></div>
+        <div><strong>No asset nodes</strong><div class="muted" style="margin-top:6px">Verified/interactive shells and implants appear here. Noise and dismissed hosts are hidden.</div></div>
       </div>`;
       return;
     }
