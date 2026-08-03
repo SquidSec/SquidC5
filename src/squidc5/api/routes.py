@@ -250,6 +250,15 @@ class FeaturesUpdate(BaseModel):
     features: dict[str, bool]
 
 
+class FactoryResetRequest(BaseModel):
+    """Wipe operator data to first-boot. confirm must be exactly FACTORY RESET."""
+
+    confirm: str
+    keep_tls: bool = True
+    keep_implant_psk: bool = False
+    regenerate_instance_tls: bool = False
+
+
 class ProfileShapeRequest(BaseModel):
     profile_id: str | None = None
     beacon: dict[str, Any] = Field(default_factory=dict)
@@ -2129,6 +2138,32 @@ def build_api_router() -> APIRouter:
         state = get_state(request)
         flags = await state.features.set_many(body.features, auth.name)
         return {"features": flags, "catalog": state.features.catalog()}
+
+    @api.post("/admin/factory-reset")
+    async def admin_factory_reset(
+        body: FactoryResetRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("admin")),
+    ) -> dict[str, Any]:
+        """Wipe DB/secrets to first-boot. Returns new admin_token once. Admin only."""
+        from squidc5.db.factory_reset import CONFIRM_PHRASE, factory_reset_running
+
+        if (body.confirm or "").strip() != CONFIRM_PHRASE:
+            raise HTTPException(
+                400,
+                f'confirm must be exactly "{CONFIRM_PHRASE}"',
+            )
+        try:
+            result = await factory_reset_running(
+                request.app,
+                keep_tls=bool(body.keep_tls),
+                keep_implant_psk=bool(body.keep_implant_psk),
+                regenerate_instance_tls=bool(body.regenerate_instance_tls),
+                actor=auth.name,
+            )
+        except Exception as e:
+            raise HTTPException(500, f"factory reset failed: {e}") from e
+        return result
 
     # ----- Ops console UI -----
     # /ops/admin.js: admin scope only (never ship admin control code to non-admins).

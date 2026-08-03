@@ -199,6 +199,9 @@ sc5 policy hitl list|approve|deny
 
 sc5 backup [path] [--data-dir DIR]
 sc5 restore <backup.db> [--data-dir DIR]
+sc5 factory-reset --yes [--data-dir DIR] [--wipe-tls] [--keep-implant-psk]
+# API: POST /api/v1/admin/factory-reset {confirm:"FACTORY RESET", keep_tls?, ...} → new admin_token once
+# Ops Admin → Danger tab
 
 # File ops / SOCKS (API; CLI via tasks or REST)
 # POST /api/v1/files/op {session_id, op:list|read|write|delete, path, ...}

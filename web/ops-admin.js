@@ -2180,9 +2180,82 @@
               <div class="row"><button type="button" id="astRefresh">List assets</button></div>
               <div class="outbox empty" id="astOut" style="flex:1;max-height:none">-</div>
       ` : '<p class="muted">Need payloads:generate</p>'},
+      { id: "addanger", label: "Danger", html: can("admin") ? `
+              <p class="muted" style="font-size:0.78rem;margin:0 0 10px">
+                <strong style="color:var(--bad)">Factory reset</strong> wipes the database, all tokens,
+                sessions, LLMs, audit history, and secrets under the data directory.
+                Process environment (<span class="mono">SQUIDC5_*</span>) is not changed.
+                A new bootstrap admin token is returned <strong>once</strong> — save it immediately.
+              </p>
+              <label class="chk-inline"><input type="checkbox" id="frKeepTls" checked /> Keep TLS files (data/tls)</label>
+              <label class="chk-inline"><input type="checkbox" id="frKeepPsk" /> Keep implant_psk.txt</label>
+              <label class="chk-inline"><input type="checkbox" id="frRegenTls" /> Regenerate instance self-signed cert</label>
+              <label style="margin-top:10px">Type <span class="mono">FACTORY RESET</span> to enable</label>
+              <input id="frConfirm" class="mono" placeholder="FACTORY RESET" autocomplete="off" />
+              <div class="row" style="margin-top:10px">
+                <button type="button" class="danger" id="frRun" disabled>Factory reset now</button>
+              </div>
+              <div id="frResult" class="hidden" style="margin-top:12px;padding:12px;border-radius:10px;border:1px solid rgba(248,113,113,0.45);background:rgba(60,20,20,0.45)">
+                <strong style="color:var(--bad)">New admin token (copy now)</strong>
+                <div class="row" style="margin:8px 0;gap:6px;align-items:stretch">
+                  <input id="frToken" class="mono" readonly style="flex:1;font-size:0.75rem" />
+                  <button type="button" id="frCopy">Copy</button>
+                </div>
+                <p class="muted" id="frNote" style="font-size:0.72rem;margin:0"></p>
+              </div>
+      ` : '<p class="muted">Admin only</p>'},
     ], { id: "adminTabs" });
     bindPageTabs(root);
     viewBuilt.admin = true;
+    if (can("admin") && el("frConfirm")) {
+      const frSync = () => {
+        const ok = (el("frConfirm").value || "").trim() === "FACTORY RESET";
+        if (el("frRun")) el("frRun").disabled = !ok;
+      };
+      el("frConfirm").oninput = frSync;
+      frSync();
+      el("frRun").onclick = async () => {
+        const phrase = (el("frConfirm").value || "").trim();
+        if (phrase !== "FACTORY RESET") return showError('Type FACTORY RESET exactly');
+        const ok = await askConfirm(
+          "This permanently wipes all operator data on this instance. You will need the new admin token. Continue?",
+          { title: "Factory reset", okText: "Wipe everything", danger: true },
+        );
+        if (!ok) return;
+        try {
+          const r = await api("POST", "/api/v1/admin/factory-reset", {
+            confirm: "FACTORY RESET",
+            keep_tls: !!(el("frKeepTls") && el("frKeepTls").checked),
+            keep_implant_psk: !!(el("frKeepPsk") && el("frKeepPsk").checked),
+            regenerate_instance_tls: !!(el("frRegenTls") && el("frRegenTls").checked),
+          });
+          const tok = r.admin_token || "";
+          if (el("frResult")) el("frResult").classList.remove("hidden");
+          if (el("frToken")) el("frToken").value = tok;
+          if (el("frNote")) el("frNote").textContent = r.note || "Reconnect Ops with the new token.";
+          if (tok) {
+            try {
+              localStorage.setItem("sc5_token", tok);
+              state.token = tok;
+            } catch (_) {}
+          }
+          showOk("Factory reset complete — save the new admin token");
+        } catch (e) {
+          showError(String(e.message || e));
+        }
+      };
+      if (el("frCopy")) el("frCopy").onclick = async () => {
+        const t = el("frToken")?.value || "";
+        if (!t) return;
+        try {
+          await navigator.clipboard.writeText(t);
+          showOk("Token copied");
+        } catch (_) {
+          el("frToken").select();
+          showOk("Select and copy token manually");
+        }
+      };
+    }
     if (can("llm:manage") || can("admin")) {
       bindLlmForm("adLlm");
       window.__SC5_refreshLlms = async () => {
