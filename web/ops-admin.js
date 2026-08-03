@@ -2240,9 +2240,21 @@
             const tok = list.find((x) => x.id === id);
             if (!id) return;
             try {
+              // Use the same origin the ops header shows (not implant PUBLIC_HOST)
+              let baseUrl = "";
+              try {
+                if (window.__SC5_API_BASE__) baseUrl = String(window.__SC5_API_BASE__);
+                else if (typeof localStorage !== "undefined") {
+                  const raw = localStorage.getItem("sc5_ops_cfg");
+                  if (raw) baseUrl = (JSON.parse(raw).url || "");
+                }
+              } catch (_) {}
+              if (!baseUrl && typeof location !== "undefined") baseUrl = location.origin;
+              baseUrl = (baseUrl || "").replace(/\/$/, "");
               const r = await api("POST", "/api/v1/tokens/" + encodeURIComponent(id) + "/connection-link", {
                 ttl_sec: 3600,
                 note: "admin handoff",
+                base_url: baseUrl || undefined,
               });
               const exp = r.expires_at ? new Date(r.expires_at * 1000).toISOString() : "";
               showSecretBanner({
