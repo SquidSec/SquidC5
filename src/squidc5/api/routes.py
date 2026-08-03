@@ -44,6 +44,15 @@ class TokenUpdate(BaseModel):
     mcp_tools: list[str] | None = None
 
 
+class ConnectionTicketCreate(BaseModel):
+    ttl_sec: int = 3600
+    note: str = ""
+
+
+class ConnectionTicketRedeem(BaseModel):
+    ticket: str
+
+
 class ListenerCreate(BaseModel):
     name: str
     kind: str = "http"  # http | https | tcp | reverse_shell | dns | smtp
@@ -524,6 +533,94 @@ def build_api_router() -> APIRouter:
             "mcp_tools": row.get("mcp_tools") or [],
             "token": raw,
             "rolled": True,
+        }
+
+    @api.post("/tokens/{token_id}/connection-link")
+    async def create_connection_link(
+        token_id: str,
+        body: ConnectionTicketCreate,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("tokens:manage", "admin")),
+    ) -> dict[str, Any]:
+        """Issue a one-time connection URL for an existing token (secret never returned).
+
+        Recipient opens the URL; redeem rolls the token and loads the new secret once.
+        """
+        state = get_state(request)
+        decision = await state.policy.check_and_audit(
+            auth, "tokens.connection_link", resource=token_id
+        )
+        if not decision.allowed:
+            raise HTTPException(403, decision.reason)
+        try:
+            issued = await state.tokens.create_connection_ticket(
+                token_id,
+                actor=auth.name,
+                grantor_is_admin=auth.has_scope("admin"),
+                ttl_sec=body.ttl_sec,
+                note=body.note or "",
+            )
+        except KeyError as e:
+            raise HTTPException(404, "token not found") from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        # Build ops handoff URL (same host as this request when possible)
+        base = str(request.base_url).rstrip("/")
+        # Prefer configured public host if set
+        public = (getattr(state.settings, "public_host", None) or "").strip()
+        if public:
+            scheme = "https" if state.settings.tls_enabled else "http"
+            port = int(state.settings.port or 8443)
+            if port in (80, 443):
+                base = f"{scheme}://{public}"
+            else:
+                base = f"{scheme}://{public}:{port}"
+        link = f"{base}/ops#sc5ticket={issued['ticket']}"
+        return {
+            "ticket_id": issued["ticket_id"],
+            "url": link,
+            "expires_at": issued["expires_at"],
+            "ttl_sec": issued["ttl_sec"],
+            "token_id": issued["token_id"],
+            "name": issued["name"],
+            "scopes": issued["scopes"],
+            "note": (
+                "One-time link. Redeeming rolls the operator secret; "
+                "the previous secret stops working."
+            ),
+        }
+
+    @api.post("/auth/redeem-ticket")
+    async def redeem_connection_ticket(
+        body: ConnectionTicketRedeem,
+        request: Request,
+    ) -> dict[str, Any]:
+        """Unauthenticated one-time ticket redeem. Returns new API token once."""
+        state = get_state(request)
+        try:
+            out = await state.tokens.redeem_connection_ticket(body.ticket or "")
+        except KeyError:
+            raise HTTPException(404, "invalid or unknown ticket") from None
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        # API base for client config
+        base = str(request.base_url).rstrip("/")
+        public = (getattr(state.settings, "public_host", None) or "").strip()
+        if public:
+            scheme = "https" if state.settings.tls_enabled else "http"
+            port = int(state.settings.port or 8443)
+            if port in (80, 443):
+                base = f"{scheme}://{public}"
+            else:
+                base = f"{scheme}://{public}:{port}"
+        return {
+            "url": base,
+            "token": out["token"],
+            "id": out["id"],
+            "name": out.get("name"),
+            "scopes": out.get("scopes") or [],
+            "rolled": True,
+            "refresh": 10,
         }
 
     @api.patch("/tokens/{token_id}")

@@ -665,6 +665,16 @@ def cmd_tokens_roll(args: argparse.Namespace, client: Client) -> None:
     pp(client.post(f"/api/v1/tokens/{args.id}/roll"))
 
 
+def cmd_tokens_link(args: argparse.Namespace, client: Client) -> None:
+    """Issue one-time connection URL for an existing token (no secret shown)."""
+    body: dict[str, Any] = {}
+    if args.ttl is not None:
+        body["ttl_sec"] = int(args.ttl)
+    if args.note:
+        body["note"] = args.note
+    pp(client.post(f"/api/v1/tokens/{args.id}/connection-link", json=body or {}))
+
+
 def cmd_ai_run(args: argparse.Namespace, client: Client) -> None:
     body: dict[str, Any] = {"capability": args.capability, "user_data": args.data or ""}
     if args.llm:
@@ -1185,6 +1195,14 @@ def build_parser() -> argparse.ArgumentParser:
     tk_roll = tok_sub.add_parser("roll", help="Rotate token secret (old secret stops working)")
     tk_roll.add_argument("id")
     tk_roll.set_defaults(func=cmd_tokens_roll, needs_client=True)
+    tk_link = tok_sub.add_parser(
+        "link",
+        help="One-time connection URL for an existing token (redeem rolls secret)",
+    )
+    tk_link.add_argument("id")
+    tk_link.add_argument("--ttl", type=int, default=3600, help="Seconds until expiry (default 3600)")
+    tk_link.add_argument("--note", default="")
+    tk_link.set_defaults(func=cmd_tokens_link, needs_client=True)
 
     # ai / llm
     ai = sub.add_parser("ai", help="Run Admin AI capability")

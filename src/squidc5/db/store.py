@@ -168,6 +168,39 @@ class Database:
         )
         return cur.rowcount > 0
 
+    # --- Connection tickets (one-time handoff links) ---
+
+    async def create_connection_ticket(
+        self,
+        *,
+        ticket_hash: str,
+        token_id: str,
+        created_by: str | None,
+        expires_at: float,
+        note: str = "",
+    ) -> str:
+        tid = _uid("ctk_")
+        await self.execute(
+            """INSERT INTO connection_tickets
+               (id, ticket_hash, token_id, created_by, created_at, expires_at, note)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (tid, ticket_hash, token_id, created_by, _now(), expires_at, (note or "")[:200]),
+        )
+        return tid
+
+    async def get_connection_ticket_by_hash(self, ticket_hash: str) -> dict[str, Any] | None:
+        return await self.fetchone(
+            "SELECT * FROM connection_tickets WHERE ticket_hash = ?",
+            (ticket_hash,),
+        )
+
+    async def mark_connection_ticket_used(self, ticket_id: str) -> bool:
+        cur = await self.execute(
+            "UPDATE connection_tickets SET used_at = ? WHERE id = ? AND used_at IS NULL",
+            (_now(), ticket_id),
+        )
+        return cur.rowcount > 0
+
     # --- Operator assets (saved payloads/profiles/implants) ---
 
     async def create_operator_asset(

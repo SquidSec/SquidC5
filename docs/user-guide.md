@@ -1118,15 +1118,18 @@ Least privilege: phone UI might only need `shell:interact` + `sessions:read`; ex
    - **Token admin** - mint/update tokens within grant limits
    - **Full admin** - break-glass (admin granters only)
 3. **Mint new** - a green banner shows the secret **and a connection link** (`/ops#sc5=...`) until you **Close** it.
-4. **Edit** a row to change name/scopes/MCP tools (`PATCH /api/v1/tokens/{id}`) without rotating the secret.
-5. **Roll** rotates the secret (old stops working); new secret appears in the same banner.
-6. **Revoke** disables the token entirely.
-7. Nav hides Profiles, Post-Ex, etc. when the connected token lacks those scopes.
+4. **Link** on an existing token issues a **one-time** URL (`/ops#sc5ticket=...`) without showing the secret. Send that URL to the operator.
+5. When they open the link, the browser redeems the ticket, **rolls** their secret once, and auto-connects. The previous secret stops working.
+6. **Edit** a row to change name/scopes/MCP tools without rotating the secret.
+7. **Roll** rotates the secret immediately (admin sees the new secret in the banner).
+8. **Revoke** disables the token entirely.
+9. Nav hides Profiles, Post-Ex, etc. when the connected token lacks those scopes.
 
 ### Example
 
 ```bash
 sc5 tokens create phone --scopes "sessions:read,shell:interact,metrics:read,collab:use,phone:operator"
+sc5 tokens link <id> --ttl 3600   # one-time URL; redeem rolls secret
 sc5 tokens update <id> --scopes "sessions:read,shell:interact,metrics:read,listeners:read"
 sc5 tokens roll <id>
 sc5 tokens list

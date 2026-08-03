@@ -1892,12 +1892,12 @@
           <div class="work-panel">
             <div class="wp-head">Tokens</div>
             <div class="wp-body">
-              <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Mint or edit scopes below. <strong>Roll</strong> rotates the secret (old stops working). Scope edit does not rotate - roll or revoke if compromised.</p>
+              <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Mint or edit scopes below. <strong>Link</strong> makes a one-time URL to send an existing operator (no secret shown). <strong>Roll</strong> rotates the secret now. Redeeming a link also rolls their secret once.</p>
               <div id="adSecretBanner" class="hidden" style="margin-bottom:12px;padding:12px;border-radius:10px;border:1px solid rgba(52,211,153,0.4);background:rgba(15,46,34,0.55)">
                 <div class="row" style="margin:0 0 8px;justify-content:space-between;align-items:flex-start">
                   <div>
                     <strong id="adSecretTitle" style="color:var(--ok)">New token secret</strong>
-                    <p class="muted" style="margin:4px 0 0;font-size:0.72rem">Shown once until you dismiss. Copy the token or connection link now.</p>
+                    <p class="muted" style="margin:4px 0 0;font-size:0.72rem">Shown until you dismiss. Copy the token and/or connection link.</p>
                   </div>
                   <button type="button" id="adSecretDismiss" title="Dismiss">Close</button>
                 </div>
@@ -1906,7 +1906,7 @@
                   <input id="adSecretToken" class="mono" readonly style="flex:1;font-size:0.75rem" />
                   <button type="button" id="adSecretCopyTok">Copy token</button>
                 </div>
-                <label>Connection link (opens /ops and auto-fills)</label>
+                <label>Connection link</label>
                 <div class="row" style="margin:4px 0 0;gap:6px;align-items:stretch">
                   <input id="adSecretLink" class="mono" readonly style="flex:1;font-size:0.68rem" />
                   <button type="button" id="adSecretCopyLink">Copy link</button>
@@ -2136,13 +2136,21 @@
       if (el("adSecretToken")) el("adSecretToken").value = "";
       if (el("adSecretLink")) el("adSecretLink").value = "";
     }
-    function showSecretBanner({ title, token, name, id, scopes }) {
+    function showSecretBanner({ title, token, name, id, scopes, linkOnly }) {
       const b = el("adSecretBanner");
       if (!b) return;
       b.classList.remove("hidden");
       if (el("adSecretTitle")) el("adSecretTitle").textContent = title || "Token secret";
-      if (el("adSecretToken")) el("adSecretToken").value = token || "";
-      if (el("adSecretLink")) el("adSecretLink").value = buildTokenConnectLink(token || "");
+      if (el("adSecretToken")) {
+        el("adSecretToken").value = linkOnly
+          ? "(secret not shown - recipient redeems the link once)"
+          : (token || "");
+      }
+      if (el("adSecretLink")) {
+        el("adSecretLink").value = linkOnly
+          ? (token || "") // when linkOnly, `token` arg carries the URL
+          : buildTokenConnectLink(token || "");
+      }
       if (el("adSecretMeta")) {
         const sc = (scopes || []).slice(0, 8).join(", ");
         el("adSecretMeta").textContent =
@@ -2212,6 +2220,7 @@
             <td>${st}</td>
             <td class="row" style="margin:0;flex-wrap:wrap">
               ${!t.revoked ? `<button type="button" data-tok-edit="${esc(t.id)}">Edit</button>` : ""}
+              ${!t.revoked ? `<button type="button" data-tok-link="${esc(t.id)}" title="One-time connection URL (no secret shown)">Link</button>` : ""}
               ${!t.revoked ? `<button type="button" data-tok-roll="${esc(t.id)}">Roll</button>` : ""}
               ${!t.revoked ? `<button type="button" class="danger" data-tok-rev="${esc(t.id)}">Revoke</button>` : ""}
             </td>
@@ -2223,6 +2232,36 @@
             const id = b.getAttribute("data-tok-edit");
             const tok = list.find((x) => x.id === id);
             if (tok) enterEditMode(tok);
+          };
+        });
+        box.querySelectorAll("[data-tok-link]").forEach((b) => {
+          b.onclick = async () => {
+            const id = b.getAttribute("data-tok-link");
+            const tok = list.find((x) => x.id === id);
+            if (!id) return;
+            try {
+              const r = await api("POST", "/api/v1/tokens/" + encodeURIComponent(id) + "/connection-link", {
+                ttl_sec: 3600,
+                note: "admin handoff",
+              });
+              const exp = r.expires_at ? new Date(r.expires_at * 1000).toISOString() : "";
+              showSecretBanner({
+                title: "Connection link (one-time)",
+                token: r.url || "",
+                name: r.name || (tok && tok.name),
+                id: r.token_id || id,
+                scopes: r.scopes || (tok && tok.scopes),
+                linkOnly: true,
+              });
+              if (el("adSecretMeta")) {
+                el("adSecretMeta").textContent =
+                  (r.name || (tok && tok.name) || "") +
+                  " - " + (r.token_id || id) +
+                  (exp ? " - expires " + exp : "") +
+                  " - redeem rolls their secret once";
+              }
+              showOk("Connection link ready - send to operator");
+            } catch (e) { showError(String(e.message || e)); }
           };
         });
         box.querySelectorAll("[data-tok-roll]").forEach((b) => {
