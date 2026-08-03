@@ -77,3 +77,28 @@ async def test_connection_link_requires_auth(client, admin_headers):
     created = await mint_token(client, admin_headers, "x", ["sessions:read"])
     r = await client.post(f"/api/v1/tokens/{created['id']}/connection-link", json={})
     assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_connection_link_uses_request_host_not_public_host(client, admin_headers, monkeypatch):
+    """Ops links must follow Host header, not SQUIDC5_PUBLIC_HOST (OAST/implant)."""
+    created = await mint_token(client, admin_headers, "host-check", ["sessions:read"])
+    # Simulate mis-set implant public_host
+    from squidc5.main import create_app
+
+    app = client._transport.app  # type: ignore[attr-defined]
+    state = app.state.app_state
+    monkeypatch.setattr(state.settings, "public_host", "oast.example.com")
+
+    r = await client.post(
+        f"/api/v1/tokens/{created['id']}/connection-link",
+        headers={**admin_headers, "Host": "squidc5.example.com:8443"},
+        json={},
+    )
+    assert r.status_code == 200, r.text
+    url = r.json()["url"]
+    assert "squidc5.example.com" in url
+    assert "oast.example.com" not in url
+    assert url.startswith("http://squidc5.example.com:8443/ops#sc5ticket=") or url.startswith(
+        "https://squidc5.example.com:8443/ops#sc5ticket="
+    )

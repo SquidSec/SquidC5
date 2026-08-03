@@ -32,6 +32,22 @@ def _policy_http_error(decision: PolicyDecision) -> HTTPException:
     return HTTPException(status_code=403, detail=detail)
 
 
+def _ops_base_url(request: Request) -> str:
+    """Public ops/API base as the browser sees it (Host / X-Forwarded-*).
+
+    Do not use SQUIDC5_PUBLIC_HOST here - that is for implant/OAST callbacks
+    (e.g. oast.example.com) and is often not the ops console hostname.
+    """
+    # Prefer reverse-proxy headers when present
+    xf_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    xf_host = (request.headers.get("x-forwarded-host") or "").split(",")[0].strip()
+    host = xf_host or (request.headers.get("host") or "").strip()
+    scheme = xf_proto or request.url.scheme or "https"
+    if host:
+        return f"{scheme}://{host}".rstrip("/")
+    return str(request.base_url).rstrip("/")
+
+
 class TokenCreate(BaseModel):
     name: str
     scopes: list[str]
@@ -564,17 +580,8 @@ def build_api_router() -> APIRouter:
             raise HTTPException(404, "token not found") from e
         except PermissionError as e:
             raise HTTPException(403, str(e)) from e
-        # Build ops handoff URL (same host as this request when possible)
-        base = str(request.base_url).rstrip("/")
-        # Prefer configured public host if set
-        public = (getattr(state.settings, "public_host", None) or "").strip()
-        if public:
-            scheme = "https" if state.settings.tls_enabled else "http"
-            port = int(state.settings.port or 8443)
-            if port in (80, 443):
-                base = f"{scheme}://{public}"
-            else:
-                base = f"{scheme}://{public}:{port}"
+        # Same host the admin is using (ops header), not implant public_host
+        base = _ops_base_url(request)
         link = f"{base}/ops#sc5ticket={issued['ticket']}"
         return {
             "ticket_id": issued["ticket_id"],
@@ -603,16 +610,8 @@ def build_api_router() -> APIRouter:
             raise HTTPException(404, "invalid or unknown ticket") from None
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
-        # API base for client config
-        base = str(request.base_url).rstrip("/")
-        public = (getattr(state.settings, "public_host", None) or "").strip()
-        if public:
-            scheme = "https" if state.settings.tls_enabled else "http"
-            port = int(state.settings.port or 8443)
-            if port in (80, 443):
-                base = f"{scheme}://{public}"
-            else:
-                base = f"{scheme}://{public}:{port}"
+        # Client should talk to the same host that served the redeem
+        base = _ops_base_url(request)
         return {
             "url": base,
             "token": out["token"],
