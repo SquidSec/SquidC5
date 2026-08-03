@@ -726,10 +726,11 @@ def build_api_router() -> APIRouter:
     async def list_hosts(
         request: Request,
         include_hidden: bool = False,
+        active_only: bool = False,
         auth: AuthContext = Depends(require_scope("sessions:read", "admin")),
     ) -> dict[str, Any]:
-        """Engagement host inventory: real shells/implants only (Assets graph)."""
-        from squidc5.hosts.graph import host_key_for_session, is_asset_session
+        """Engagement host inventory: exec-verified shells + real implants only."""
+        from squidc5.hosts.graph import host_key_for_session, is_asset_session, normalize_peer
 
         state = get_state(request)
         await state.policy.check_and_audit(auth, "sessions.list")
@@ -767,21 +768,34 @@ def build_api_router() -> APIRouter:
                     "os_info": r.get("os_info"),
                     "usernames": set(),
                     "hidden": host_key in hidden_ids,
+                    "last_seen_at": r.get("last_seen_at") or 0,
                 }
                 hosts[host_key] = node
-            addr = r.get("remote_addr")
-            if addr and addr not in node["addrs"]:
-                node["addrs"].append(addr)
+            peer = normalize_peer(r.get("remote_addr"))
+            if peer and peer not in node["addrs"]:
+                node["addrs"].append(peer)
+            raw_addr = r.get("remote_addr")
             if r.get("hostname") and not node.get("hostname"):
                 node["hostname"] = r.get("hostname")
-                node["label"] = r.get("hostname") or node["label"]
+                node["label"] = str(r.get("hostname"))
             if r.get("os_info") and not node.get("os_info"):
                 node["os_info"] = r.get("os_info")
             if r.get("username"):
                 node["usernames"].add(r.get("username"))
             kind = r.get("kind") or "?"
             node["kinds"].add(kind)
-            if r.get("status") == "active":
+            ls = float(r.get("last_seen_at") or 0)
+            if ls >= float(node.get("last_seen_at") or 0):
+                node["last_seen_at"] = ls
+            # Live access: active + (shell interactive/verified OR beacon)
+            is_live = r.get("status") == "active" and (
+                kind == "beacon"
+                or bool(r.get("verified"))
+                or bool(r.get("interactive"))
+                or bool(meta.get("verified"))
+                or bool(meta.get("exec_ok"))
+            )
+            if is_live:
                 node["active"] += 1
             if info.get("claimed_by") and not node.get("claimed_by"):
                 node["claimed_by"] = info.get("claimed_by")
@@ -793,7 +807,7 @@ def build_api_router() -> APIRouter:
                     "verified": r.get("verified"),
                     "interactive": r.get("interactive"),
                     "username": r.get("username"),
-                    "remote_addr": addr,
+                    "remote_addr": peer or raw_addr,
                     "last_seen_at": r.get("last_seen_at"),
                     "os_info": r.get("os_info"),
                     "claim": info,
@@ -802,6 +816,8 @@ def build_api_router() -> APIRouter:
         nodes = []
         for h in hosts.values():
             if h.get("hidden") and not include_hidden:
+                continue
+            if active_only and int(h.get("active") or 0) <= 0:
                 continue
             kinds = sorted(h["kinds"])
             nodes.append(
@@ -817,10 +833,12 @@ def build_api_router() -> APIRouter:
                     "session_count": len(h["sessions"]),
                     "claimed_by": h.get("claimed_by"),
                     "hidden": bool(h.get("hidden")),
+                    "last_seen_at": h.get("last_seen_at"),
                     "sessions": h["sessions"],
                 }
             )
-            sess = h["sessions"]
+            # Cap co-host edges per host (avoid O(n^2) blowup on noisy hosts)
+            sess = h["sessions"][:24]
             for i, a in enumerate(sess):
                 for b in sess[i + 1 :]:
                     edges.append(
@@ -831,9 +849,16 @@ def build_api_router() -> APIRouter:
                             "rel": "co-host",
                         }
                     )
+        # Live hosts first, then recent
+        nodes.sort(
+            key=lambda n: (
+                0 if int(n.get("active_sessions") or 0) > 0 else 1,
+                -float(n.get("last_seen_at") or 0),
+            )
+        )
         session_nodes = []
         for h in nodes:
-            for s in h["sessions"]:
+            for s in h["sessions"][:32]:
                 session_nodes.append(
                     {
                         "id": s["id"],
@@ -854,6 +879,8 @@ def build_api_router() -> APIRouter:
             "claim_ttl_sec": int(getattr(state.settings, "session_claim_ttl_sec", 0) or 0),
             "hidden_count": len(hidden_ids),
             "skipped_noise": skipped_noise,
+            "filter": "verified_shells_and_implants",
+            "active_only": active_only,
             "hidden": [
                 {"id": r["host_id"], "hidden_by": r.get("hidden_by"), "hidden_at": r.get("hidden_at")}
                 for r in hidden_rows
@@ -861,6 +888,45 @@ def build_api_router() -> APIRouter:
             if include_hidden
             else [],
         }
+
+    @api.post("/hosts/hide-inactive")
+    async def hide_inactive_hosts(
+        request: Request,
+        auth: AuthContext = Depends(require_scope("sessions:write", "admin")),
+    ) -> dict[str, Any]:
+        """Bulk-drop hosts with no live verified shell/implant from the graph."""
+        from squidc5.hosts.graph import host_key_for_session, is_asset_session
+
+        state = get_state(request)
+        await state.policy.check_and_audit(auth, "hosts.hide_inactive")
+        rows = await state.sessions.list(status=None)
+        live_keys: set[str] = set()
+        all_keys: set[str] = set()
+        for r in rows:
+            if not is_asset_session(r):
+                continue
+            key = host_key_for_session(r)
+            all_keys.add(key)
+            meta = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
+            kind = r.get("kind") or ""
+            is_live = r.get("status") == "active" and (
+                kind == "beacon"
+                or bool(r.get("verified"))
+                or bool(r.get("interactive"))
+                or bool(meta.get("verified"))
+                or bool(meta.get("exec_ok"))
+            )
+            if is_live:
+                live_keys.add(key)
+        hidden_n = 0
+        for key in all_keys - live_keys:
+            await state.db.hide_host_graph(key, hidden_by=auth.name, note="bulk-inactive")
+            hidden_n += 1
+        await state.metrics.emit(
+            "hosts.hide_inactive",
+            {"count": hidden_n, "actor": auth.name},
+        )
+        return {"status": "ok", "hidden": hidden_n, "kept_live": len(live_keys)}
 
     @api.post("/hosts/{host_id:path}/hide")
     async def hide_host(
