@@ -84,8 +84,6 @@ async def test_connection_link_uses_request_host_not_public_host(client, admin_h
     """Ops links must follow Host header, not SQUIDC5_PUBLIC_HOST (OAST/implant)."""
     created = await mint_token(client, admin_headers, "host-check", ["sessions:read"])
     # Simulate mis-set implant public_host
-    from squidc5.main import create_app
-
     app = client._transport.app  # type: ignore[attr-defined]
     state = app.state.app_state
     monkeypatch.setattr(state.settings, "public_host", "oast.example.com")
