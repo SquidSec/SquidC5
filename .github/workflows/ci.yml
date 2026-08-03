@@ -148,7 +148,15 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Audit dependencies
-        run: pip-audit -r requirements.txt
+        run: |
+          set -euo pipefail
+          # Self-hosted can hit transient PyPI timeouts
+          for i in 1 2 3; do
+            pip-audit -r requirements.txt && exit 0
+            echo "pip-audit attempt $i failed; retrying..."
+            sleep $((i * 5))
+          done
+          exit 1
 
   # Standalone operator CLI + server binaries (no venv required).
   binaries:
@@ -334,66 +342,54 @@ jobs:
           EOF
           ls -lah release/
 
-      - name: Ensure gh CLI
+      - name: Release metadata
+        id: relmeta
         run: |
           set -euo pipefail
-          if command -v gh >/dev/null 2>&1; then
-            gh --version
-            exit 0
-          fi
-          # Self-hosted runners may lack gh; install portable binary to PATH
-          VER=2.67.0
-          curl -fsSL "https://github.com/cli/cli/releases/download/v${VER}/gh_${VER}_linux_amd64.tar.gz" -o /tmp/gh.tgz
-          tar -xzf /tmp/gh.tgz -C /tmp
-          mkdir -p "$HOME/.local/bin"
-          cp "/tmp/gh_${VER}_linux_amd64/bin/gh" "$HOME/.local/bin/gh"
-          chmod +x "$HOME/.local/bin/gh"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/gh" --version
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PATH: ${{ env.PATH }}
-        run: |
-          set -euo pipefail
-          export PATH="${HOME}/.local/bin:${PATH}"
           SHORT_SHA="${GITHUB_SHA::7}"
           TAG="v0.1.${{ github.run_number }}-${SHORT_SHA}"
-          TITLE="SquidC5 ${TAG}"
-          NOTES="$(cat <<EOF
-          ## SquidC5 release \`${TAG}\`
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "title=SquidC5 ${TAG}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
-          Built from \`${GITHUB_REF_NAME}\` @ \`${SHORT_SHA}\` after CI tests passed.
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.relmeta.outputs.tag }}
+          name: ${{ steps.relmeta.outputs.title }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            ## SquidC5 release `${{ steps.relmeta.outputs.tag }}`
 
-          ### Assets
-          | File | Platform | Role |
-          |------|----------|------|
-          | \`sc5-linux-x64\` | Linux x64 | Operator CLI |
-          | \`squidc5-linux-x64\` | Linux x64 | C2 server |
-          | \`sc5-windows-x64.exe\` | Windows x64 | Operator CLI (when available) |
-          | \`squidc5-windows-x64.exe\` | Windows x64 | C2 server (when available) |
-          | \`SHA256SUMS.txt\` | - | Checksums |
+            Built from `${{ github.ref_name }}` @ `${{ steps.relmeta.outputs.short_sha }}` after CI tests passed.
 
-          ### Server (Linux)
-          \`\`\`bash
-          chmod +x squidc5-linux-x64
-          ./squidc5-linux-x64
-          # token: ./data/admin_token.txt
-          # console: https://HOST:8443/ops
-          \`\`\`
+            ### Assets
+            | File | Platform | Role |
+            |------|----------|------|
+            | `sc5-linux-x64` | Linux x64 | Operator CLI |
+            | `squidc5-linux-x64` | Linux x64 | C2 server |
+            | `sc5-windows-x64.exe` | Windows x64 | Operator CLI (when available) |
+            | `squidc5-windows-x64.exe` | Windows x64 | C2 server (when available) |
+            | `SHA256SUMS.txt` | - | Checksums |
 
-          Authorized red-team / pen-test use only.
-          EOF
-          )"
-          ASSETS=(release/sc5-linux-x64 release/squidc5-linux-x64 release/SHA256SUMS.txt release/README.txt release/sbom.cdx.json)
-          [[ -f release/sc5-windows-x64.exe ]] && ASSETS+=(release/sc5-windows-x64.exe)
-          [[ -f release/squidc5-windows-x64.exe ]] && ASSETS+=(release/squidc5-windows-x64.exe)
-          gh release create "$TAG" \
-            --repo "${{ github.repository }}" \
-            --target "${{ github.sha }}" \
-            --title "$TITLE" \
-            --notes "$NOTES" \
-            --latest \
-            "${ASSETS[@]}"
-          echo "Published release: $TAG"
+            ### Server (Linux)
+            ```bash
+            chmod +x squidc5-linux-x64
+            ./squidc5-linux-x64
+            # token: ./data/admin_token.txt
+            # console: https://HOST:8443/ops
+            ```
+
+            Authorized red-team / pen-test use only.
+          files: |
+            release/sc5-linux-x64
+            release/squidc5-linux-x64
+            release/SHA256SUMS.txt
+            release/README.txt
+            release/sbom.cdx.json
+            release/sc5-windows-x64.exe
+            release/squidc5-windows-x64.exe
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
