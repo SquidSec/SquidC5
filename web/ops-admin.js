@@ -2638,7 +2638,7 @@
 
 
   /* -- Assets / hosts graph -- */
-  let _hostsCache = { hosts: [], edges: [], claim_ttl_sec: 0, selected: null, showHidden: false, hidden: [] };
+  let _hostsCache = { hosts: [], edges: [], claim_ttl_sec: 0, selected: null, showHidden: false, activeOnly: false, hidden: [] };
 
   function renderHostsView(force) {
     const root = el("view-hosts");
@@ -2654,9 +2654,15 @@
             <button type="button" class="ghost sm" id="hostReload" style="margin-left:auto">Reload</button>
           </div>
           <div class="lp-body">
-            <label class="muted" style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:0.75rem">
-              <input type="checkbox" id="hostShowHidden" /> Show dismissed
-            </label>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 8px;align-items:center">
+              <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:0.75rem">
+                <input type="checkbox" id="hostActiveOnly" /> Live only
+              </label>
+              <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:0.75rem">
+                <input type="checkbox" id="hostShowHidden" /> Show dismissed
+              </label>
+              <button type="button" class="danger sm" id="hostDropInactive" title="Hide all hosts with no live shell/implant">Drop inactive</button>
+            </div>
             <table class="data"><thead><tr>
               <th>Host</th><th>Access</th><th></th>
             </tr></thead><tbody id="hostTbody"></tbody></table>
@@ -2665,7 +2671,7 @@
         <div class="work-panel">
           <div class="wp-head">Asset graph <span class="muted" id="hostGraphMeta" style="font-weight:400;margin-left:8px;font-size:0.72rem"></span></div>
           <div class="wp-body" style="display:flex;flex-direction:column;min-height:0;height:100%">
-            <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Verified shells, interactive shells, and implants only — scanners/noise excluded. Drop removes the node from the graph (sessions kept).</p>
+            <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Exec-verified shells and implants with a real hostname only. Scanner TCP noise is excluded. Drop hides a node (sessions stay under Sessions).</p>
             <div class="chips" style="margin-bottom:8px">
               <span class="chip ok">active shell/implant</span>
               <span class="chip warn">locked</span>
@@ -2685,6 +2691,23 @@
         loadHostsGraph();
       };
     }
+    if (el("hostActiveOnly")) {
+      el("hostActiveOnly").checked = !!_hostsCache.activeOnly;
+      el("hostActiveOnly").onchange = () => {
+        _hostsCache.activeOnly = !!el("hostActiveOnly").checked;
+        loadHostsGraph();
+      };
+    }
+    if (el("hostDropInactive")) {
+      el("hostDropInactive").onclick = async () => {
+        if (!confirm("Drop all inactive hosts from the Assets graph? Live shells/implants stay. You can restore via Show dismissed.")) return;
+        try {
+          const r = await api("POST", "/api/v1/hosts/hide-inactive", {});
+          showOk("Dropped " + (r.hidden || 0) + " inactive · kept " + (r.kept_live || 0) + " live");
+          await loadHostsGraph();
+        } catch (e) { showError(String(e.message || e)); }
+      };
+    }
     loadHostsGraph();
   }
 
@@ -2694,7 +2717,10 @@
     const detail = el("hostDetail");
     if (!tbody || !graph) return;
     try {
-      const q = _hostsCache.showHidden ? "?include_hidden=true" : "";
+      const qs = [];
+      if (_hostsCache.showHidden) qs.push("include_hidden=true");
+      if (_hostsCache.activeOnly) qs.push("active_only=true");
+      const q = qs.length ? ("?" + qs.join("&")) : "";
       const data = await api("GET", "/api/v1/hosts" + q);
       const hosts = data.hosts || [];
       _hostsCache = {
@@ -2703,6 +2729,7 @@
         claim_ttl_sec: data.claim_ttl_sec || 0,
         selected: _hostsCache.selected,
         showHidden: _hostsCache.showHidden,
+        activeOnly: _hostsCache.activeOnly,
         hidden: data.hidden || [],
         hidden_count: data.hidden_count || 0,
         skipped_noise: data.skipped_noise || 0,
@@ -2865,56 +2892,72 @@
     const hgt = Math.max(280, container.clientHeight || 320);
     if (!hosts.length) {
       container.innerHTML = `<div class="empty-state" style="height:100%;display:flex;align-items:center;justify-content:center;margin:0">
-        <div><strong>No asset nodes</strong><div class="muted" style="margin-top:6px">Verified/interactive shells and implants appear here. Noise and dismissed hosts are hidden.</div></div>
+        <div><strong>No asset nodes</strong><div class="muted" style="margin-top:6px">Only exec-verified shells and named implants appear. Use Sessions for raw connections.</div></div>
       </div>`;
       return;
     }
-    const n = hosts.length;
+    // Prefer live hosts on the graph; cap layout so rings stay readable
+    const MAX_GRAPH = 36;
+    const sorted = hosts.slice().sort((a, b) => {
+      const la = (a.active_sessions || 0) > 0 ? 0 : 1;
+      const lb = (b.active_sessions || 0) > 0 ? 0 : 1;
+      if (la !== lb) return la - lb;
+      return (b.last_seen_at || 0) - (a.last_seen_at || 0);
+    });
+    const drawList = sorted.slice(0, MAX_GRAPH);
+    const omitted = sorted.length - drawList.length;
+    const n = drawList.length;
     const cx = w / 2;
-    const cy = hgt / 2;
-    const R = Math.min(w, hgt) * (n === 1 ? 0 : 0.34);
-    const nodes = hosts.map((host, i) => {
-      const ang = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const cy = hgt / 2 - (omitted ? 8 : 0);
+    const cols = Math.ceil(Math.sqrt(n));
+    const rowsN = Math.ceil(n / cols);
+    const cellW = w / Math.max(cols, 1);
+    const cellH = (hgt - (omitted ? 22 : 0)) / Math.max(rowsN, 1);
+    const nodes = drawList.map((host, i) => {
+      if (n <= 8) {
+        const ang = (i / n) * Math.PI * 2 - Math.PI / 2;
+        const R = Math.min(w, hgt) * (n === 1 ? 0 : 0.32);
+        return {
+          host,
+          x: n === 1 ? cx : cx + Math.cos(ang) * R,
+          y: n === 1 ? cy : cy + Math.sin(ang) * R,
+        };
+      }
+      const c = i % cols;
+      const rr = Math.floor(i / cols);
       return {
         host,
-        x: n === 1 ? cx : cx + Math.cos(ang) * R,
-        y: n === 1 ? cy : cy + Math.sin(ang) * R,
+        x: cellW * c + cellW / 2,
+        y: cellH * rr + cellH / 2,
       };
     });
-    const byId = Object.fromEntries(nodes.map((nd) => [nd.host.id, nd]));
     let svg = `<svg width="100%" height="100%" viewBox="0 0 ${w} ${hgt}" xmlns="http://www.w3.org/2000/svg">`;
-    // Hub spokes + ring for multi-host engagement topology
-    if (n > 1) {
+    if (n > 1 && n <= 8) {
       nodes.forEach((nd) => {
         svg += `<line x1="${cx}" y1="${cy}" x2="${nd.x}" y2="${nd.y}" stroke="rgba(233,30,140,0.12)" stroke-width="1" stroke-dasharray="4 4"/>`;
       });
-      for (let i = 0; i < n; i++) {
-        const a = nodes[i];
-        const b = nodes[(i + 1) % n];
-        svg += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="rgba(233,30,140,0.18)" stroke-width="1.5"/>`;
-      }
     }
-    // Co-host session edges collapsed to host pairs (thicker when many sessions share host - already same node)
-    // Cross-host: none from API; keep topology visual only
-    void byId;
     nodes.forEach((node, idx) => {
       const host = node.host;
       const active = (host.active_sessions || 0) > 0;
       const locked = !!host.claimed_by;
       const sel = selectedId && host.id === selectedId;
       const fill = locked ? "rgba(251,191,36,0.28)" : active ? "rgba(233,30,140,0.38)" : "rgba(255,255,255,0.07)";
-      const stroke = sel ? "#fff" : locked ? "rgba(251,191,36,0.9)" : "rgba(233,30,140,0.7)";
+      const stroke = sel ? "#fff" : locked ? "rgba(251,191,36,0.9)" : active ? "rgba(233,30,140,0.7)" : "rgba(180,180,200,0.35)";
       const sw = sel ? 3 : 2;
-      const r = 20 + Math.min(16, (host.session_count || 1) * 3);
-      const label = (host.label || host.id || "?").slice(0, 20);
+      const r = Math.min(22, Math.max(14, Math.min(cellW, cellH) * 0.22));
+      const label = (host.label || host.id || "?").slice(0, 18);
       const sub = (host.active_sessions || 0) + "/" + (host.session_count || 0);
       svg += `<g class="host-node" data-idx="${idx}" style="cursor:pointer">
-        <circle cx="${node.x}" cy="${node.y}" r="${r + 4}" fill="none" stroke="${sel ? "rgba(233,30,140,0.35)" : "transparent"}" stroke-width="6"/>
+        <circle cx="${node.x}" cy="${node.y}" r="${r + 3}" fill="none" stroke="${sel ? "rgba(233,30,140,0.35)" : "transparent"}" stroke-width="5"/>
         <circle cx="${node.x}" cy="${node.y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>
-        <text x="${node.x}" y="${node.y + 4}" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">${esc(sub)}</text>
-        <text x="${node.x}" y="${node.y + r + 16}" text-anchor="middle" fill="#c8c8d4" font-size="11" font-family="ui-monospace,monospace">${esc(label)}</text>
+        <text x="${node.x}" y="${node.y + 4}" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">${esc(sub)}</text>
+        <text x="${node.x}" y="${node.y + r + 14}" text-anchor="middle" fill="#c8c8d4" font-size="10" font-family="ui-monospace,monospace">${esc(label)}</text>
       </g>`;
     });
+    if (omitted > 0) {
+      svg += `<text x="${cx}" y="${hgt - 8}" text-anchor="middle" fill="#888" font-size="11">+${omitted} more in list (not drawn)</text>`;
+    }
     svg += "</svg>";
     container.innerHTML = svg;
     container.querySelectorAll(".host-node").forEach((g) => {

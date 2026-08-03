@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 SHELL_KINDS = frozenset({"reverse_shell", "tcp"})
 IMPLANT_KINDS = frozenset({"beacon"})
+
+# Strip :port from IPv4/IPv6 host:port peer strings
+_HOSTPORT_V4 = re.compile(r"^(\d{1,3}(?:\.\d{1,3}){3}):\d+$")
+_HOSTPORT_V6 = re.compile(r"^\[([0-9a-fA-F:]+)\]:\d+$")
 
 
 def _meta(row: dict[str, Any]) -> dict[str, Any]:
@@ -19,17 +24,45 @@ def _meta(row: dict[str, Any]) -> dict[str, Any]:
     return meta if isinstance(meta, dict) else {}
 
 
-def is_asset_session(row: dict[str, Any]) -> bool:
-    """True if session is a real shell/implant worth putting on the Assets graph.
+def _truthy(v: Any) -> bool:
+    if v is True or v == 1:
+        return True
+    if isinstance(v, str) and v.strip().lower() in ("1", "true", "yes"):
+        return True
+    return False
 
-    Excludes scanner noise, false shells, and bare TCP connects that never
-    verified or went interactive. Closed shells that once verified (or were
-    interactive / stage-2) still count as historical assets.
+
+def shell_was_real(row: dict[str, Any]) -> bool:
+    """True only when exec-verified / stage-2 / operator-grade shell evidence exists."""
+    meta = _meta(row)
+    if _truthy(row.get("verified")):
+        return True
+    for k in (
+        "verified",
+        "exec_ok",
+        "exec_probe_ok",
+        "shell_verified",
+        "was_verified",
+        "stage2",
+        "stabilized",
+        "stage2_injected",
+    ):
+        if _truthy(meta.get(k)):
+            return True
+    # username+os together is strong (stage-2 / probe filled both)
+    if row.get("username") and row.get("os_info"):
+        return True
+    return False
+
+
+def is_asset_session(row: dict[str, Any]) -> bool:
+    """True if session belongs on the Assets graph.
+
+    Strict default: reverse shells must have been exec-verified (or stage-2).
+    Unverified TCP connects and scanner noise never qualify. Beacons need a
+    real hostname (not empty / not bare peer sockname).
     """
     kind = (row.get("kind") or "").strip()
-    status = (row.get("status") or "").strip()
-    verified = bool(row.get("verified"))
-    interactive = bool(row.get("interactive"))
     meta = _meta(row)
 
     if meta.get("rejected") or meta.get("false_positive") or meta.get("session_rejected"):
@@ -38,35 +71,57 @@ def is_asset_session(row: dict[str, Any]) -> bool:
         return False
 
     if kind in SHELL_KINDS:
-        if verified or interactive:
-            return True
-        # Historical: closed shell that had real access markers
-        if status == "closed":
-            if meta.get("was_verified") or meta.get("stage2") or meta.get("stabilized"):
-                return True
-            if meta.get("exec_probe_ok") or meta.get("shell_verified"):
-                return True
-            # Closed + known user/os from a real session is enough
-            if row.get("username") or row.get("os_info") or row.get("hostname"):
-                return True
-        return False
+        return shell_was_real(row)
 
     if kind in IMPLANT_KINDS:
-        # Real implant callback needs some identity (not empty probe)
-        if row.get("hostname") or row.get("username") or row.get("os_info"):
-            return True
-        # still allow if verified flag or implant id in meta
-        if verified or meta.get("implant_id") or meta.get("agent_id"):
-            return True
-        return False
+        host = (row.get("hostname") or "").strip()
+        if not host:
+            return False
+        # reject placeholder / peer socknames used as hostname
+        if _HOSTPORT_V4.match(host) or _HOSTPORT_V6.match(host):
+            return False
+        if host.lower() in ("unknown", "localhost", "none", "-"):
+            return False
+        return True
 
     return False
 
 
+def normalize_peer(addr: str | None) -> str | None:
+    """Return host portion of remote_addr (drop ephemeral source port)."""
+    if addr is None:
+        return None
+    s = str(addr).strip()
+    if not s:
+        return None
+    m = _HOSTPORT_V4.match(s)
+    if m:
+        return m.group(1)
+    m = _HOSTPORT_V6.match(s)
+    if m:
+        return m.group(1)
+    # bare IPv6 with port sometimes without brackets: skip exotic forms
+    if s.count(":") == 1 and not s.startswith("["):
+        # host:port
+        host, _, port = s.partition(":")
+        if port.isdigit():
+            return host
+    return s
+
+
 def host_key_for_session(row: dict[str, Any]) -> str:
-    """Stable host node id: prefer hostname, else remote addr, else session id."""
-    for k in ("hostname", "remote_addr", "id"):
-        v = row.get(k)
-        if v is not None and str(v).strip():
-            return str(v).strip()
+    """Stable host node id: hostname, else peer IP (no port), else session id."""
+    hn = (row.get("hostname") or "").strip()
+    if hn and not _HOSTPORT_V4.match(hn) and not _HOSTPORT_V6.match(hn):
+        return hn
+    peer = normalize_peer(row.get("remote_addr"))
+    if peer:
+        return peer
+    sid = row.get("id")
+    if sid:
+        return str(sid).strip()
     return "unknown"
+
+
+def host_is_live(node: dict[str, Any]) -> bool:
+    return int(node.get("active_sessions") or 0) > 0
