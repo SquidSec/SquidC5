@@ -17,36 +17,43 @@ concurrency:
 
 jobs:
   test:
+    # PRs: 3.12 only (faster). master/main push: 3.11 + 3.12 matrix.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, squidsec]
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.11", "3.12"]') }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          # pip cache on self-hosted is flaky across jobs; skip
-          cache: ""
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            pyproject.toml
       - name: Install dependencies
         run: |
           set -euo pipefail
+          python -c "import sys; print(sys.executable, sys.version)"
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-          pip install -e .
+          # Same interpreter as tests (never bare `pip` on self-hosted)
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e .
       - name: Lint
-        run: ruff check src tests
+        run: python -m ruff check src tests
       - name: Typecheck core
         run: |
-          pip install mypy
-          mypy --follow-imports=skip --ignore-missing-imports \
+          set -euo pipefail
+          # mypy is already in requirements-dev.txt — do not reinstall every run
+          python -m mypy --follow-imports=skip --ignore-missing-imports \
             src/squidc5/config.py src/squidc5/auth src/squidc5/policy \
             src/squidc5/implants/crypto.py || true
           if [ -f src/squidc5/profiles/transforms.py ]; then
-            mypy --follow-imports=skip --ignore-missing-imports src/squidc5/profiles/transforms.py
+            python -m mypy --follow-imports=skip --ignore-missing-imports src/squidc5/profiles/transforms.py
           fi
       - name: Tests
         run: |
@@ -54,7 +61,7 @@ jobs:
           # Isolate pytest temp / avoid leftover listeners on shared runners
           export TMPDIR="${RUNNER_TEMP:-/tmp}/sc5-pytest-$$"
           mkdir -p "$TMPDIR"
-          pytest -q --cov=squidc5 --cov-report=term-missing --cov-fail-under=65
+          python -m pytest -q --cov=squidc5 --cov-report=term-missing --cov-fail-under=65
 
   native-agent:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -144,14 +151,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: ""
+          cache: pip
+          cache-dependency-path: requirements.txt
       - name: Install pip-audit
-        run: pip install pip-audit
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit
       - name: Audit dependencies
         run: |
           set -euo pipefail
           # Self-hosted can hit transient PyPI timeouts
           for i in 1 2 3; do
+            # setup-python puts this env's scripts on PATH after python -m pip install
             pip-audit -r requirements.txt && exit 0
             echo "pip-audit attempt $i failed; retrying..."
             sleep $((i * 5))
