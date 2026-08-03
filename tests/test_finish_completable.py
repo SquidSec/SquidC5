@@ -50,7 +50,7 @@ async def test_team_membership(client, admin_headers):
     tid = t.json()["id"]
     members = await client.get(f"/api/v1/teams/{tid}/members", headers=admin_headers)
     assert members.status_code == 200
-    assert any(m["actor"] == "bootstrap-admin" for m in members.json()["members"])
+    assert any(m["actor"] in ("bootstrap-admin", "squidc5-admin") for m in members.json()["members"])
 
     add = await client.post(
         f"/api/v1/teams/{tid}/members",

@@ -49,6 +49,16 @@
     button.primary:hover { background: rgba(233,30,140,0.35); }
     button.danger { border-color: rgba(248,113,113,0.4); color: var(--bad); background: rgba(248,113,113,0.08); }
     button.danger:hover { background: rgba(248,113,113,0.16); }
+    button.accent {
+      background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.4); color: var(--ok); font-weight: 600;
+    }
+    button.accent:hover { background: rgba(52,211,153,0.22); }
+    button.icon-close {
+      width: 32px; height: 32px; min-height: 32px; padding: 0;
+      border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; line-height: 1; color: var(--muted);
+    }
+    button.icon-close:hover { color: var(--text); border-color: rgba(233,30,140,0.4); background: rgba(255,255,255,0.04); }
     button.ghost {
       background: transparent; border-color: var(--border); color: var(--muted); font-weight: 500;
     }
@@ -108,32 +118,20 @@
     .app {
       display: grid;
       grid-template-rows: var(--top-h) 1fr var(--bottom-h);
-      grid-template-columns: var(--sidebar-w) 1fr minmax(260px, 320px);
-      grid-template-areas:
-        "top top top"
-        "side main ctx"
-        "bottom bottom bottom";
-      height: 100dvh;
-      width: 100%;
-    }
-    .app.no-ctx {
       grid-template-columns: var(--sidebar-w) 1fr;
       grid-template-areas:
         "top top"
         "side main"
         "bottom bottom";
+      height: 100dvh;
+      width: 100%;
     }
-    .app.no-ctx .ctx { display: none; }
+    /* Context lives in page tabs — rail only as mobile sheet when forced open */
+    .app .ctx { display: none; }
+    .app.ctx-sheet .ctx { display: flex; }
     .app.no-bottom {
       grid-template-rows: var(--top-h) 1fr;
       --bottom-h: 0px;
-    }
-    .app.no-bottom {
-      grid-template-areas:
-        "top top top"
-        "side main ctx";
-    }
-    .app.no-bottom.no-ctx {
       grid-template-areas:
         "top top"
         "side main";
@@ -370,15 +368,131 @@
     /* Content primitives */
     .toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; align-items: center; }
     .stats {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-      gap: 8px; margin-bottom: 12px;
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+      width: 100%;
     }
     .stat {
       background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 10px; text-align: center;
+      padding: 10px 12px; text-align: center;
+      flex: 1 1 100px;
+      min-width: 88px;
+      max-width: 100%;
     }
-    .stat .n { font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .stat .n { font-size: clamp(1.1rem, 2.5vw, 1.45rem); font-weight: 800; font-variant-numeric: tabular-nums; }
     .stat .l { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+
+    /* Page tabs — reduce scrolling across all views */
+    .page-tabs {
+      display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%;
+      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .page-tab-bar {
+      display: flex; flex-wrap: wrap; gap: 2px; flex-shrink: 0;
+      padding: 6px 8px 0; border-bottom: 1px solid var(--border);
+      background: var(--bg3);
+    }
+    .page-tab-btn {
+      appearance: none; border: 1px solid transparent; background: transparent;
+      color: var(--muted); font-size: 0.75rem; font-weight: 600;
+      padding: 7px 12px; border-radius: 8px 8px 0 0; cursor: pointer;
+      min-height: 32px;
+    }
+    .page-tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .page-tab-btn.active {
+      color: var(--pink2); background: var(--bg2);
+      border-color: var(--border); border-bottom-color: var(--bg2);
+      margin-bottom: -1px;
+    }
+    .page-tab-panels { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+    .page-tab-panel {
+      display: none; height: 100%; min-height: 0; overflow: auto; padding: 10px 12px;
+      flex-direction: column;
+    }
+    .page-tab-panel.active { display: flex; }
+
+    /* Assets: graph ~30% + tabbed work area */
+    .assets-layout {
+      display: grid;
+      grid-template-columns: minmax(200px, 30%) 1fr;
+      gap: 10px; flex: 1; min-height: 0; height: 100%;
+    }
+    .assets-graph-wrap {
+      display: flex; flex-direction: column; min-height: 0; height: 100%;
+      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .assets-graph-toolbar {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+      padding: 6px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .assets-graph-canvas {
+      flex: 1; min-height: 120px; position: relative; overflow: hidden;
+      background: #0a0a10; cursor: grab; touch-action: none;
+    }
+    .assets-graph-canvas.panning { cursor: grabbing; }
+    .assets-graph-canvas svg { width: 100%; height: 100%; display: block; }
+    .assets-side { min-height: 0; height: 100%; display: flex; flex-direction: column; }
+
+    /* Confirm modal (no alert/confirm) */
+    .sc5-modal-bg {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.55); display: none;
+      align-items: center; justify-content: center; padding: 16px;
+    }
+    .sc5-modal-bg.open { display: flex; }
+    .sc5-modal {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 18px; max-width: 420px; width: 100%;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+    }
+    .sc5-modal h3 { margin: 0 0 8px; font-size: 1rem; }
+    .sc5-modal p { margin: 0 0 14px; color: var(--muted); font-size: 0.85rem; line-height: 1.45; }
+    .sc5-modal .row { margin: 0; justify-content: flex-end; }
+
+    /* Bottom dock layout modes */
+    .bottom-panes.mode-tabs {
+      grid-template-columns: 1fr !important;
+    }
+    .bottom-panes.mode-tabs .pane-vsplit { display: none !important; }
+    .bottom-panes.mode-tabs .bottom-pane { display: none; min-height: 0; }
+    .bottom-panes.mode-tabs .bottom-pane.tab-active { display: flex; }
+    .bottom-tab-bar {
+      display: none; flex-shrink: 0; gap: 4px; padding: 4px 8px;
+      border-bottom: 1px solid var(--border); background: var(--bg3);
+      align-items: center;
+    }
+    .bottom-panes.mode-tabs .bottom-tab-bar { display: flex; }
+    .bottom-tab-bar button {
+      font-size: 0.72rem; padding: 4px 10px; min-height: 28px;
+    }
+    .bottom-tab-bar button.active {
+      border-color: rgba(233,30,140,0.45); color: var(--pink2);
+    }
+    .bottom-layout-toggle {
+      margin-left: auto; font-size: 0.68rem; padding: 3px 8px; min-height: 26px;
+    }
+
+    /* Dashboard fills height */
+    #dashContent {
+      display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%;
+    }
+    #dashContent .dash-body {
+      flex: 1; min-height: 0; display: grid;
+      grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    #dashContent .dash-body .list-panel,
+    #dashContent .dash-body .work-panel { height: 100%; min-height: 0; }
+
+    /* Session context compact */
+    .ctx-compact .ctx-meta-grid {
+      display: grid; grid-template-columns: auto 1fr; gap: 4px 10px;
+      font-size: 0.78rem; margin-bottom: 10px;
+    }
+    .ctx-compact .ctx-meta-grid dt { color: var(--muted); margin: 0; }
+    .ctx-compact .ctx-meta-grid dd { margin: 0; }
+    .ctx-compact .ctx-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .ctx-compact label { margin-top: 6px; }
     .stat.ok .n { color: var(--ok); }
     .stat.pink .n { color: var(--pink2); }
     .stat.cyan .n { color: var(--cyan); }
@@ -1172,9 +1286,9 @@
           </div>
           <div id="dashContent" class="hidden">
             <div class="stats" id="dashStats"></div>
-            <div class="split" style="min-height:300px">
+            <div class="dash-body">
               <div class="list-panel">
-                <div class="lp-head">Recent sessions <a class="doc-link" style="margin-left:auto;font-size:0.65rem;text-transform:none;letter-spacing:0" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#sessions" target="_blank" rel="noopener noreferrer">Docs</a></div>
+                <div class="lp-head">Recent sessions</div>
                 <div class="lp-body" id="dashSes"></div>
               </div>
               <div class="work-panel">
@@ -1207,9 +1321,8 @@
           <strong class="inko-brand-full"><span class="inko-acronym">INKO</span></strong>
           <span class="muted" style="font-size:0.72rem;font-weight:600;line-height:1.25">Intelligent Neural Kinetic Operator</span>
         </div>
-        <button type="button" id="aiNewChat" title="Start a new chat" style="flex-shrink:0">New chat</button>
-        <a class="doc-link" href="https://github.com/SquidSec/SquidC5/blob/master/docs/user-guide.md#inko-intelligent-neural-kinetic-operator" target="_blank" rel="noopener noreferrer" style="font-size:0.7rem;flex-shrink:0">Docs</a>
-        <button type="button" id="aiDrawerClose" style="margin-left:4px;flex-shrink:0" title="Close INKO" aria-label="Close INKO">x</button>
+        <button type="button" class="accent sm" id="aiNewChat" title="Start a new chat" style="flex-shrink:0">New chat</button>
+        <button type="button" class="icon-close" id="aiDrawerClose" style="margin-left:4px;flex-shrink:0" title="Close INKO" aria-label="Close INKO">&times;</button>
       </div>
       <div class="ai-drawer-body" id="aiChatLog"></div>
       <div class="ai-drawer-foot" id="aiDrawerFoot">
@@ -1249,13 +1362,18 @@
 
     <footer class="bottom" id="bottomDock">
       <div class="bottom-resize" id="bottomResize" title="Drag to resize panel height" role="separator" aria-orientation="horizontal"></div>
-      <div class="bottom-panes" id="bottomPanes">
-        <div class="bottom-pane" id="paneEvents">
+      <div class="bottom-panes mode-split" id="bottomPanes">
+        <div class="bottom-tab-bar" id="bottomTabBar">
+          <button type="button" class="active" data-bpane="events" id="bpTabEvents"><span class="live-dot"></span> Events <span class="muted" id="eventCountTab">0</span></button>
+          <button type="button" data-bpane="console" id="bpTabConsole">Console</button>
+          <button type="button" class="bottom-layout-toggle ghost sm" id="bottomLayoutToggle" title="Toggle split vs tabs">Layout: split</button>
+        </div>
+        <div class="bottom-pane tab-active" id="paneEvents" data-bpane="events">
           <div class="bp-head"><span class="live-dot"></span> Event stream <span class="muted" id="eventCount" style="margin-left:auto;text-transform:none;letter-spacing:0">0</span></div>
           <div class="bp-body" id="eventsBox">Connect to stream events...</div>
         </div>
         <div class="pane-vsplit" id="paneSplit" title="Drag to resize panes" role="separator" aria-orientation="vertical"></div>
-        <div class="bottom-pane" id="paneConsole">
+        <div class="bottom-pane" id="paneConsole" data-bpane="console">
           <div class="bp-head">Output / console</div>
           <div class="bp-body" id="consoleBox">Command and task output appears here.</div>
         </div>
@@ -1265,6 +1383,17 @@
 
   <div class="toast err" id="toastErr"></div>
   <div class="toast ok" id="toastOk"></div>
+
+  <div class="sc5-modal-bg" id="sc5ConfirmModal" role="dialog" aria-modal="true" aria-labelledby="sc5ConfirmTitle" hidden>
+    <div class="sc5-modal">
+      <h3 id="sc5ConfirmTitle">Confirm</h3>
+      <p id="sc5ConfirmMsg"></p>
+      <div class="row">
+        <button type="button" class="ghost" id="sc5ConfirmCancel">Cancel</button>
+        <button type="button" class="primary" id="sc5ConfirmOk">OK</button>
+      </div>
+    </div>
+  </div>
 
   <div class="modal-bg" id="connectModal" role="dialog" aria-modal="true" aria-labelledby="connTitle">
     <div class="modal">
@@ -1484,10 +1613,9 @@
     });
     const app = document.querySelector(".app");
     if (app) {
-      const focusAdmin = name === "admin";
-      const focusWide = name === "admin" || name === "ai";
-      app.classList.toggle("no-ctx", focusWide);
-      app.classList.toggle("no-bottom", focusAdmin);
+      // Context is page-tabbed; hide rail. Bottom dock off on admin only.
+      app.classList.remove("no-ctx");
+      app.classList.toggle("no-bottom", name === "admin");
     }
     const meta = VIEWS[name] || VIEWS.dashboard;
     $("viewTitle").textContent = meta.title;
@@ -1498,6 +1626,79 @@
     if (window.__SC5_setPageDocs) window.__SC5_setPageDocs(name);
     try { localStorage.setItem("sc5_ops_view", name); } catch (_) {}
   }
+
+  /** Themed confirm — never use window.confirm/alert */
+  function sc5Confirm(message, opts) {
+    const o = opts || {};
+    return new Promise((resolve) => {
+      const bg = $("sc5ConfirmModal");
+      const title = $("sc5ConfirmTitle");
+      const msg = $("sc5ConfirmMsg");
+      const ok = $("sc5ConfirmOk");
+      const cancel = $("sc5ConfirmCancel");
+      if (!bg || !ok || !cancel) {
+        resolve(false);
+        return;
+      }
+      title.textContent = o.title || "Confirm";
+      msg.textContent = message || "";
+      ok.textContent = o.okText || "OK";
+      ok.className = o.danger ? "danger" : "primary";
+      cancel.textContent = o.cancelText || "Cancel";
+      bg.hidden = false;
+      bg.classList.add("open");
+      const done = (v) => {
+        bg.classList.remove("open");
+        bg.hidden = true;
+        ok.onclick = null;
+        cancel.onclick = null;
+        bg.onclick = null;
+        resolve(v);
+      };
+      ok.onclick = () => done(true);
+      cancel.onclick = () => done(false);
+      bg.onclick = (e) => { if (e.target === bg) done(false); };
+    });
+  }
+  window.__SC5_confirm = sc5Confirm;
+
+  function setupBottomLayout() {
+    const panes = $("bottomPanes");
+    const toggle = $("bottomLayoutToggle");
+    if (!panes || !toggle) return;
+    let mode = "split";
+    try { mode = localStorage.getItem("sc5_bottom_layout") || "split"; } catch (_) {}
+    const apply = (m) => {
+      mode = m === "tabs" ? "tabs" : "split";
+      panes.classList.toggle("mode-tabs", mode === "tabs");
+      panes.classList.toggle("mode-split", mode === "split");
+      toggle.textContent = mode === "tabs" ? "Layout: tabs" : "Layout: split";
+      try { localStorage.setItem("sc5_bottom_layout", mode); } catch (_) {}
+      if (mode === "tabs") {
+        const active = panes.querySelector(".bottom-pane.tab-active") || $("paneEvents");
+        panes.querySelectorAll(".bottom-pane").forEach((p) => {
+          p.classList.toggle("tab-active", p === active);
+        });
+        document.querySelectorAll("#bottomTabBar [data-bpane]").forEach((b) => {
+          b.classList.toggle("active", b.getAttribute("data-bpane") === (active && active.getAttribute("data-bpane")));
+        });
+      }
+    };
+    apply(mode);
+    toggle.onclick = () => apply(mode === "split" ? "tabs" : "split");
+    document.querySelectorAll("#bottomTabBar [data-bpane]").forEach((b) => {
+      b.onclick = () => {
+        const id = b.getAttribute("data-bpane");
+        panes.querySelectorAll(".bottom-pane").forEach((p) => {
+          p.classList.toggle("tab-active", p.getAttribute("data-bpane") === id);
+        });
+        document.querySelectorAll("#bottomTabBar [data-bpane]").forEach((x) => {
+          x.classList.toggle("active", x === b);
+        });
+      };
+    });
+  }
+  setupBottomLayout();
   window.__SC5_DOCS = DOCS;
   document.querySelectorAll(".nav-item").forEach((b) => {
     b.addEventListener("click", () => setView(b.getAttribute("data-view")));
@@ -1794,6 +1995,7 @@
     // Events
     const ev = (metrics.recent_events || []).slice(-40).reverse();
     $("eventCount").textContent = String(ev.length);
+    if ($("eventCountTab")) $("eventCountTab").textContent = String(ev.length);
     $("eventsBox").textContent = ev.length
       ? ev.map((e) => {
           const t = new Date((e.ts || 0) * 1000).toISOString().slice(11, 19);

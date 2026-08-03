@@ -336,7 +336,7 @@ class TokenService:
             return ""
         raw = raw_token or generate_token()
         await self.db.create_token(
-            name="bootstrap-admin",
+            name="squidc5-admin",
             token_hash=hash_token(raw),
             scopes=["admin"],
             mcp_tools=list(ALL_MCP_TOOLS),
@@ -346,7 +346,7 @@ class TokenService:
             actor="system",
             actor_type="system",
             action="token.bootstrap_admin",
-            details={"name": "bootstrap-admin"},
+            details={"name": "squidc5-admin"},
         )
         return raw
 
