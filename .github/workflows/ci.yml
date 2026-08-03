@@ -163,7 +163,8 @@ jobs:
           set -euo pipefail
           # Self-hosted can hit transient PyPI timeouts
           for i in 1 2 3; do
-            python -m pip_audit -r requirements.txt && exit 0
+            # setup-python puts this env's scripts on PATH after python -m pip install
+            pip-audit -r requirements.txt && exit 0
             echo "pip-audit attempt $i failed; retrying..."
             sleep $((i * 5))
           done
