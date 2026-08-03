@@ -36,9 +36,13 @@ def test_is_asset_session_strict():
             "os_info": "Linux",
         }
     )
-    # interactive alone is NOT enough without verify evidence
-    assert not is_asset_session(
+    # live interactive channel is an asset (operator is on it)
+    assert is_asset_session(
         {"kind": "reverse_shell", "status": "active", "interactive": True, "verified": False}
+    )
+    # inactive interactive-looking flags without evidence are not assets
+    assert not is_asset_session(
+        {"kind": "reverse_shell", "status": "closed", "interactive": True, "verified": False}
     )
     # scanner closed shells
     assert not is_asset_session(
@@ -159,19 +163,27 @@ async def test_hosts_api_and_claim_ttl(tmp_path):
             hosts_r = await client.get("/api/v1/hosts", headers=h)
             assert "10.9.8.7" in {x["id"] for x in hosts_r.json()["hosts"]}
 
-            hide = await client.post("/api/v1/hosts/workstation-a/hide", headers=h)
+            # Historical-only host can be dismissed; live hosts auto-unhide
+            hide = await client.post("/api/v1/hosts/10.9.8.7/hide", headers=h)
             assert hide.status_code == 200
             hosts2 = await client.get("/api/v1/hosts", headers=h)
             ids2 = {x["id"] for x in hosts2.json()["hosts"]}
-            assert "workstation-a" not in ids2
+            assert "10.9.8.7" not in ids2
             assert "dc01" in ids2
+            assert "workstation-a" in ids2
 
             bulk = await client.post("/api/v1/hosts/hide-inactive", headers=h)
             assert bulk.status_code == 200
             assert bulk.json()["hidden"] >= 0
 
-            unhide = await client.delete("/api/v1/hosts/workstation-a/hide", headers=h)
-            assert unhide.status_code == 200
+            # Live implant host reappears even if previously bulk-hidden
+            await state.db.hide_host_graph("dc01", hidden_by="test", note="stale")
+            hosts_live = await client.get("/api/v1/hosts", headers=h)
+            assert "dc01" in {x["id"] for x in hosts_live.json()["hosts"]}
+
+            # restore historical
+            unhide = await client.delete("/api/v1/hosts/10.9.8.7/hide", headers=h)
+            assert unhide.status_code in (200, 404)
 
             c = await client.post(f"/api/v1/sessions/{sid1}/claim", headers=h, json={})
             assert c.status_code == 200

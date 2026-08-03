@@ -388,6 +388,41 @@
     }
   }
 
+  function updateAiLlmSummary() {
+    const sum = el("aiLlmSummary");
+    if (!sum) return;
+    const conn = el("aiLlmGlobal");
+    const mod = el("aiModelGlobal");
+    const cLabel = conn && conn.selectedIndex >= 0
+      ? (conn.options[conn.selectedIndex]?.text || "").trim()
+      : "";
+    const mLabel = mod && mod.value
+      ? (mod.options[mod.selectedIndex]?.text || mod.value).trim()
+      : "";
+    if (cLabel && mLabel && !cLabel.startsWith("(") && cLabel !== "Loading...") {
+      // short: "name / model" without full provider path noise
+      const shortC = cLabel.split("/")[0].trim() || cLabel;
+      sum.textContent = shortC + " · " + mLabel;
+      return;
+    }
+    if (cLabel && !cLabel.startsWith("(") && cLabel !== "Loading...") {
+      sum.textContent = cLabel.split("/")[0].trim() || cLabel;
+      return;
+    }
+    sum.textContent = "LLM · pick connection";
+  }
+
+  function setAiLlmBarOpen(open) {
+    const bar = el("aiLlmBar");
+    const body = el("aiLlmBarBody");
+    const toggle = el("aiLlmBarToggle");
+    if (!bar) return;
+    bar.classList.toggle("open", !!open);
+    if (body) body.hidden = !open;
+    if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    try { localStorage.setItem("sc5_inko_llm_open", open ? "1" : "0"); } catch (_) {}
+  }
+
   function bindLlmModelPair(connId, modelId) {
     const conn = el(connId);
     const mod = el(modelId);
@@ -403,6 +438,13 @@
       } catch (_) { pref = loadSel("sc5_ops_model") || ""; }
       await loadModelsForLlm(id, modelId, pref);
       if (mod.value) saveSel("sc5_ops_model", mod.value);
+      updateAiLlmSummary();
+      // Collapse settings once both connection + model are chosen (flyout only)
+      if (connId === "aiLlmGlobal" && id && mod.value) {
+        let preferOpen = false;
+        try { preferOpen = localStorage.getItem("sc5_inko_llm_open") === "1"; } catch (_) {}
+        if (!preferOpen) setAiLlmBarOpen(false);
+      }
     };
     conn.onchange = () => { sync(); };
     mod.onchange = () => {
@@ -412,6 +454,8 @@
       if (id && mod.value) {
         api("PATCH", "/api/v1/llm/" + encodeURIComponent(id), { model: mod.value }).catch(() => {});
       }
+      updateAiLlmSummary();
+      if (connId === "aiLlmGlobal" && id && mod.value) setAiLlmBarOpen(false);
     };
     sync();
   }
@@ -1809,7 +1853,21 @@
       fillLlmSelect(el("aiLlmPick"), llms, loadSel("sc5_ops_llm") || "");
       bindLlmModelPair("aiLlmGlobal", "aiModelGlobal");
       bindLlmModelPair("aiLlmPick", "aiModelPick");
+      updateAiLlmSummary();
     });
+    // Collapsible connection/model bar (collapsed when set)
+    if (el("aiLlmBarToggle") && !el("aiLlmBarToggle").dataset.bound) {
+      el("aiLlmBarToggle").dataset.bound = "1";
+      el("aiLlmBarToggle").onclick = () => {
+        const bar = el("aiLlmBar");
+        const open = !(bar && bar.classList.contains("open"));
+        setAiLlmBarOpen(open);
+      };
+      let startOpen = false;
+      try { startOpen = localStorage.getItem("sc5_inko_llm_open") === "1"; } catch (_) {}
+      const hasSel = !!(loadSel("sc5_ops_llm") && loadSel("sc5_ops_model"));
+      setAiLlmBarOpen(startOpen || !hasSel);
+    }
     btn.onclick = () => openAiDrawer();
     if (el("aiDrawerClose")) el("aiDrawerClose").onclick = () => openAiDrawer(false);
     if (backdrop) backdrop.onclick = () => openAiDrawer(false);

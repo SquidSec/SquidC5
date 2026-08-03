@@ -723,6 +723,57 @@
       padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
     .ai-drawer-foot select, .ai-drawer-foot textarea { width: 100%; }
+    .ai-llm-bar {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(0,0,0,0.2);
+      overflow: hidden;
+    }
+    .ai-llm-bar-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-align: left;
+      padding: 6px 10px;
+      min-height: 34px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .ai-llm-bar-toggle:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+    .ai-llm-bar-toggle .ai-llm-summary {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .ai-llm-bar-toggle .ai-llm-chevron {
+      flex-shrink: 0;
+      opacity: 0.7;
+      font-size: 0.65rem;
+      transition: transform 0.15s ease;
+    }
+    .ai-llm-bar.open .ai-llm-chevron { transform: rotate(90deg); }
+    .ai-llm-bar-body {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      padding: 0 8px 8px;
+    }
+    .ai-llm-bar.open .ai-llm-bar-body { display: flex; }
+    .ai-llm-bar-body label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin: 0;
+    }
     @media (max-width: 900px) {
       .ai-drawer {
         width: 100vw; left: 0; right: 0;
@@ -1077,8 +1128,19 @@
       </div>
       <div class="ai-drawer-body" id="aiChatLog"></div>
       <div class="ai-drawer-foot" id="aiDrawerFoot">
-        <select id="aiLlmGlobal" title="LLM connection"></select>
-        <select id="aiModelGlobal" title="Model" disabled><option value="">Model...</option></select>
+        <div class="ai-llm-bar" id="aiLlmBar">
+          <button type="button" class="ai-llm-bar-toggle" id="aiLlmBarToggle" aria-expanded="false" title="Show or hide LLM settings">
+            <span class="ai-llm-chevron" aria-hidden="true">&#9654;</span>
+            <span class="ai-llm-summary" id="aiLlmSummary">LLM · pick connection</span>
+            <span class="muted" style="flex-shrink:0;font-size:0.65rem">change</span>
+          </button>
+          <div class="ai-llm-bar-body" id="aiLlmBarBody" hidden>
+            <label for="aiLlmGlobal">Connection</label>
+            <select id="aiLlmGlobal" title="LLM connection"></select>
+            <label for="aiModelGlobal">Model</label>
+            <select id="aiModelGlobal" title="Model" disabled><option value="">Model...</option></select>
+          </div>
+        </div>
         <textarea id="aiPromptGlobal" rows="3" placeholder="Ask INKO anything - list sessions, spin up a listener..."></textarea>
         <div class="row" style="margin:0;gap:6px">
           <button type="button" class="primary" id="aiSendGlobal" style="flex:1">Send</button>

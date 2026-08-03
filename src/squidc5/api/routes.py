@@ -815,9 +815,15 @@ def build_api_router() -> APIRouter:
             )
         nodes = []
         for h in hosts.values():
+            live = int(h.get("active") or 0) > 0
+            # Live verified/interactive assets always surface (clear stale bulk-hide)
+            if live and h.get("hidden"):
+                await state.db.unhide_host_graph(h["id"])
+                h["hidden"] = False
+                hidden_ids.discard(h["id"])
             if h.get("hidden") and not include_hidden:
                 continue
-            if active_only and int(h.get("active") or 0) <= 0:
+            if active_only and not live:
                 continue
             kinds = sorted(h["kinds"])
             nodes.append(

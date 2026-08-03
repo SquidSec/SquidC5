@@ -71,6 +71,11 @@ def is_asset_session(row: dict[str, Any]) -> bool:
         return False
 
     if kind in SHELL_KINDS:
+        # Live interactive channel counts (operator is on it even if probe flags lag)
+        if (row.get("status") or "") == "active" and (
+            _truthy(row.get("interactive")) or _truthy(row.get("verified"))
+        ):
+            return True
         return shell_was_real(row)
 
     if kind in IMPLANT_KINDS:
