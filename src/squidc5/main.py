@@ -73,7 +73,11 @@ async def build_state(settings: Settings) -> AppState:
     profiles = ProfileEngine(db)
     await profiles.load()
     implants = ImplantRegistry()
-    teams = TeamService(db)
+    teams = TeamService(
+        db,
+        claim_ttl_sec=int(getattr(settings, "session_claim_ttl_sec", 3600) or 0),
+        renew_on_activity=bool(getattr(settings, "session_claim_renew_on_activity", True)),
+    )
     from squidc5.collab.presence import PresenceService
 
     presence = PresenceService(ttl_sec=90.0)

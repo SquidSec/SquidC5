@@ -207,12 +207,16 @@ async def test_ops_admin_collab_ui_markers(tmp_path):
                 "view-sessions",
                 "view-collab",
                 "ctxClaim",
+                "ctxForceClaim",
                 "/api/v1/sessions/",
+                "/api/v1/hosts",
                 "claim",
                 "handoff",
                 "presence",
                 "selectSession",
                 "renderSessionsView",
+                "renderHostsView",
+                "drawHostGraph",
             ):
                 assert m in js, m
 
