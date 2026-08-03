@@ -181,7 +181,6 @@ jobs:
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
-        continue-on-error: true
         with:
           name: squidc5-${{ matrix.artifact }}
           path: |
@@ -192,7 +191,7 @@ jobs:
             dist/binaries/README.txt
             dist/binaries/*/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
   # Publish GitHub Release with Linux + Windows binaries when main/master CI succeeds.
   release:
