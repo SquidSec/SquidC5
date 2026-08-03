@@ -1108,15 +1108,17 @@ Least privilege: phone UI might only need `shell:interact` + `sessions:read`; ex
 
 1. **Admin -> Tokens** (needs `tokens:manage` or `admin`).
 2. Pick a **preset** (short description under the buttons):
-   - **Read only** - watch sessions/listeners/metrics/audit
-   - **Operator** - shells, tasks, collab, session hygiene
+   - **Full operator** - all day-to-day ops (shells, listeners, payloads, profiles, OAST, collab, INKO) - never admin
+   - **Operator** - shells, tasks, collab - no payload/profile edits
+   - **Read-only + INKO** - observe + AI - cannot create listeners/tasks/payloads
+   - **Read only** - observe only - no writes, no AI
    - **Listener ops** - bind/manage listeners
-   - **Payload / profiles** - generate implants and edit C2 profiles
+   - **Payload / profiles** - implants and C2 profiles
    - **Phone shell** - minimal phone interact
-   - **INKO operator** - AI chat + read context + payloads
-   - **MCP external AI** - MCP connect with default safe tools
-   - **Token admin** - mint/update tokens within grant limits
-   - **Full admin** - break-glass (admin granters only)
+   - **INKO + operate** - AI plus shell/tasks/payloads (still non-admin)
+   - **MCP external AI** - external model, default safe tools
+   - **Token admin** / **Full admin** - privileged (admin granters only)
+   - **All non-admin** - every non-privileged scope (never sets `admin`)
 3. **Mint new** - a green banner shows the secret **and a connection link** (`/ops#sc5=...`) until you **Close** it.
 4. **Link** on an existing token issues a **one-time** URL (`/ops#sc5ticket=...`) without showing the secret. Send that URL to the operator.
 5. When they open the link, the browser redeems the ticket, **rolls** their secret once, and auto-connects. The previous secret stops working.

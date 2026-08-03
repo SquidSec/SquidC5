@@ -70,12 +70,65 @@ SCOPE_DESCRIPTIONS: dict[str, str] = {
     "oast:write": "Mint and delete OAST tokens",
 }
 
+# Privileged scopes - never included in "non-admin" presets
+PRIVILEGED_SCOPES = frozenset(
+    {"admin", "tokens:manage", "policy:manage", "llm:manage", "plugins:manage"}
+)
+
+# All operational scopes a non-admin full operator may hold
+_FULL_OPERATOR_SCOPES = sorted(
+    s
+    for s in SCOPES
+    if s not in PRIVILEGED_SCOPES and s != "mcp:connect"
+)
+
 # Named presets for mint/edit UI (scopes only; MCP tools optional)
 SCOPE_PRESETS: list[dict[str, Any]] = [
     {
+        "id": "full_operator",
+        "label": "Full operator",
+        "description": (
+            "All day-to-day ops abilities (shells, listeners, payloads, profiles, "
+            "OAST, collab, INKO) - no admin/token/policy/LLM manage."
+        ),
+        "scopes": list(_FULL_OPERATOR_SCOPES),
+    },
+    {
+        "id": "operator",
+        "label": "Operator",
+        "description": "Day-to-day shells, tasks, listeners read, collab - no payload/profile edits.",
+        "scopes": [
+            "sessions:read",
+            "sessions:write",
+            "tasks:read",
+            "tasks:write",
+            "shell:interact",
+            "listeners:read",
+            "collab:use",
+            "metrics:read",
+            "audit:read",
+        ],
+    },
+    {
+        "id": "read_only_ai",
+        "label": "Read-only + INKO",
+        "description": "Observe everything and use INKO - cannot create listeners, tasks, or payloads.",
+        "scopes": [
+            "sessions:read",
+            "tasks:read",
+            "listeners:read",
+            "metrics:read",
+            "audit:read",
+            "profiles:read",
+            "oast:read",
+            "collab:use",
+            "ai:use",
+        ],
+    },
+    {
         "id": "read_only",
         "label": "Read only",
-        "description": "Watch sessions, listeners, metrics, and audit - no writes.",
+        "description": "Watch sessions, listeners, metrics, audit - no writes and no AI.",
         "scopes": [
             "sessions:read",
             "tasks:read",
@@ -87,30 +140,15 @@ SCOPE_PRESETS: list[dict[str, Any]] = [
         ],
     },
     {
-        "id": "operator",
-        "label": "Operator",
-        "description": "Day-to-day shells, tasks, collab, and session hygiene.",
-        "scopes": [
-            "sessions:read",
-            "sessions:write",
-            "tasks:read",
-            "tasks:write",
-            "shell:interact",
-            "listeners:read",
-            "collab:use",
-            "metrics:read",
-        ],
-    },
-    {
         "id": "listener_ops",
         "label": "Listener ops",
-        "description": "Bind and manage listeners only.",
-        "scopes": ["listeners:read", "listeners:write", "metrics:read"],
+        "description": "Create/start/stop listeners only.",
+        "scopes": ["listeners:read", "listeners:write", "metrics:read", "sessions:read"],
     },
     {
         "id": "payload_dev",
         "label": "Payload / profiles",
-        "description": "Generate implants, edit profiles, and save artifacts.",
+        "description": "Generate implants, edit profiles, save artifacts.",
         "scopes": [
             "payloads:generate",
             "profiles:read",
@@ -134,22 +172,28 @@ SCOPE_PRESETS: list[dict[str, Any]] = [
     },
     {
         "id": "ai_operator",
-        "label": "INKO operator",
-        "description": "INKO chat plus read context and payload generation.",
+        "label": "INKO + operate",
+        "description": "INKO plus shell/tasks/payloads for AI-assisted ops (still non-admin).",
         "scopes": [
             "ai:use",
             "sessions:read",
+            "sessions:write",
             "tasks:read",
+            "tasks:write",
+            "shell:interact",
             "listeners:read",
-            "metrics:read",
+            "listeners:write",
             "payloads:generate",
             "profiles:read",
+            "metrics:read",
+            "audit:read",
+            "collab:use",
         ],
     },
     {
         "id": "mcp_external",
         "label": "MCP external AI",
-        "description": "External model via MCP with default safe tools only.",
+        "description": "External model via MCP with default safe tools only (no shell).",
         "scopes": [
             "mcp:connect",
             "sessions:read",
@@ -171,13 +215,14 @@ SCOPE_PRESETS: list[dict[str, Any]] = [
     {
         "id": "token_admin",
         "label": "Token admin",
-        "description": "Mint and update tokens within grant limits (not full admin).",
+        "description": "Mint/update non-privileged tokens only (not full admin).",
         "scopes": ["tokens:manage", "sessions:read", "metrics:read"],
+        "admin_only": True,
     },
     {
         "id": "full_admin",
         "label": "Full admin",
-        "description": "Break-glass admin scope (all capabilities).",
+        "description": "Break-glass admin - all capabilities.",
         "scopes": ["admin"],
         "admin_only": True,
     },
@@ -216,32 +261,38 @@ ALL_MCP_TOOLS = frozenset(
 
 def scope_catalog() -> dict[str, Any]:
     """UI/API catalog: scopes with descriptions + named presets."""
-    priv = frozenset(
-        {"admin", "tokens:manage", "policy:manage", "llm:manage", "plugins:manage"}
-    )
     scopes = [
         {
             "id": s,
             "description": SCOPE_DESCRIPTIONS.get(s, s),
-            "privileged": s in priv,
+            "privileged": s in PRIVILEGED_SCOPES,
         }
         for s in sorted(SCOPES)
     ]
-    presets = [
-        {
-            "id": p["id"],
-            "label": p["label"],
-            "description": p["description"],
-            "scopes": list(p["scopes"]),
-            "mcp_tools": list(p["mcp_tools"]) if p.get("mcp_tools") else None,
-            "admin_only": bool(p.get("admin_only")),
-        }
-        for p in SCOPE_PRESETS
-    ]
+    presets = []
+    for p in SCOPE_PRESETS:
+        # Deduplicate while preserving order
+        seen: set[str] = set()
+        clean_scopes: list[str] = []
+        for s in p["scopes"]:
+            if s not in seen:
+                seen.add(s)
+                clean_scopes.append(s)
+        presets.append(
+            {
+                "id": p["id"],
+                "label": p["label"],
+                "description": p["description"],
+                "scopes": clean_scopes,
+                "mcp_tools": list(p["mcp_tools"]) if p.get("mcp_tools") else None,
+                "admin_only": bool(p.get("admin_only")),
+            }
+        )
     return {
         "scopes": scopes,
         "presets": presets,
-        "privileged_scopes": sorted(priv),
+        "privileged_scopes": sorted(PRIVILEGED_SCOPES),
+        "non_admin_scopes": sorted(SCOPES - PRIVILEGED_SCOPES),
     }
 
 
@@ -299,11 +350,6 @@ class TokenService:
         )
         return raw
 
-    # Scopes only a true admin may grant
-    PRIVILEGED_SCOPES = frozenset(
-        {"admin", "tokens:manage", "policy:manage", "llm:manage", "plugins:manage"}
-    )
-
     async def rename(self, token_id: str, name: str) -> bool:
         clean = (name or "").strip()
         if not clean or len(clean) > 64:
@@ -325,7 +371,7 @@ class TokenService:
         if invalid:
             raise ValueError(f"Invalid scopes: {sorted(invalid)}")
         if not grantor_is_admin:
-            priv = set(scopes) & self.PRIVILEGED_SCOPES
+            priv = set(scopes) & PRIVILEGED_SCOPES
             if priv:
                 raise ValueError(f"Only admin may grant privileged scopes: {sorted(priv)}")
             if grantor_scopes is not None:
@@ -400,7 +446,7 @@ class TokenService:
         before = self.parse_row(row)
         # tokens:manage must not touch tokens that already hold privileged scopes
         if not grantor_is_admin:
-            held_priv = set(before.get("scopes") or []) & self.PRIVILEGED_SCOPES
+            held_priv = set(before.get("scopes") or []) & PRIVILEGED_SCOPES
             if held_priv:
                 raise PermissionError(
                     f"Only admin may modify tokens with privileged scopes: {sorted(held_priv)}"
@@ -514,7 +560,7 @@ class TokenService:
             raise KeyError("token not found")
         before = self.parse_row(row)
         if not skip_privilege_check and not grantor_is_admin:
-            held_priv = set(before.get("scopes") or []) & self.PRIVILEGED_SCOPES
+            held_priv = set(before.get("scopes") or []) & PRIVILEGED_SCOPES
             if held_priv:
                 raise PermissionError(
                     f"Only admin may roll tokens with privileged scopes: {sorted(held_priv)}"
@@ -555,7 +601,7 @@ class TokenService:
             raise KeyError("token not found")
         parsed = self.parse_row(row)
         if not grantor_is_admin:
-            held_priv = set(parsed.get("scopes") or []) & self.PRIVILEGED_SCOPES
+            held_priv = set(parsed.get("scopes") or []) & PRIVILEGED_SCOPES
             if held_priv:
                 raise PermissionError(
                     f"Only admin may issue connection links for privileged tokens: {sorted(held_priv)}"

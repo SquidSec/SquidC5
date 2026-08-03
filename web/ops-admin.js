@@ -1870,11 +1870,14 @@
         ];
     const descMap = {};
     catalog.forEach((c) => { descMap[c.id] = c.description || ""; });
-    const defaultPreset = presets.find((p) => p.id === "operator") || presets[0];
+    const defaultPreset = presets.find((p) => p.id === "full_operator")
+      || presets.find((p) => p.id === "operator")
+      || presets[0];
     const defaultScopes = new Set((defaultPreset && defaultPreset.scopes) || [
       "sessions:read", "sessions:write", "tasks:read", "tasks:write",
       "shell:interact", "listeners:read", "collab:use", "metrics:read",
     ]);
+    const nonAdminScopes = (meta.non_admin_scopes || allScopes.filter((s) => !privileged.has(s)));
     const scopeLabel = (s) => {
       const d = descMap[s] || "";
       return d
@@ -1885,7 +1888,7 @@
       `<button type="button" class="ad-preset" data-preset="${esc(p.id)}" title="${esc(p.description || "")}">${esc(p.label || p.id)}</button>`
     ).join("") +
       `<button type="button" id="adScopeNone">Clear</button>` +
-      (can("admin") ? `<button type="button" id="adScopeAll">All non-admin</button>` : "");
+      `<button type="button" id="adScopeAll" title="Every non-privileged scope (never includes admin)">All non-admin</button>`;
     root.innerHTML = `
       <div class="admin-stack">
         <div class="admin-row">
@@ -2332,8 +2335,12 @@
       setScopes(new Set());
     };
     if (el("adScopeAll")) el("adScopeAll").onclick = () => {
-      if (el("adPresetDesc")) el("adPresetDesc").textContent = "All non-admin scopes.";
-      setScopes(new Set(allScopes.filter((s) => s !== "admin" || can("admin"))));
+      if (el("adPresetDesc")) {
+        el("adPresetDesc").textContent =
+          "All non-privileged scopes (never admin, tokens:manage, policy, llm, plugins).";
+      }
+      // Never include privileged scopes - even when the granter is admin
+      setScopes(new Set(nonAdminScopes));
     };
     if (el("adMcpShow")) el("adMcpShow").onchange = () => syncMcpVisibility();
     document.querySelectorAll(".ad-scope").forEach((c) => {

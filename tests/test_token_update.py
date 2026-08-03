@@ -193,3 +193,25 @@ async def test_tokens_manage_cannot_roll_privileged(client, admin_headers):
         headers=bearer(mgr["token"]),
     )
     assert r.status_code == 403
+
+
+def test_presets_never_grant_admin_except_full_admin():
+    from squidc5.auth.tokens import PRIVILEGED_SCOPES, scope_catalog
+
+    cat = scope_catalog()
+    assert "admin" not in cat["non_admin_scopes"]
+    for p in cat["presets"]:
+        if p["id"] == "full_admin":
+            assert p["scopes"] == ["admin"]
+            continue
+        if p["id"] == "token_admin":
+            assert "tokens:manage" in p["scopes"]
+            assert "admin" not in p["scopes"]
+            continue
+        overlap = set(p["scopes"]) & PRIVILEGED_SCOPES
+        assert not overlap, f"{p['id']} has privileged {overlap}"
+    fo = next(x for x in cat["presets"] if x["id"] == "full_operator")
+    assert "shell:interact" in fo["scopes"] and "ai:use" in fo["scopes"]
+    roa = next(x for x in cat["presets"] if x["id"] == "read_only_ai")
+    assert "ai:use" in roa["scopes"]
+    assert "tasks:write" not in roa["scopes"]
