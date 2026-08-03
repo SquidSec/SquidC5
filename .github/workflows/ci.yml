@@ -187,19 +187,26 @@ jobs:
         if: matrix.is_windows == false
         run: |
           set -euo pipefail
+          # Always use the same interpreter as the build (setup-python tool cache)
+          python -c "import sys; print(sys.executable)"
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
-          pip install "pyinstaller>=6.3"
+          python -m pip install -r requirements.txt
+          python -m pip install -e ".[binaries]"
+          python -m pip show pyinstaller
 
       - name: Install package + PyInstaller (Windows)
         if: matrix.is_windows == true
         shell: pwsh
         run: |
+          # Bare `pip` on self-hosted Windows often targets a different Python than
+          # actions/setup-python. Always install via `python -m pip` so PyInstaller
+          # lands in the interpreter that runs packaging/build_binaries.py.
+          python -c "import sys; print(sys.executable)"
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
-          pip install "pyinstaller>=6.3"
+          python -m pip install -r requirements.txt
+          python -m pip install -e ".[binaries]"
+          python -m pip show pyinstaller
+          python -c "import PyInstaller; print('PyInstaller', PyInstaller.__version__)"
 
       - name: Build binaries (Linux)
         if: matrix.is_windows == false
@@ -208,7 +215,9 @@ jobs:
       - name: Build binaries (Windows)
         if: matrix.is_windows == true
         shell: pwsh
-        run: python packaging/build_binaries.py
+        run: |
+          python -c "import sys; print(sys.executable); import PyInstaller; print(PyInstaller.__version__)"
+          python packaging/build_binaries.py
 
       - name: Smoke-test CLI (Linux)
         if: matrix.is_windows == false
@@ -283,10 +292,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python -c "import sys; print(sys.executable)"
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
-          pip install "pyinstaller>=6.3"
+          python -m pip install -r requirements.txt
+          python -m pip install -e ".[binaries]"
+          python -m pip show pyinstaller
           python packaging/build_binaries.py
           ./dist/binaries/sc5 --help
           export SQUIDC5_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
