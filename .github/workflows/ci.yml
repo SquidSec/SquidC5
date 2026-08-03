@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
@@ -40,7 +40,7 @@ jobs:
         run: pytest -q --cov=squidc5 --cov-report=term-missing --cov-fail-under=65
 
   native-agent:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     needs: test
     steps:
       - uses: actions/checkout@v4
@@ -79,7 +79,7 @@ jobs:
           if-no-files-found: warn
 
   docker:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     needs: test
     steps:
       - uses: actions/checkout@v4
@@ -102,7 +102,7 @@ jobs:
         run: docker rm -f squidc5-ci || true
 
   security:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -125,9 +125,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: [self-hosted, Linux, X64, squidsec]
             artifact: linux-x64
-          - os: windows-latest
+          - os: [self-hosted, Windows, X64, squidsec]
             artifact: windows-x64
     runs-on: ${{ matrix.os }}
     steps:
@@ -200,7 +200,7 @@ jobs:
     name: github-release
     needs: [test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     permissions:
       contents: write
     steps:

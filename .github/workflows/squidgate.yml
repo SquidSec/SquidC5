@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   squidgate:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     env:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
     steps:
