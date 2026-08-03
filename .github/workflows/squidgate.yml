@@ -12,6 +12,8 @@ permissions:
 
 jobs:
   squidgate:
+    # Same-repo PRs only — never run fork workflow code on self-hosted
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, squidsec]
     env:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}

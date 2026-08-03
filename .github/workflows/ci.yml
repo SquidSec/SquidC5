@@ -8,9 +8,16 @@ on:
 
 # Self-hosted runners: labels [self-hosted, Linux|Windows, X64, squidsec]
 # Avoid fixed host ports (8443) - concurrent jobs and lab stacks share the machine.
+# SECURITY: never schedule untrusted fork PR code on self-hosted (CWE-284).
+# Same-repo PRs and pushes only (private SquidSec runners).
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, squidsec]
     strategy:
       fail-fast: false
@@ -50,6 +57,7 @@ jobs:
           pytest -q --cov=squidc5 --cov-report=term-missing --cov-fail-under=65
 
   native-agent:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, squidsec]
     needs: test
     steps:
@@ -89,6 +97,7 @@ jobs:
           if-no-files-found: warn
 
   docker:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, squidsec]
     needs: test
     steps:
@@ -127,6 +136,7 @@ jobs:
           docker rmi "squidc5:ci-${{ github.run_id }}" 2>/dev/null || true
 
   security:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, squidsec]
     steps:
       - uses: actions/checkout@v4
