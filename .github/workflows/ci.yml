@@ -175,8 +175,8 @@ jobs:
           python-version: "3.12"
           cache: ""
 
-      - name: Install package + PyInstaller
-        shell: bash
+      - name: Install package + PyInstaller (Linux)
+        if: matrix.is_windows == false
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
@@ -184,25 +184,40 @@ jobs:
           pip install -e .
           pip install "pyinstaller>=6.3"
 
-      - name: Build binaries
-        shell: bash
+      - name: Install package + PyInstaller (Windows)
+        if: matrix.is_windows == true
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+          pip install "pyinstaller>=6.3"
+
+      - name: Build binaries (Linux)
+        if: matrix.is_windows == false
         run: python packaging/build_binaries.py
 
-      - name: Smoke-test CLI
-        shell: bash
+      - name: Build binaries (Windows)
+        if: matrix.is_windows == true
+        shell: pwsh
+        run: python packaging/build_binaries.py
+
+      - name: Smoke-test CLI (Linux)
+        if: matrix.is_windows == false
         run: |
           set -euo pipefail
-          if [[ "${{ matrix.is_windows }}" == "true" ]]; then
-            ./dist/binaries/sc5.exe --help
-            ./dist/binaries/sc5.exe --url http://127.0.0.1:9 health || true
-          else
-            ./dist/binaries/sc5 --help
-            ./dist/binaries/sc5 --url http://127.0.0.1:9 health || true
-          fi
+          ./dist/binaries/sc5 --help
+          ./dist/binaries/sc5 --url http://127.0.0.1:9 health || true
+
+      - name: Smoke-test CLI (Windows)
+        if: matrix.is_windows == true
+        shell: pwsh
+        run: |
+          ./dist/binaries/sc5.exe --help
+          ./dist/binaries/sc5.exe --url http://127.0.0.1:9 health; exit 0
 
       - name: Smoke-test server (Linux)
         if: matrix.is_windows == false
-        shell: bash
         run: |
           set -euo pipefail
           export SQUIDC5_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
@@ -215,8 +230,8 @@ jobs:
           for i in $(seq 1 50); do
             if curl -skf "https://127.0.0.1:${SQUIDC5_PORT}/api/v1/health"; then
               echo
-              curl -skf "https://127.0.0.1:${SQUIDC5_PORT}/ops" | head -c 200
-              echo
+              # Avoid curl|head SIGPIPE (exit 23) under pipefail
+              curl -skf -o /dev/null -w "ops_http=%{http_code}\n" "https://127.0.0.1:${SQUIDC5_PORT}/ops"
               exit 0
             fi
             sleep 1
@@ -319,12 +334,30 @@ jobs:
           EOF
           ls -lah release/
 
+      - name: Ensure gh CLI
+        run: |
+          set -euo pipefail
+          if command -v gh >/dev/null 2>&1; then
+            gh --version
+            exit 0
+          fi
+          # Self-hosted runners may lack gh; install portable binary to PATH
+          VER=2.67.0
+          curl -fsSL "https://github.com/cli/cli/releases/download/v${VER}/gh_${VER}_linux_amd64.tar.gz" -o /tmp/gh.tgz
+          tar -xzf /tmp/gh.tgz -C /tmp
+          mkdir -p "$HOME/.local/bin"
+          cp "/tmp/gh_${VER}_linux_amd64/bin/gh" "$HOME/.local/bin/gh"
+          chmod +x "$HOME/.local/bin/gh"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/gh" --version
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
+          PATH: ${{ env.PATH }}
         run: |
           set -euo pipefail
+          export PATH="${HOME}/.local/bin:${PATH}"
           SHORT_SHA="${GITHUB_SHA::7}"
           TAG="v0.1.${{ github.run_number }}-${SHORT_SHA}"
           TITLE="SquidC5 ${TAG}"
