@@ -353,7 +353,8 @@ jobs:
           echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        # pin commit for supply-chain (tag v2 -> 3bb1273)
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: ${{ steps.relmeta.outputs.tag }}
           name: ${{ steps.relmeta.outputs.title }}
