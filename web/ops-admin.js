@@ -646,20 +646,46 @@
   function ctxPanelHtml(s, claim) {
     const shellOk = can("shell:interact") && (s.kind === "reverse_shell" || s.interactive || s.verified);
     const canLock = can("shell:interact") || can("collab:use") || can("admin");
+    const canTask = can("tasks:write") || can("admin");
+    const shellFirst = shellOk || !canTask;
+    const shellTab = shellOk ? `
+      <div class="sub-tab-panel${shellFirst ? " active" : ""}" data-stab-panel="shell">
+        <label for="ctxCmd">Command</label>
+        <textarea id="ctxCmd" rows="3" placeholder="whoami"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button type="button" class="primary sm" id="ctxRun">Run</button>
+          <button type="button" class="primary sm" id="ctxStabilize">Stabilize shell</button>
+        </div>
+        <p class="muted" style="font-size:0.68rem;margin:6px 0 0">Stage-2 inject (Linux/Windows auto-detect). Auto-stabilize is OFF by default.</p>
+      </div>` : `
+      <div class="sub-tab-panel${shellFirst ? " active" : ""}" data-stab-panel="shell">
+        <p class="muted" style="margin:8px 0">No interactive shell on this session (need verified reverse shell + shell:interact).</p>
+      </div>`;
+    const taskTab = canTask ? `
+      <div class="sub-tab-panel${!shellFirst ? " active" : ""}" data-stab-panel="task">
+        <label for="ctxTask">Beacon / task command</label>
+        <input id="ctxTask" placeholder="id / sysinfo / pwd" />
+        <div class="row" style="margin-top:8px">
+          <button type="button" class="primary sm" id="ctxTaskBtn">Queue task</button>
+        </div>
+      </div>` : `
+      <div class="sub-tab-panel" data-stab-panel="task">
+        <p class="muted" style="margin:8px 0">Need tasks:write to queue beacon tasks.</p>
+      </div>`;
     return `
       <div class="ctx-compact">
         <div id="ctxMeta">
-          <div style="font-weight:700;margin-bottom:6px">${esc(s.hostname || s.remote_addr || "session")}</div>
+          <div style="font-weight:700;margin-bottom:6px;word-break:break-word">${esc(s.hostname || s.remote_addr || "session")}</div>
           <div class="chips" style="margin-bottom:8px">
             <span class="chip">${esc(s.kind || "?")}</span>
             <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
             ${claimChipHtml(claim)}
           </div>
-          <dl class="ctx-meta-grid">
-            <dt>ID</dt><dd class="mono" style="font-size:0.7rem">${esc(s.id)}</dd>
+          <dl class="meta-rows">
+            <dt>ID</dt><dd class="mono" style="font-size:0.72rem">${esc(s.id)}</dd>
             <dt>User</dt><dd>${esc(s.username || "-")}</dd>
             <dt>OS</dt><dd>${esc(s.os_info || "-")}</dd>
-            <dt>Addr</dt><dd class="mono" style="font-size:0.72rem">${esc(s.remote_addr || "-")}</dd>
+            <dt>Address</dt><dd class="mono" style="font-size:0.78rem">${esc(s.remote_addr || "-")}</dd>
           </dl>
         </div>
         <div class="ctx-actions">
@@ -667,19 +693,16 @@
           ${canLock ? '<button type="button" class="ghost sm" id="ctxRelease">Release</button>' : ""}
           ${can("admin") ? '<button type="button" class="danger sm" id="ctxForceClaim">Force</button>' : ""}
           ${can("sessions:read") ? '<button type="button" class="ghost sm" id="ctxSpectate">Spectate</button>' : ""}
-          ${shellOk ? '<button type="button" class="primary sm" id="ctxStabilize">Stabilize</button>' : ""}
         </div>
-        ${shellOk ? `
-          <label for="ctxCmd">Shell</label>
-          <textarea id="ctxCmd" rows="2" placeholder="whoami"></textarea>
-          <div class="row"><button type="button" class="primary sm" id="ctxRun">Run</button></div>
-        ` : ""}
-        ${can("tasks:write") ? `
-          <label for="ctxTask">Task</label>
-          <input id="ctxTask" placeholder="id / sysinfo / pwd" />
-          <div class="row"><button type="button" class="primary sm" id="ctxTaskBtn">Queue</button></div>
-        ` : ""}
-        <div class="outbox empty" id="ctxOut" style="max-height:140px;margin-top:8px">Output</div>
+        <div class="sub-tabs" id="ctxOpTabs">
+          <div class="sub-tab-bar">
+            <button type="button" class="sub-tab-btn${shellFirst ? " active" : ""}" data-stab="shell">Shell</button>
+            <button type="button" class="sub-tab-btn${!shellFirst ? " active" : ""}" data-stab="task">Task</button>
+          </div>
+          ${shellTab}
+          ${taskTab}
+        </div>
+        <div class="outbox empty" id="ctxOut" style="max-height:160px;margin-top:10px;flex-shrink:0">Output</div>
       </div>`;
   }
 
@@ -706,7 +729,31 @@
     };
     body.innerHTML = ctxPanelHtml(s, claim);
     ctxBoundSid = selectedId;
+    bindSubTabs(body);
     bindContextHandlers();
+  }
+
+  function bindSubTabs(root) {
+    const scope = root || document;
+    scope.querySelectorAll(".sub-tabs").forEach((wrap) => {
+      wrap.querySelectorAll(".sub-tab-btn").forEach((btn) => {
+        btn.onclick = (ev) => {
+          ev.preventDefault();
+          const id = btn.getAttribute("data-stab");
+          wrap.querySelectorAll(".sub-tab-btn").forEach((b) => {
+            b.classList.toggle("active", b.getAttribute("data-stab") === id);
+          });
+          wrap.querySelectorAll(".sub-tab-panel").forEach((p) => {
+            const on = p.getAttribute("data-stab-panel") === id;
+            p.classList.toggle("active", on);
+            p.style.display = on ? "flex" : "none";
+          });
+        };
+      });
+      wrap.querySelectorAll(".sub-tab-panel").forEach((p) => {
+        p.style.display = p.classList.contains("active") ? "flex" : "none";
+      });
+    });
   }
 
   async function renderContext(force) {
@@ -3040,24 +3087,26 @@
         : `<button type="button" class="danger sm" id="hostDetailHide">Drop</button>`)
       : "";
     detail.innerHTML = `
-      <div style="margin-bottom:10px;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap">
-        <div style="flex:1;min-width:140px">
-          <strong style="font-size:1.05rem">${esc(h.label)}</strong>
-          <dl class="ctx-meta-grid" style="margin-top:8px">
+      <div style="margin-bottom:12px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;width:100%">
+        <div style="flex:1 1 200px;min-width:0">
+          <strong style="font-size:1.1rem;word-break:break-word">${esc(h.label)}</strong>
+          <dl class="meta-rows">
             <dt>OS</dt><dd>${esc(h.os_info || "-")}</dd>
-            <dt>Addrs</dt><dd>${esc((h.addrs || []).join(", ") || "-")}</dd>
+            <dt>Address</dt><dd class="mono">${esc((h.addrs || []).join(", ") || "-")}</dd>
             <dt>Users</dt><dd>${esc((h.usernames || []).join(", ") || "-")}</dd>
             <dt>Kinds</dt><dd>${esc((h.kinds || []).join(", ") || "-")}</dd>
-            <dt>Access</dt><dd>${esc(String(h.active_sessions || 0))}/${esc(String(h.session_count || 0))}</dd>
+            <dt>Access</dt><dd>${esc(String(h.active_sessions || 0))} live / ${esc(String(h.session_count || 0))} total</dd>
           </dl>
         </div>
-        ${dropBtn}
+        <div style="flex:0 0 auto">${dropBtn}</div>
       </div>
       <div class="muted" style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Sessions</div>
-      <table class="data"><thead><tr>
-        <th>Session</th><th>Kind</th><th>Status</th><th>User</th><th>Lock</th>
-      </tr></thead><tbody>${sess || '<tr><td colspan="5" class="muted">No sessions</td></tr>'}</tbody></table>
-      <p class="muted" style="font-size:0.72rem;margin:10px 0 0">Click a session → Session tab for claim / stabilize / shell.</p>`;
+      <div style="overflow:auto;min-height:0;flex:1">
+        <table class="data"><thead><tr>
+          <th>Session</th><th>Kind</th><th>Status</th><th>User</th><th>Lock</th>
+        </tr></thead><tbody>${sess || '<tr><td colspan="5" class="muted">No sessions</td></tr>'}</tbody></table>
+      </div>
+      <p class="muted" style="font-size:0.72rem;margin:10px 0 0;flex-shrink:0">Click a session → Session tab (Shell / Task sub-tabs).</p>`;
     detail.querySelectorAll("tr[data-sid]").forEach((tr) => {
       tr.onclick = () => {
         const sid = tr.getAttribute("data-sid");

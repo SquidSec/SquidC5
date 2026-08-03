@@ -487,15 +487,51 @@
     #dashContent .dash-body .list-panel,
     #dashContent .dash-body .work-panel { height: 100%; min-height: 0; }
 
-    /* Session context compact */
-    .ctx-compact .ctx-meta-grid {
-      display: grid; grid-template-columns: auto 1fr; gap: 4px 10px;
-      font-size: 0.78rem; margin-bottom: 10px;
+    /* Session / host meta rows — labels never truncate or stack vertically */
+    .meta-rows, .ctx-compact .ctx-meta-grid, .hosts-detail-body .ctx-meta-grid {
+      display: grid;
+      grid-template-columns: minmax(5.5rem, max-content) minmax(0, 1fr);
+      column-gap: 14px;
+      row-gap: 8px;
+      font-size: 0.82rem;
+      margin: 8px 0 12px;
+      align-items: baseline;
+      width: 100%;
     }
-    .ctx-compact .ctx-meta-grid dt { color: var(--muted); margin: 0; }
-    .ctx-compact .ctx-meta-grid dd { margin: 0; }
+    .meta-rows dt, .ctx-compact .ctx-meta-grid dt, .hosts-detail-body .ctx-meta-grid dt {
+      color: var(--muted);
+      margin: 0;
+      font-weight: 600;
+      white-space: nowrap;
+      width: auto;
+      min-width: 5.5rem;
+    }
+    .meta-rows dd, .ctx-compact .ctx-meta-grid dd, .hosts-detail-body .ctx-meta-grid dd {
+      margin: 0;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
     .ctx-compact .ctx-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
     .ctx-compact label { margin-top: 6px; }
+    /* Nested sub-tabs inside a page tab (e.g. Session → Shell / Task) */
+    .sub-tabs { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
+    .sub-tab-bar {
+      display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0;
+      margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .sub-tab-btn {
+      appearance: none; border: 1px solid var(--border); background: transparent;
+      color: var(--muted); font-size: 0.75rem; font-weight: 600;
+      padding: 5px 12px; border-radius: 999px; cursor: pointer; min-height: 30px;
+    }
+    .sub-tab-btn:hover { color: var(--text); border-color: rgba(233,30,140,0.35); }
+    .sub-tab-btn.active {
+      color: var(--pink2); border-color: rgba(233,30,140,0.5);
+      background: rgba(233,30,140,0.12);
+    }
+    .sub-tab-panel { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
+    .sub-tab-panel.active { display: flex; }
     .stat.ok .n { color: var(--ok); }
     .stat.pink .n { color: var(--pink2); }
     .stat.cyan .n { color: var(--cyan); }
