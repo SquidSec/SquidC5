@@ -2728,19 +2728,26 @@
         </div>
         <div class="work-panel">
           <div class="wp-head">Asset graph <span class="muted" id="hostGraphMeta" style="font-weight:400;margin-left:8px;font-size:0.72rem"></span></div>
-          <div class="wp-body" style="display:flex;flex-direction:column;min-height:0;height:100%">
-            <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Exec-verified shells and implants with a real hostname only. Scanner TCP noise is excluded. Drop hides a node (sessions stay under Sessions).</p>
-            <div class="chips" style="margin-bottom:8px">
-              <span class="chip ok">active shell/implant</span>
-              <span class="chip warn">locked</span>
-              <span class="chip">historical only</span>
+          <div class="wp-body hosts-work-body">
+            <div class="hosts-graph-pane">
+              <p class="muted" style="font-size:0.75rem;margin:0">Exec-verified shells and named implants. Click a host for sessions / OS / locks below.</p>
+              <div class="chips">
+                <span class="chip ok">active shell/implant</span>
+                <span class="chip warn">locked</span>
+                <span class="chip">historical only</span>
+              </div>
+              <div id="hostGraph"></div>
             </div>
-            <div id="hostGraph" style="flex:1;min-height:300px;border:1px solid var(--border);border-radius:10px;background:#0a0a10;position:relative;overflow:hidden"></div>
-            <div id="hostDetail" class="outbox empty" style="margin-top:10px;max-height:240px;overflow:auto">Select a host</div>
+            <div class="hosts-detail-split" id="hostDetailSplit" title="Drag to resize host detail" role="separator" aria-orientation="horizontal"></div>
+            <div class="hosts-detail-pane">
+              <div class="hosts-detail-head">Host detail</div>
+              <div id="hostDetail" class="hosts-detail-body empty">Select a host from the list or graph</div>
+            </div>
           </div>
         </div>
       </div>`;
     viewBuilt.hosts = true;
+    bindHostDetailResize();
     if (el("hostReload")) el("hostReload").onclick = () => loadHostsGraph();
     if (el("hostShowHidden")) {
       el("hostShowHidden").checked = !!_hostsCache.showHidden;
@@ -2844,10 +2851,13 @@
           try {
             await api("POST", "/api/v1/hosts/" + encodeURIComponent(id) + "/hide", {});
             showOk("Dropped from graph");
-            if (_hostsCache.selected === id) {
-              _hostsCache.selected = null;
-              if (detail) { detail.classList.add("empty"); detail.textContent = "Select a host"; }
-            }
+              if (_hostsCache.selected === id) {
+                _hostsCache.selected = null;
+                if (detail) {
+                  detail.classList.add("empty");
+                  detail.textContent = "Select a host from the list or graph";
+                }
+              }
             await loadHostsGraph();
           } catch (e) { showError(String(e.message || e)); }
         };
@@ -2879,6 +2889,48 @@
     }
   }
 
+  function bindHostDetailResize() {
+    const handle = el("hostDetailSplit");
+    const body = document.querySelector(".hosts-work-body");
+    if (!handle || !body || handle.dataset.bound) return;
+    handle.dataset.bound = "1";
+    try {
+      const saved = parseFloat(localStorage.getItem("sc5_hosts_detail_fr") || "");
+      if (saved >= 0.25 && saved <= 0.7) {
+        body.style.gridTemplateRows = `minmax(120px, 1fr) 6px minmax(160px, ${saved}fr)`;
+      }
+    } catch (_) {}
+    let dragging = false;
+    const onMove = (clientY) => {
+      const rect = body.getBoundingClientRect();
+      if (rect.height < 80) return;
+      // detail fraction of body height (handle ~6px)
+      const fromBottom = rect.bottom - clientY;
+      let frac = fromBottom / rect.height;
+      frac = Math.max(0.22, Math.min(0.65, frac));
+      body.style.gridTemplateRows = `minmax(120px, 1fr) 6px minmax(160px, ${frac}fr)`;
+      try { localStorage.setItem("sc5_hosts_detail_fr", String(frac)); } catch (_) {}
+    };
+    const up = () => {
+      dragging = false;
+      handle.classList.remove("dragging");
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+    };
+    const move = (e) => {
+      if (!dragging) return;
+      onMove(e.clientY);
+    };
+    handle.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      handle.classList.add("dragging");
+      handle.setPointerCapture?.(e.pointerId);
+      document.addEventListener("pointermove", move);
+      document.addEventListener("pointerup", up);
+      e.preventDefault();
+    });
+  }
+
   function showHostDetail(h, detail) {
     if (!detail || !h) return;
     detail.classList.remove("empty");
@@ -2903,19 +2955,24 @@
         : `<button type="button" class="danger sm" id="hostDetailHide">Drop from graph</button>`)
       : "";
     detail.innerHTML = `
-      <div style="margin-bottom:8px;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap">
+      <div style="margin-bottom:10px;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:160px">
-          <strong style="font-size:1rem">${esc(h.label)}</strong>
-          <div class="muted" style="font-size:0.78rem;margin-top:4px">
-            OS: ${esc(h.os_info || "-")} · Addrs: ${esc((h.addrs || []).join(", ") || "-")}<br/>
-            Users: ${esc((h.usernames || []).join(", ") || "-")} · Kinds: ${esc((h.kinds || []).join(", "))}
+          <strong style="font-size:1.05rem">${esc(h.label)}</strong>
+          <div class="muted" style="font-size:0.8rem;margin-top:6px;line-height:1.45">
+            <div><strong>OS</strong> ${esc(h.os_info || "-")}</div>
+            <div><strong>Addrs</strong> ${esc((h.addrs || []).join(", ") || "-")}</div>
+            <div><strong>Users</strong> ${esc((h.usernames || []).join(", ") || "-")}</div>
+            <div><strong>Kinds</strong> ${esc((h.kinds || []).join(", ") || "-")}</div>
+            <div><strong>Access</strong> ${esc(String(h.active_sessions || 0))}/${esc(String(h.session_count || 0))} sessions</div>
           </div>
         </div>
         ${dropBtn}
       </div>
+      <div class="muted" style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Sessions on this host</div>
       <table class="data"><thead><tr>
         <th>Session</th><th>Kind</th><th>Status</th><th>User</th><th>Lock</th>
-      </tr></thead><tbody>${sess || '<tr><td colspan="5" class="muted">No sessions</td></tr>'}</tbody></table>`;
+      </tr></thead><tbody>${sess || '<tr><td colspan="5" class="muted">No sessions</td></tr>'}</tbody></table>
+      <p class="muted" style="font-size:0.72rem;margin:10px 0 0">Click a session row to open the context rail (claim / shell).</p>`;
     detail.querySelectorAll("tr[data-sid]").forEach((tr) => {
       tr.onclick = () => {
         const sid = tr.getAttribute("data-sid");
@@ -2929,6 +2986,8 @@
           await api("POST", "/api/v1/hosts/" + encodeURIComponent(h.id) + "/hide", {});
           showOk("Dropped from graph");
           _hostsCache.selected = null;
+          detail.classList.add("empty");
+          detail.textContent = "Select a host from the list or graph";
           await loadHostsGraph();
         } catch (e) { showError(String(e.message || e)); }
       };
