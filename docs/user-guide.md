@@ -1483,4 +1483,9 @@ sc5 health
 
 ## Authorized use reminder
 
-SquidC5 is for **authorized** security testing and educati
+SquidC5 is for **authorized** security testing and education only. Unauthorized access to computer systems is illegal. Operators are responsible for obtaining proper authorization and staying within ROE.
+
+### See also
+
+- [SECURITY.md](../SECURITY.md)
+- [Threat model](threat-model.md)
