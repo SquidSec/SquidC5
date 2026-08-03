@@ -34,7 +34,7 @@ def test_engagement_bans_and_expiry():
     assert eng.addr_in_scope("10.0.0.5")  # no cidrs = open
 
 
-def test_ai_new_capabilities_offline():
+def test_ai_pack_a_capabilities_offline_unit():
     # minimal mock - only offline path
     class _P:
         async def get_rules(self):

@@ -406,10 +406,13 @@
     }
     .page-tab-panels { flex: 1; min-height: 0; position: relative; overflow: hidden; }
     .page-tab-panel {
-      display: none; height: 100%; min-height: 0; overflow: auto; padding: 10px 12px;
-      flex-direction: column;
+      display: none !important;
+      height: 100%; min-height: 0; overflow: auto; padding: 10px 12px;
+      flex-direction: column; box-sizing: border-box;
     }
-    .page-tab-panel.active { display: flex; }
+    .page-tab-panel.active {
+      display: flex !important;
+    }
 
     /* Assets: graph ~30% + tabbed work area */
     .assets-layout {

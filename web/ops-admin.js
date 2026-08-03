@@ -54,16 +54,31 @@
   function bindPageTabs(root) {
     const scope = root || document;
     scope.querySelectorAll(".page-tabs").forEach((wrap) => {
-      if (wrap.dataset.tabsBound) return;
-      wrap.dataset.tabsBound = "1";
+      // Always (re)bind — rebuilds replace the node
       wrap.querySelectorAll(".page-tab-btn").forEach((btn) => {
-        btn.onclick = () => {
+        btn.onclick = (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
           const id = btn.getAttribute("data-ptab");
-          wrap.querySelectorAll(".page-tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+          if (!id) return;
+          wrap.querySelectorAll(".page-tab-btn").forEach((b) => {
+            b.classList.toggle("active", b.getAttribute("data-ptab") === id);
+          });
           wrap.querySelectorAll(".page-tab-panel").forEach((p) => {
-            p.classList.toggle("active", p.getAttribute("data-ptab-panel") === id);
+            const on = p.getAttribute("data-ptab-panel") === id;
+            p.classList.toggle("active", on);
+            // Force layout so flex children paint after display:none → flex
+            if (on) {
+              p.style.display = "flex";
+            } else {
+              p.style.display = "none";
+            }
           });
         };
+      });
+      // Ensure initial active panel is visible
+      wrap.querySelectorAll(".page-tab-panel").forEach((p) => {
+        p.style.display = p.classList.contains("active") ? "flex" : "none";
       });
     });
   }
@@ -941,6 +956,7 @@
         tbody.querySelectorAll("tr").forEach((x) => x.classList.remove("selected"));
         tr.classList.add("selected");
         populateListenerForm(selectedListenerId);
+        activatePageTab("listenersTabs", "lismanage");
       };
     });
   }
@@ -964,49 +980,44 @@
       fillListenerRows(el("lisTbody"));
       return;
     }
-    root.innerHTML = `
-      <div class="split">
-        <div class="list-panel">
-          <div class="lp-head">Listeners</div>
-          <div class="lp-body">
-            <table class="data"><thead><tr><th>Name</th><th>Port</th><th>Kind</th><th>Status</th></tr></thead>
-            <tbody id="lisTbody"></tbody></table>
-          </div>
+    root.innerHTML = tabbedHtml([
+      { id: "lislist", label: "Listeners", html: `
+        <div style="flex:1;min-height:0;overflow:auto">
+          <table class="data"><thead><tr><th>Name</th><th>Port</th><th>Kind</th><th>Status</th></tr></thead>
+          <tbody id="lisTbody"></tbody></table>
         </div>
-        <div class="work-panel">
-          <div class="wp-head">Manage</div>
-          <div class="wp-body">
-            ${can("listeners:write") ? `
-              <p class="muted mono" id="lisIdHint" style="font-size:0.72rem;margin:0 0 6px">Select a listener to load fields</p>
-              <div class="form-grid">
-                <div><label>Name</label><input id="lisName" placeholder="rev443" /></div>
-                <div><label>Port</label><input id="lisPort" type="number" placeholder="443" /></div>
-                <div class="full"><label>Kind</label>
-                  <select id="lisKind">
-                    <option value="reverse_shell">reverse_shell</option>
-                    <option value="http">http</option>
-                    <option value="https">https (TLS)</option>
-                    <option value="tcp">tcp</option>
-                    <option value="dns">dns</option>
-                    <option value="smtp">smtp</option>
-                  </select>
-                </div>
-                <div class="full"><label>DNS zone (dns only)</label><input id="lisZone" placeholder="oast.example.com" /></div>
-              </div>
-              <div class="row">
-                <button type="button" class="primary" id="lisCreate">Create + start</button>
-                <button type="button" id="lisStart">Start</button>
-                <button type="button" id="lisStop">Stop</button>
-                <button type="button" class="danger" id="lisDel">Delete</button>
-                <button type="button" id="lisClear">Clear form</button>
-              </div>
-            ` : '<p class="muted">Read-only token</p>'}
-            <div class="outbox empty" id="lisOut">-</div>
+      `},
+      { id: "lismanage", label: "Manage", html: `
+        ${can("listeners:write") ? `
+          <p class="muted mono" id="lisIdHint" style="font-size:0.72rem;margin:0 0 6px">Select a listener on the List tab to load fields</p>
+          <div class="form-grid">
+            <div><label>Name</label><input id="lisName" placeholder="rev443" /></div>
+            <div><label>Port</label><input id="lisPort" type="number" placeholder="443" /></div>
+            <div class="full"><label>Kind</label>
+              <select id="lisKind">
+                <option value="reverse_shell">reverse_shell</option>
+                <option value="http">http</option>
+                <option value="https">https (TLS)</option>
+                <option value="tcp">tcp</option>
+                <option value="dns">dns</option>
+                <option value="smtp">smtp</option>
+              </select>
+            </div>
+            <div class="full"><label>DNS zone (dns only)</label><input id="lisZone" placeholder="oast.example.com" /></div>
           </div>
-        </div>
-      </div>
-    `;
+          <div class="row">
+            <button type="button" class="primary" id="lisCreate">Create + start</button>
+            <button type="button" id="lisStart">Start</button>
+            <button type="button" id="lisStop">Stop</button>
+            <button type="button" class="danger" id="lisDel">Delete</button>
+            <button type="button" class="ghost" id="lisClear">Clear form</button>
+          </div>
+        ` : '<p class="muted">Read-only token</p>'}
+        <div class="outbox empty" id="lisOut" style="flex:1;max-height:none">-</div>
+      `},
+    ], { id: "listenersTabs" });
     viewBuilt.listeners = true;
+    bindPageTabs(root);
     fillListenerRows(el("lisTbody"));
     if (selectedListenerId) populateListenerForm(selectedListenerId);
     async function lisAct(fn) {
@@ -1072,43 +1083,42 @@
     if (!root) return;
     if (!force && viewBuilt.payloads && root.querySelector("#payTpl")) return;
     const host = (() => { try { return location.hostname || "127.0.0.1"; } catch (_) { return "127.0.0.1"; } })();
-    root.innerHTML = `
-      <div class="work-panel" style="min-height:360px">
-        <div class="wp-head">Generate</div>
-        <div class="wp-body">
-          ${can("payloads:generate") ? `
-            <div class="form-grid">
-              <div class="full"><label>Template</label>
-                <select id="payTpl"><option value="">Loading...</option></select>
-              </div>
-              <div class="full"><label>C2 profile (optional)</label>
-                <select id="payProfile"><option value="">(active profile)</option></select>
-              </div>
-              <div><label>Host</label><input id="payHost" value="${esc(host)}" /></div>
-              <div><label>Port</label><input id="payPort" type="number" value="${location.port || 8443}" /></div>
-              <div><label>Interval</label><input id="payInterval" type="number" value="5" /></div>
-              <div><label>Scheme</label>
-                <select id="payScheme"><option value="">auto</option><option value="https">https</option><option value="http">http</option></select>
-              </div>
+    root.innerHTML = tabbedHtml([
+      { id: "paygen", label: "Generate", html: `
+        ${can("payloads:generate") ? `
+          <div class="form-grid">
+            <div class="full"><label>Template</label>
+              <select id="payTpl"><option value="">Loading...</option></select>
             </div>
-            <div class="row">
-              <button type="button" class="primary" id="payGen">Generate</button>
-              <button type="button" id="payCopy">Copy</button>
-              <button type="button" id="paySave">Save artifact</button>
+            <div class="full"><label>C2 profile (optional)</label>
+              <select id="payProfile"><option value="">(active profile)</option></select>
             </div>
-            <details style="margin-top:12px">
-              <summary class="muted" style="cursor:pointer;font-size:0.78rem">Register custom template</summary>
-              <label>Name</label><input id="payTplName" placeholder="my_custom_beacon" />
-              <label>Body (use {host} {port} {path} {interval})</label>
-              <textarea id="payTplBody" rows="5" class="mono" style="font-size:0.75rem" placeholder="connect {host}:{port}"></textarea>
-              <div class="row"><button type="button" id="payTplReg">Register template</button></div>
-            </details>
-          ` : '<p class="muted">Need payloads:generate scope</p>'}
-          <div class="outbox empty" id="payOut">-</div>
-        </div>
-      </div>
-    `;
+            <div><label>Host</label><input id="payHost" value="${esc(host)}" /></div>
+            <div><label>Port</label><input id="payPort" type="number" value="${location.port || 8443}" /></div>
+            <div><label>Interval</label><input id="payInterval" type="number" value="5" /></div>
+            <div><label>Scheme</label>
+              <select id="payScheme"><option value="">auto</option><option value="https">https</option><option value="http">http</option></select>
+            </div>
+          </div>
+          <div class="row">
+            <button type="button" class="primary" id="payGen">Generate</button>
+            <button type="button" id="payCopy">Copy</button>
+            <button type="button" id="paySave">Save artifact</button>
+          </div>
+        ` : '<p class="muted">Need payloads:generate scope</p>'}
+        <div class="outbox empty" id="payOut" style="flex:1;max-height:none">-</div>
+      `},
+      { id: "paycustom", label: "Custom template", html: `
+        ${can("payloads:generate") ? `
+          <label>Name</label><input id="payTplName" placeholder="my_custom_beacon" />
+          <label>Body (use {host} {port} {path} {interval})</label>
+          <textarea id="payTplBody" rows="10" class="mono" style="font-size:0.75rem;flex:1" placeholder="connect {host}:{port}"></textarea>
+          <div class="row"><button type="button" class="primary" id="payTplReg">Register template</button></div>
+        ` : '<p class="muted">Need payloads:generate scope</p>'}
+      `},
+    ], { id: "payloadsTabs" });
     viewBuilt.payloads = true;
+    bindPageTabs(root);
     (async () => {
       try {
         const [tpl, prof] = await Promise.all([
@@ -1187,46 +1197,43 @@
     const root = el("view-postex");
     if (!root) return;
     if (!force && viewBuilt.postex && root.children.length) return;
-    root.innerHTML = `
-      <p class="muted" style="margin:0 0 10px;font-size:0.85rem">
-        Target session: <strong class="mono" id="pxSid">${esc(selectedId || "(none - pick in Sessions)")}</strong>
-      </p>
-      <div class="form-grid">
-        <div class="work-panel">
-          <div class="wp-head">Files</div>
-          <div class="wp-body">
-            <label>Op</label>
-            <select id="pxOp"><option>list</option><option>read</option><option>write</option><option>delete</option></select>
-            <label>Path</label>
-            <input id="pxPath" value="." />
-            <label>Content (write)</label>
-            <textarea id="pxContent" rows="2"></textarea>
-            <div class="row"><button type="button" class="primary" id="pxFile" ${can("shell:interact") ? "" : "disabled"}>Queue file op</button></div>
-          </div>
+    root.innerHTML = tabbedHtml([
+      { id: "pxfiles", label: "Files", html: `
+        <p class="muted" style="margin:0 0 10px;font-size:0.85rem">
+          Target: <strong class="mono" id="pxSid">${esc(selectedId || "(none - pick in Sessions)")}</strong>
+        </p>
+        <label>Op</label>
+        <select id="pxOp"><option>list</option><option>read</option><option>write</option><option>delete</option></select>
+        <label>Path</label>
+        <input id="pxPath" value="." />
+        <label>Content (write)</label>
+        <textarea id="pxContent" rows="4"></textarea>
+        <div class="row"><button type="button" class="primary" id="pxFile" ${can("shell:interact") ? "" : "disabled"}>Queue file op</button></div>
+        <div class="outbox empty" id="pxOut" style="flex:1;max-height:none">-</div>
+      `},
+      { id: "pxsocks", label: "SOCKS / BOF", html: `
+        <p class="muted" style="margin:0 0 10px;font-size:0.85rem">Uses selected session from Sessions.</p>
+        <div class="row">
+          <button type="button" class="primary" id="pxSocks" ${can("shell:interact") ? "" : "disabled"}>Start SOCKS (loopback)</button>
+          <button type="button" id="pxSocksList">List pivots</button>
         </div>
-        <div class="work-panel">
-          <div class="wp-head">SOCKS / modules</div>
-          <div class="wp-body">
-            <div class="row">
-              <button type="button" id="pxSocks" ${can("shell:interact") ? "" : "disabled"}>Start SOCKS (loopback)</button>
-              <button type="button" id="pxSocksList">List pivots</button>
-            </div>
-            <label>BOF module</label>
-            <input id="pxBof" value="whoami" />
-            <div class="row"><button type="button" id="pxBofRun" ${can("shell:interact") ? "" : "disabled"}>Queue bof:run</button></div>
-            <div class="outbox empty" id="pxOut">-</div>
-          </div>
-        </div>
-      </div>
-    `;
+        <label>BOF module</label>
+        <input id="pxBof" value="whoami" />
+        <div class="row"><button type="button" id="pxBofRun" ${can("shell:interact") ? "" : "disabled"}>Queue bof:run</button></div>
+        <div class="outbox empty" id="pxOut2" style="flex:1;max-height:none">-</div>
+      `},
+    ], { id: "postexTabs" });
     viewBuilt.postex = true;
+    bindPageTabs(root);
     const needSid = () => {
       if (!selectedId) throw new Error("Select a session in Sessions first");
       return selectedId;
     };
-    const out = (r) => {
-      el("pxOut").textContent = typeof r === "string" ? r : JSON.stringify(r, null, 2);
-      el("pxOut").classList.remove("empty");
+    const out = (r, id) => {
+      const n = el(id || "pxOut") || el("pxOut2");
+      if (!n) return;
+      n.textContent = typeof r === "string" ? r : JSON.stringify(r, null, 2);
+      n.classList.remove("empty");
     };
     if (el("pxFile")) el("pxFile").onclick = async () => {
       try {
@@ -1236,7 +1243,7 @@
           path: el("pxPath").value,
           content: el("pxOp").value === "write" ? el("pxContent").value : undefined,
         });
-        out(r); showOk("File op queued");
+        out(r, "pxOut"); showOk("File op queued");
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("pxSocks")) el("pxSocks").onclick = async () => {
@@ -1244,18 +1251,18 @@
         const r = await api("POST", "/api/v1/pivot/socks", {
           session_id: needSid(), listen_host: "127.0.0.1", listen_port: 0, mode: "implant",
         });
-        out(r); showOk("SOCKS started");
+        out(r, "pxOut2"); showOk("SOCKS started");
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("pxSocksList")) el("pxSocksList").onclick = async () => {
-      try { out(await api("GET", "/api/v1/pivot/socks")); } catch (e) { showError(String(e.message || e)); }
+      try { out(await api("GET", "/api/v1/pivot/socks"), "pxOut2"); } catch (e) { showError(String(e.message || e)); }
     };
     if (el("pxBofRun")) el("pxBofRun").onclick = async () => {
       try {
         const r = await api("POST", "/api/v1/modules/bof/run", {
           session_id: needSid(), module_id: (el("pxBof").value || "whoami").trim(),
         });
-        out(r); showOk("BOF queued");
+        out(r, "pxOut2"); showOk("BOF queued");
       } catch (e) { showError(String(e.message || e)); }
     };
   }
@@ -1265,43 +1272,36 @@
     const root = el("view-collab");
     if (!root) return;
     if (!force && viewBuilt.collab && root.children.length) return;
-    root.innerHTML = `
-      <div class="form-grid">
-        <div class="work-panel">
-          <div class="wp-head">Chat</div>
-          <div class="wp-body">
-            <label>Team channel (optional id)</label>
-            <input id="chTeam" placeholder="leave empty for global" />
-            <label>Message</label>
-            <input id="chMsg" placeholder="status update..." />
-            <div class="row">
-              <button type="button" class="primary" id="chSend" ${can("collab:use") || can("admin") ? "" : "disabled"}>Send</button>
-              <button type="button" id="chReload">Reload</button>
-            </div>
-            <div class="outbox empty" id="chOut">-</div>
-          </div>
+    root.innerHTML = tabbedHtml([
+      { id: "chchat", label: "Chat", html: `
+        <label>Team channel (optional id)</label>
+        <input id="chTeam" placeholder="leave empty for global" />
+        <label>Message</label>
+        <input id="chMsg" placeholder="status update..." />
+        <div class="row">
+          <button type="button" class="primary" id="chSend" ${can("collab:use") || can("admin") ? "" : "disabled"}>Send</button>
+          <button type="button" class="ghost" id="chReload">Reload</button>
         </div>
-        <div class="work-panel">
-          <div class="wp-head">Teams / presence / handoff</div>
-          <div class="wp-body">
-            <div class="row">
-              <button type="button" id="tmList">List teams</button>
-              <button type="button" id="tmPresence">Who's online</button>
-            </div>
-            <label>New team name</label>
-            <input id="tmName" placeholder="red-cell" />
-            <div class="row"><button type="button" class="primary" id="tmCreate">Create team</button></div>
-            <label>Handoff to (actor)</label>
-            <input id="tmTo" placeholder="bob" />
-            <label>Note</label>
-            <textarea id="tmNote" rows="2"></textarea>
-            <div class="row"><button type="button" id="tmHandoff">Handoff selected session</button></div>
-            <div class="outbox empty" id="tmOut">-</div>
-          </div>
+        <div class="outbox empty" id="chOut" style="flex:1;max-height:none">-</div>
+      `},
+      { id: "chteams", label: "Teams / handoff", html: `
+        <div class="row">
+          <button type="button" id="tmList">List teams</button>
+          <button type="button" id="tmPresence">Who's online</button>
         </div>
-      </div>
-    `;
+        <label>New team name</label>
+        <input id="tmName" placeholder="red-cell" />
+        <div class="row"><button type="button" class="primary" id="tmCreate">Create team</button></div>
+        <label>Handoff to (actor)</label>
+        <input id="tmTo" placeholder="bob" />
+        <label>Note</label>
+        <textarea id="tmNote" rows="2"></textarea>
+        <div class="row"><button type="button" id="tmHandoff">Handoff selected session</button></div>
+        <div class="outbox empty" id="tmOut" style="flex:1;max-height:none">-</div>
+      `},
+    ], { id: "collabTabs" });
     viewBuilt.collab = true;
+    bindPageTabs(root);
     const out = (id, r) => {
       const n = el(id);
       n.textContent = typeof r === "string" ? r : JSON.stringify(r, null, 2);
@@ -1362,29 +1362,44 @@
     const root = el("view-observe");
     if (!root) return;
     if (!force && viewBuilt.observe && root.children.length) return;
-    root.innerHTML = `
-      <div class="toolbar">
-        <button type="button" class="primary" id="obMetrics">Metrics</button>
-        <button type="button" id="obAudit">My audit</button>
-        <button type="button" id="obTimeline">Timeline</button>
-        <button type="button" id="obReport">Report</button>
-        <button type="button" id="obAnom">Anomalies</button>
-      </div>
-      <div class="outbox empty" id="obOut" style="max-height:480px">-</div>
-    `;
+    root.innerHTML = tabbedHtml([
+      { id: "obmet", label: "Metrics", html: `
+        <div class="toolbar">
+          <button type="button" class="primary" id="obMetrics">Refresh metrics</button>
+        </div>
+        <div class="outbox empty" id="obOutMet" style="flex:1;max-height:none">-</div>
+      `},
+      { id: "obaudit", label: "Audit", html: `
+        <div class="toolbar">
+          <button type="button" class="primary" id="obAudit">My audit</button>
+        </div>
+        <div class="outbox empty" id="obOutAudit" style="flex:1;max-height:none">-</div>
+      `},
+      { id: "obtl", label: "Timeline", html: `
+        <div class="toolbar">
+          <button type="button" class="primary" id="obTimeline">Timeline</button>
+          <button type="button" id="obReport">Report</button>
+          <button type="button" id="obAnom">Anomalies</button>
+        </div>
+        <div class="outbox empty" id="obOutTl" style="flex:1;max-height:none">-</div>
+      `},
+    ], { id: "observeTabs" });
     viewBuilt.observe = true;
-    const out = async (path) => {
+    bindPageTabs(root);
+    const out = async (path, boxId) => {
       try {
         const r = await api("GET", path);
-        el("obOut").textContent = typeof r === "string" ? r : (r.markdown || JSON.stringify(r, null, 2));
-        el("obOut").classList.remove("empty");
+        const box = el(boxId || "obOutMet");
+        if (!box) return;
+        box.textContent = typeof r === "string" ? r : (r.markdown || JSON.stringify(r, null, 2));
+        box.classList.remove("empty");
       } catch (e) { showError(String(e.message || e)); }
     };
-    if (el("obMetrics")) el("obMetrics").onclick = () => out("/api/v1/metrics");
-    if (el("obAudit")) el("obAudit").onclick = () => out("/api/v1/audit/me?limit=50");
-    if (el("obTimeline")) el("obTimeline").onclick = () => out("/api/v1/observability/timeline?limit=40");
-    if (el("obReport")) el("obReport").onclick = () => out("/api/v1/observability/report");
-    if (el("obAnom")) el("obAnom").onclick = () => out("/api/v1/observability/anomalies");
+    if (el("obMetrics")) el("obMetrics").onclick = () => out("/api/v1/metrics", "obOutMet");
+    if (el("obAudit")) el("obAudit").onclick = () => out("/api/v1/audit/me?limit=50", "obOutAudit");
+    if (el("obTimeline")) el("obTimeline").onclick = () => out("/api/v1/observability/timeline?limit=40", "obOutTl");
+    if (el("obReport")) el("obReport").onclick = () => out("/api/v1/observability/report", "obOutTl");
+    if (el("obAnom")) el("obAnom").onclick = () => out("/api/v1/observability/anomalies", "obOutTl");
   }
 
   /* -- Admin -- */
@@ -1791,6 +1806,8 @@
             <div class="outbox empty inko-outbox" id="aiOut" style="flex:1;max-height:none">Run Status or Tools — output appears here.</div>
       `},
     ], { id: "aiTabs" });
+    viewBuilt.ai = true;
+    bindPageTabs(root);
     const refreshPick = async () => {
       const llms = await loadSavedLlms();
       const prev = el("aiLlmPick")?.value || loadSel("sc5_ops_llm") || "";
@@ -2020,18 +2037,14 @@
     ).join("") +
       `<button type="button" id="adScopeNone">Clear</button>` +
       `<button type="button" id="adScopeAll" title="Every non-privileged scope (never includes admin)">All non-admin</button>`;
-    root.innerHTML = `
-      <div class="admin-stack">
-        <div class="admin-row">
-          <div class="work-panel">
-            <div class="wp-head">Tokens</div>
-            <div class="wp-body">
-              <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Mint or edit scopes below. <strong>Link</strong> makes a one-time URL to send an existing operator (no secret shown). <strong>Roll</strong> rotates the secret now. Redeeming a link also rolls their secret once.</p>
+    root.innerHTML = tabbedHtml([
+      { id: "adtok", label: "Tokens", html: `
+              <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Mint or edit scopes. <strong>Link</strong> = one-time URL. <strong>Roll</strong> rotates secret.</p>
               <div id="adSecretBanner" class="hidden" style="margin-bottom:12px;padding:12px;border-radius:10px;border:1px solid rgba(52,211,153,0.4);background:rgba(15,46,34,0.55)">
                 <div class="row" style="margin:0 0 8px;justify-content:space-between;align-items:flex-start">
                   <div>
                     <strong id="adSecretTitle" style="color:var(--ok)">New token secret</strong>
-                    <p class="muted" style="margin:4px 0 0;font-size:0.72rem">Shown until you dismiss. Copy the token and/or connection link.</p>
+                    <p class="muted" style="margin:4px 0 0;font-size:0.72rem">Shown until you dismiss.</p>
                   </div>
                   <button type="button" id="adSecretDismiss" title="Dismiss">Close</button>
                 </div>
@@ -2053,7 +2066,7 @@
               <div class="row" style="margin:4px 0;gap:6px" id="adPresetRow">${presetBtns}</div>
               <p class="muted" id="adPresetDesc" style="font-size:0.72rem;margin:4px 0 8px;min-height:2.2em">${esc((defaultPreset && defaultPreset.description) || "Pick a preset or tick scopes manually.")}</p>
               <label>Scopes</label>
-              <div class="scope-grid" id="adScopeGrid" style="max-height:320px">
+              <div class="scope-grid" id="adScopeGrid" style="max-height:280px">
                 ${allScopes.map((s) => {
                   const priv = privileged.has(s);
                   const dis = priv && !can("admin");
@@ -2080,68 +2093,48 @@
                 <button type="button" class="primary" id="adMint">Mint new</button>
                 <button type="button" id="adSaveEdit" disabled>Save changes</button>
                 <button type="button" id="adCancelEdit" class="hidden">Cancel edit</button>
+                <button type="button" class="ghost" id="adTokRefresh">Refresh list</button>
               </div>
-              <div class="row" style="margin-top:12px">
-                <button type="button" id="adTokRefresh">Refresh list</button>
-              </div>
-              <div id="adTokTable" style="margin-top:8px;overflow:auto;max-height:280px"></div>
-            </div>
-          </div>
-          <div class="work-panel">
-            <div class="wp-head">Policy / features</div>
-            <div class="wp-body">
+              <div id="adTokTable" style="margin-top:8px;overflow:auto;flex:1;min-height:120px"></div>
+      `},
+      { id: "adfeat", label: "Features", html: `
               <div class="row">
                 <button type="button" id="adPolGet">Get policy</button>
                 <button type="button" id="adFeat">Reload features</button>
                 <button type="button" class="primary" id="adFeatSave">Save features</button>
               </div>
-              <p class="muted" style="font-size:0.72rem;margin:8px 0">Runtime switches. <strong>Auto stage-2</strong> defaults OFF — use session <em>Stabilize shell</em> for one-shot.</p>
-              <div id="adFeatGrid" class="scope-grid" style="max-height:min(360px,45vh)"></div>
-              <div class="outbox empty" id="adOut" style="max-height:min(280px,35vh);flex:1">-</div>
-            </div>
-          </div>
-        </div>
-        <div class="work-panel">
-          <div class="wp-head">Display name (squidc5-admin by default)</div>
-          <div class="wp-body">
-            <p class="muted" style="font-size:0.78rem;margin:0 0 8px">Shown in collab, audit, and the ops chrome. Renames this API token.</p>
-            <label>Actor / display name</label>
-            <input id="adActorName" placeholder="squidc5-admin" value="${esc(state.actor || "")}" />
-            <div class="row"><button type="button" class="primary" id="adActorSave">Save name</button></div>
-          </div>
-        </div>
-        ${can("admin") ? `
-        <div class="work-panel">
-          <div class="wp-head">TLS certificates</div>
-          <div class="wp-body">
-            <p class="muted" style="font-size:0.78rem;margin:0 0 8px">Upload PEM fullchain + private key. Activate copies to server TLS material (restart required).</p>
-            <label>Label</label><input id="tlsLabel" placeholder="letsencrypt-prod" />
-            <label>Certificate PEM (fullchain)</label>
-            <textarea id="tlsCert" rows="4" placeholder="-----BEGIN CERTIFICATE-----" class="mono" style="font-size:0.72rem"></textarea>
-            <label>Private key PEM</label>
-            <textarea id="tlsKey" rows="4" placeholder="-----BEGIN PRIVATE KEY-----" class="mono" style="font-size:0.72rem"></textarea>
-            <div class="row">
-              <button type="button" class="primary" id="tlsUpload">Upload</button>
-              <button type="button" id="tlsRefresh">Refresh list</button>
-            </div>
-            <div class="outbox empty" id="tlsOut" style="max-height:240px">-</div>
-          </div>
-        </div>` : ""}
-        ${(can("llm:manage") || can("admin")) ? `
-        <div class="work-panel admin-llm">
-          <div class="wp-head">Configure LLM (BYO)</div>
-          <div class="wp-body">${llmFormHtml("adLlm")}</div>
-        </div>` : ""}
-        ${(can("payloads:generate") || can("admin")) ? `
-        <div class="work-panel">
-          <div class="wp-head">Saved assets (INKO / payloads)</div>
-          <div class="wp-body">
-            <div class="row"><button type="button" id="astRefresh">List assets</button></div>
-            <div class="outbox empty" id="astOut" style="max-height:280px">-</div>
-          </div>
-        </div>` : ""}
-      </div>
-    `;
+              <p class="muted" style="font-size:0.72rem;margin:8px 0">Runtime switches. Auto stage-2 defaults OFF.</p>
+              <div id="adFeatGrid" class="scope-grid" style="max-height:min(50vh,400px);flex:1"></div>
+              <div class="outbox empty" id="adOut" style="max-height:180px">-</div>
+      `},
+      { id: "adprof", label: "Profile", html: `
+              <p class="muted" style="font-size:0.78rem;margin:0 0 8px">Display name for collab/audit (default on new install: squidc5-admin).</p>
+              <label>Actor / display name</label>
+              <input id="adActorName" placeholder="squidc5-admin" value="${esc(state.actor || "")}" />
+              <div class="row"><button type="button" class="primary" id="adActorSave">Save name</button></div>
+      `},
+      { id: "adtls", label: "TLS", html: can("admin") ? `
+              <p class="muted" style="font-size:0.78rem;margin:0 0 8px">Upload PEM fullchain + key. Activate copies to server TLS (restart required).</p>
+              <label>Label</label><input id="tlsLabel" placeholder="letsencrypt-prod" />
+              <label>Certificate PEM (fullchain)</label>
+              <textarea id="tlsCert" rows="5" placeholder="-----BEGIN CERTIFICATE-----" class="mono" style="font-size:0.72rem"></textarea>
+              <label>Private key PEM</label>
+              <textarea id="tlsKey" rows="5" placeholder="-----BEGIN PRIVATE KEY-----" class="mono" style="font-size:0.72rem"></textarea>
+              <div class="row">
+                <button type="button" class="primary" id="tlsUpload">Upload</button>
+                <button type="button" id="tlsRefresh">Refresh list</button>
+              </div>
+              <div class="outbox empty" id="tlsOut" style="flex:1;max-height:none">-</div>
+      ` : '<p class="muted">Admin only</p>'},
+      { id: "adllm", label: "LLM", html: (can("llm:manage") || can("admin")) ? `
+              ${llmFormHtml("adLlm")}
+      ` : '<p class="muted">Need llm:manage</p>'},
+      { id: "adassets", label: "Assets lib", html: (can("payloads:generate") || can("admin")) ? `
+              <div class="row"><button type="button" id="astRefresh">List assets</button></div>
+              <div class="outbox empty" id="astOut" style="flex:1;max-height:none">-</div>
+      ` : '<p class="muted">Need payloads:generate</p>'},
+    ], { id: "adminTabs" });
+    bindPageTabs(root);
     viewBuilt.admin = true;
     if (can("llm:manage") || can("admin")) {
       bindLlmForm("adLlm");
@@ -2588,36 +2581,36 @@
     const root = el("view-profiles");
     if (!root) return;
     if (!force && viewBuilt.profiles && root.querySelector("#profTbody")) return;
-    root.innerHTML = `
-      <div class="split">
-        <div class="list-panel">
-          <div class="lp-head">C2 profiles <button type="button" id="profReload" style="margin-left:auto">Reload</button></div>
-          <div class="lp-body"><table class="data"><thead><tr><th>Name</th><th>Channel</th><th>Active</th></tr></thead>
-          <tbody id="profTbody"></tbody></table></div>
+    root.innerHTML = tabbedHtml([
+      { id: "proflist", label: "Profiles", html: `
+        <div class="toolbar">
+          <button type="button" class="ghost sm" id="profReload">Reload</button>
         </div>
-        <div class="work-panel">
-          <div class="wp-head">Manage</div>
-          <div class="wp-body">
-            ${(can("profiles:write") || can("admin")) ? `
-              <label>Name</label><input id="profName" placeholder="stealth-http" />
-              <label>URIs (comma-separated)</label><input id="profUris" placeholder="/api/v1/implant/beacon,/cdn/a" />
-              <label>User-Agent</label><input id="profUa" value="Mozilla/5.0" />
-              <div class="form-grid">
-                <div><label>Sleep sec</label><input id="profSleep" type="number" value="5" /></div>
-                <div><label>Jitter %</label><input id="profJitter" type="number" value="20" /></div>
-              </div>
-              <div class="row">
-                <button type="button" class="primary" id="profSave">Save profile</button>
-                <button type="button" id="profAct">Activate selected</button>
-                <button type="button" id="profPush">Push active</button>
-              </div>
-            ` : '<p class="muted">Need profiles:write</p>'}
-            <div class="outbox empty" id="profOut">-</div>
+        <div style="flex:1;min-height:0;overflow:auto">
+          <table class="data"><thead><tr><th>Name</th><th>Channel</th><th>Active</th></tr></thead>
+          <tbody id="profTbody"></tbody></table>
+        </div>
+      `},
+      { id: "profedit", label: "Manage", html: `
+        ${(can("profiles:write") || can("admin")) ? `
+          <label>Name</label><input id="profName" placeholder="stealth-http" />
+          <label>URIs (comma-separated)</label><input id="profUris" placeholder="/api/v1/implant/beacon,/cdn/a" />
+          <label>User-Agent</label><input id="profUa" value="Mozilla/5.0" />
+          <div class="form-grid">
+            <div><label>Sleep sec</label><input id="profSleep" type="number" value="5" /></div>
+            <div><label>Jitter %</label><input id="profJitter" type="number" value="20" /></div>
           </div>
-        </div>
-      </div>
-    `;
+          <div class="row">
+            <button type="button" class="primary" id="profSave">Save profile</button>
+            <button type="button" id="profAct">Activate selected</button>
+            <button type="button" id="profPush">Push active</button>
+          </div>
+        ` : '<p class="muted">Need profiles:write</p>'}
+        <div class="outbox empty" id="profOut" style="flex:1;max-height:none">-</div>
+      `},
+    ], { id: "profilesTabs" });
     viewBuilt.profiles = true;
+    bindPageTabs(root);
     let selectedProf = null;
     async function loadProfs() {
       try {
@@ -2645,6 +2638,7 @@
               if (el("profSleep") && row.http) el("profSleep").value = row.http.sleep_sec ?? 5;
               if (el("profJitter") && row.http) el("profJitter").value = row.http.jitter_pct ?? 20;
             }
+            activatePageTab("profilesTabs", "profedit");
           };
         });
         el("profOut").textContent = "active: " + (act || "none") + "  /  " + rows.length + " profiles";
@@ -2699,35 +2693,33 @@
     const root = el("view-artifacts");
     if (!root) return;
     if (!force && viewBuilt.artifacts && root.querySelector("#astTbody")) return;
-    root.innerHTML = `
-      <div class="split">
-        <div class="list-panel">
-          <div class="lp-head">Artifacts
-            <select id="astKind" style="margin-left:auto;width:auto;min-height:32px;font-size:0.75rem">
-              <option value="">all</option>
-              <option value="payload">payload</option>
-              <option value="template">template</option>
-              <option value="profile">profile</option>
-              <option value="implant">implant</option>
-              <option value="other">other</option>
-            </select>
-            <button type="button" id="astReload">Reload</button>
-          </div>
-          <div class="lp-body"><table class="data"><thead><tr><th>Name</th><th>Kind</th><th>By</th></tr></thead>
-          <tbody id="astTbody"></tbody></table></div>
+    root.innerHTML = tabbedHtml([
+      { id: "astlist", label: "Library", html: `
+        <div class="toolbar">
+          <select id="astKind" style="width:auto;min-height:32px;font-size:0.75rem">
+            <option value="">all</option>
+            <option value="payload">payload</option>
+            <option value="template">template</option>
+            <option value="profile">profile</option>
+            <option value="implant">implant</option>
+            <option value="other">other</option>
+          </select>
+          <button type="button" class="ghost sm" id="astReload">Reload</button>
         </div>
-        <div class="work-panel">
-          <div class="wp-head">Preview</div>
-          <div class="wp-body">
-            <div class="row">
-              <button type="button" id="astCopy">Copy</button>
-              <button type="button" class="danger" id="astDel">Delete</button>
-            </div>
-            <div class="outbox empty" id="astPreview" style="max-height:min(60vh,520px);min-height:200px">Select an artifact...</div>
-          </div>
+        <div style="flex:1;min-height:0;overflow:auto">
+          <table class="data"><thead><tr><th>Name</th><th>Kind</th><th>By</th></tr></thead>
+          <tbody id="astTbody"></tbody></table>
         </div>
-      </div>
-    `;
+      `},
+      { id: "astprev", label: "Preview", html: `
+        <div class="row">
+          <button type="button" id="astCopy">Copy</button>
+          <button type="button" class="danger" id="astDel">Delete</button>
+        </div>
+        <div class="outbox empty" id="astPreview" style="flex:1;max-height:none;min-height:200px">Select an artifact...</div>
+      `},
+    ], { id: "artifactsTabs" });
+    bindPageTabs(root);
     viewBuilt.artifacts = true;
     let selectedAst = null;
     let selectedContent = "";
@@ -2753,6 +2745,7 @@
               selectedContent = full.content || "";
               el("astPreview").textContent = selectedContent || JSON.stringify(full, null, 2);
               el("astPreview").classList.remove("empty");
+              activatePageTab("artifactsTabs", "astprev");
             } catch (e) { showError(String(e.message || e)); }
           };
         });
