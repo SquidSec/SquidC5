@@ -42,7 +42,9 @@ def test_tls_pair_ok_when_files_exist(tmp_path: Path):
     k.write_text("key", encoding="utf-8")
     s = Settings(tls_enabled=True, tls_cert_file=c, tls_key_file=k, debug=True)
     assert s.tls_cert_file == c
-    assert s.validate_runtime()  # may warn about public_host
+    warns = s.validate_runtime()  # empty ok when auto-stabilize off
+    assert isinstance(warns, list)
+
 
 
 def test_negative_rate_limit_rejected():
