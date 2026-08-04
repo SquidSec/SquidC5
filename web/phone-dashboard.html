@@ -554,28 +554,39 @@
       overflow-wrap: anywhere;
       word-break: break-word;
     }
-    .ctx-compact .ctx-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .ctx-compact .ctx-actions {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .ctx-compact .ctx-actions button { flex-shrink: 0; }
     .ctx-compact label { margin-top: 6px; }
     .ctx-compact {
       display: flex; flex-direction: column; min-height: 0; height: 100%;
+      overflow: auto;
     }
+    .ctx-compact #ctxMeta { flex-shrink: 0; }
+    /* Output grows but must not crush Shell/Task controls */
     .ctx-compact .ctx-outbox,
     .outbox.ctx-outbox {
       flex: 1 1 auto;
-      min-height: 220px;
-      max-height: none;
+      min-height: 96px;
+      max-height: min(40vh, 320px);
       margin-top: 10px;
       overflow: auto;
     }
     .ses-detail-out {
       flex: 0 0 auto;
-      min-height: 120px;
-      max-height: 28vh;
+      min-height: 80px;
+      max-height: 22vh;
       margin-top: 8px;
       overflow: auto;
     }
     /* Nested sub-tabs inside a page tab (e.g. Session → Shell / Task) */
-    .sub-tabs { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
+    .sub-tabs {
+      display: flex; flex-direction: column;
+      flex: 0 0 auto; /* size to content first — never collapse under outbox */
+      min-height: 0; width: 100%;
+    }
     .sub-tab-bar {
       display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0;
       margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
@@ -584,14 +595,21 @@
       appearance: none; border: 1px solid var(--border); background: transparent;
       color: var(--muted); font-size: 0.75rem; font-weight: 600;
       padding: 5px 12px; border-radius: 999px; cursor: pointer; min-height: 30px;
+      flex-shrink: 0;
     }
     .sub-tab-btn:hover { color: var(--text); border-color: rgba(233,30,140,0.35); }
     .sub-tab-btn.active {
       color: var(--pink2); border-color: rgba(233,30,140,0.5);
       background: rgba(233,30,140,0.12);
     }
-    .sub-tab-panel { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
+    .sub-tab-panel {
+      display: none; flex-direction: column;
+      flex: 0 0 auto; min-height: 0; overflow: visible;
+    }
     .sub-tab-panel.active { display: flex; }
+    .sub-tab-panel .row { flex-shrink: 0; flex-wrap: wrap; gap: 6px; }
+    .sub-tab-panel textarea,
+    .sub-tab-panel input { flex-shrink: 0; }
     .stat.ok .n { color: var(--ok); }
     .stat.pink .n { color: var(--pink2); }
     .stat.cyan .n { color: var(--cyan); }
