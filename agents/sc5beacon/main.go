@@ -53,6 +53,7 @@ func main() {
 	}
 	cfgAllowBOF = cfg.AllowBOF
 	cfgAllowInject = cfg.AllowInject
+	cfgAllowPostEx = cfg.AllowPostEx
 	if cfg.SleepMask != "" {
 		_ = os.Setenv("SC5_SLEEP_MASK", cfg.SleepMask)
 	}

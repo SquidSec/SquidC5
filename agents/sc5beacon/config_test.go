@@ -52,7 +52,7 @@ func TestCOFFParse(t *testing.T) {
 		0, 0,
 		0, 0,
 	}
-	h, arch, err := parseCOFF(hdr)
+	h, _, arch, err := parseCOFF(hdr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,10 @@ func TestCOFFParse(t *testing.T) {
 func TestSimulateBOFWhoami(t *testing.T) {
 	cfgAllowBOF = true
 	out := handleBofRun(map[string]any{"module_id": "whoami"})
-	if out == "" || out[:3] == "err" {
+	if out == "" || len(out) >= 3 && out[:3] == "err" {
 		t.Fatal(out)
+	}
+	if out[0] != '{' {
+		t.Fatalf("expected JSON whoami, got %s", out)
 	}
 }
