@@ -58,9 +58,15 @@ async def _auth(
 ) -> AuthContext:
     state: AppState = request.app.state.app_state
     if hasattr(state, "features") and not await state.features.enabled("mcp_enabled"):
-        raise HTTPException(403, "MCP disabled by feature flag")
+        raise HTTPException(
+            403,
+            "MCP disabled by feature flag (enable Admin → Features → mcp_enabled)",
+        )
     if not state.settings.mcp_enabled:
-        raise HTTPException(403, "MCP disabled in server settings")
+        raise HTTPException(
+            403,
+            "MCP disabled in server settings (set SQUIDC5_MCP_ENABLED=true and restart)",
+        )
     raw = None
     if authorization and authorization.lower().startswith("bearer "):
         raw = authorization[7:].strip()

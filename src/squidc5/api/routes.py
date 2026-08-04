@@ -399,6 +399,38 @@ class PluginInstall(BaseModel):
     enable: bool = True
 
 
+async def _mcp_status(state: Any) -> dict[str, Any]:
+    """Both gates must be on for external MCP (/mcp/*) to accept calls."""
+    setting = bool(getattr(state.settings, "mcp_enabled", False))
+    feature = True
+    if hasattr(state, "features"):
+        try:
+            feature = bool(await state.features.enabled("mcp_enabled"))
+        except Exception:
+            feature = False
+    active = setting and feature
+    blocked_by: list[str] = []
+    if not setting:
+        blocked_by.append("settings")  # SQUIDC5_MCP_ENABLED
+    if not feature:
+        blocked_by.append("feature_flag")  # Admin features mcp_enabled
+    return {
+        "active": active,
+        "setting": setting,
+        "feature": feature,
+        "blocked_by": blocked_by,
+        "endpoints": {
+            "tools": "/mcp/tools",
+            "call": "/mcp/call",
+        },
+        "note": (
+            "MCP requires SQUIDC5_MCP_ENABLED=true AND feature mcp_enabled=true"
+            if not active
+            else "MCP accepting authenticated tool calls"
+        ),
+    }
+
+
 def build_api_router() -> APIRouter:
     api = APIRouter(prefix="/api/v1")
 
@@ -461,10 +493,15 @@ def build_api_router() -> APIRouter:
             },
             "tls_enabled": bool(state.settings.tls_enabled),
             "mcp_enabled_setting": bool(state.settings.mcp_enabled),
+            "mcp": await _mcp_status(state),
         }
 
     @api.get("/meta")
-    async def meta(auth: AuthContext = Depends(get_auth)) -> dict[str, Any]:
+    async def meta(
+        request: Request,
+        auth: AuthContext = Depends(get_auth),
+    ) -> dict[str, Any]:
+        state = get_state(request)
         catalog = scope_catalog()
         return {
             "scopes": sorted(auth.scopes),
@@ -475,6 +512,7 @@ def build_api_router() -> APIRouter:
             "default_mcp_tools": sorted(DEFAULT_MCP_TOOLS),
             "all_mcp_tools": sorted(ALL_MCP_TOOLS),
             "mcp_tools": sorted(auth.mcp_tools),
+            "mcp": await _mcp_status(state),
             "actor": auth.name,
             "actor_type": auth.actor_type,
             "token_id": auth.token_id,
@@ -2127,6 +2165,7 @@ def build_api_router() -> APIRouter:
         return {
             "features": flags,
             "catalog": state.features.catalog(),
+            "mcp": await _mcp_status(state),
         }
 
     @api.put("/features")
@@ -2137,7 +2176,11 @@ def build_api_router() -> APIRouter:
     ) -> dict[str, Any]:
         state = get_state(request)
         flags = await state.features.set_many(body.features, auth.name)
-        return {"features": flags, "catalog": state.features.catalog()}
+        return {
+            "features": flags,
+            "catalog": state.features.catalog(),
+            "mcp": await _mcp_status(state),
+        }
 
     @api.post("/admin/factory-reset")
     async def admin_factory_reset(
