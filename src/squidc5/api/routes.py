@@ -205,6 +205,12 @@ class FileOpRequest(BaseModel):
     content: str | None = None
     content_b64: str | None = None
     hitl_request_id: str | None = None
+    # Chunked transfer (B2) — implant honors offset/length/as_b64
+    offset: int | None = None
+    length: int | None = None
+    as_b64: bool = False
+    chunk_index: int | None = None
+    chunk_total: int | None = None
 
 
 class SocksStart(BaseModel):
@@ -226,6 +232,14 @@ class BofRunRequest(BaseModel):
     module_id: str
     entry: str = "go"
     object_b64: str | None = None
+
+
+class ModuleRunRequest(BaseModel):
+    """Queue a post-ex / SA / cred / lateral / persist implant command."""
+
+    session_id: str
+    command: str
+    args: dict[str, Any] = Field(default_factory=dict)
 
 
 class BeaconIn(BaseModel):
@@ -1477,6 +1491,16 @@ def build_api_router() -> APIRouter:
             args["content"] = body.content
         if body.content_b64 is not None:
             args["content_b64"] = body.content_b64
+        if body.offset is not None:
+            args["offset"] = int(body.offset)
+        if body.length is not None:
+            args["length"] = int(body.length)
+        if body.as_b64:
+            args["as_b64"] = True
+        if body.chunk_index is not None:
+            args["chunk_index"] = int(body.chunk_index)
+        if body.chunk_total is not None:
+            args["chunk_total"] = int(body.chunk_total)
         try:
             await state.teams.assert_write_access(
                 body.session_id, auth.name, is_admin=auth.has_scope("admin")
@@ -1586,28 +1610,16 @@ def build_api_router() -> APIRouter:
             raise HTTPException(404, "pivot not found")
         return {"status": "stopped", "id": pivot_id}
 
-    # ----- Modules: inject / BOF / sleep mask catalog -----
+    # ----- Modules: inject / BOF / SA / cred / lateral / persist -----
 
     @api.get("/modules")
     async def list_modules_catalog(
         request: Request,
         auth: AuthContext = Depends(require_scope("tasks:read", "shell:interact", "admin")),
     ) -> dict[str, Any]:
-        from squidc5.modules.catalog import (
-            list_bof_modules,
-            list_inject_techniques,
-            sleep_mask_catalog,
-        )
+        from squidc5.modules.catalog import full_catalog
 
-        return {
-            "inject": list_inject_techniques(),
-            "bof": list_bof_modules(),
-            "sleep_mask": sleep_mask_catalog(),
-            "gates": {
-                "inject": "SC5_ALLOW_INJECT=1 on implant",
-                "bof": "SC5_ALLOW_BOF=1 on implant",
-            },
-        }
+        return full_catalog()
 
     @api.get("/modules/bof")
     async def list_bof(
@@ -1731,6 +1743,71 @@ def build_api_router() -> APIRouter:
             resource=body.session_id,
             details={"module_id": mod_id, "task_id": task.get("id")},
             risk_score=9,
+        )
+        return task
+
+    @api.post("/modules/run")
+    async def queue_module_run(
+        body: ModuleRunRequest,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("shell:interact", "tasks:write", "admin")),
+    ) -> dict[str, Any]:
+        """Queue SA / cred / lateral / persist / inject task on a beacon session."""
+        state = get_state(request)
+        cmd = (body.command or "").strip()
+        if not cmd:
+            raise HTTPException(400, "command required")
+        # Allow-list prefixes (implant still enforces env gates)
+        allowed_prefixes = (
+            "sa:",
+            "cred:",
+            "lat:",
+            "lateral:",
+            "persist:",
+            "inject:",
+            "bof:",
+            "module:",
+            "sysinfo",
+            "whoami",
+            "ps",
+            "file:",
+        )
+        if not any(cmd == p or cmd.startswith(p) for p in allowed_prefixes):
+            raise HTTPException(400, f"command not in post-ex allow-list: {cmd}")
+        risk = 3
+        if cmd.startswith(("cred:", "lat:", "lateral:", "persist:", "inject:", "bof:")):
+            risk = 8
+        decision = await state.policy.check_and_audit(
+            auth,
+            "shell.interact" if risk >= 8 else "tasks.create",
+            resource=body.session_id,
+            extra={"command": cmd, "module_run": True},
+        )
+        if not decision.allowed:
+            raise _policy_http_error(decision)
+        try:
+            await state.teams.assert_write_access(
+                body.session_id, auth.name, is_admin=auth.has_scope("admin")
+            )
+            task = await state.tasks.create(
+                session_id=body.session_id,
+                command=cmd,
+                args=dict(body.args or {}),
+                created_by=auth.name,
+            )
+        except KeyError as e:
+            raise HTTPException(404, str(e)) from e
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="modules.run",
+            resource=body.session_id,
+            details={"command": cmd, "task_id": task.get("id")},
+            risk_score=risk,
         )
         return task
 

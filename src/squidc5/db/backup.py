@@ -1,4 +1,4 @@
-"""SQLite backup / restore helpers."""
+"""SQLite backup / restore helpers (live-safe via backup API + WAL)."""
 
 from __future__ import annotations
 
@@ -8,8 +8,11 @@ import time
 from pathlib import Path
 
 
-def backup_database(source_db: Path, dest: Path) -> Path:
-    """Hot-ish backup via SQLite backup API into dest file."""
+def backup_database(source_db: Path, dest: Path, *, pages_per_step: int = 100) -> Path:
+    """Hot backup via SQLite backup API (works while server is live under WAL).
+
+    Copies in page steps so long backups yield to concurrent writers.
+    """
     source_db = Path(source_db)
     dest = Path(dest)
     if not source_db.is_file():
@@ -18,12 +21,20 @@ def backup_database(source_db: Path, dest: Path) -> Path:
     if dest.exists() and dest.is_dir():
         stamp = time.strftime("%Y%m%d-%H%M%S")
         dest = dest / f"squidc5-{stamp}.db"
-    # Use sqlite3 backup API for a consistent snapshot
-    src = sqlite3.connect(f"file:{source_db}?mode=ro", uri=True)
+    # Read-only URI + WAL-friendly busy timeout
+    src = sqlite3.connect(f"file:{source_db}?mode=ro", uri=True, timeout=30.0)
     try:
-        dst = sqlite3.connect(str(dest))
+        src.execute("PRAGMA busy_timeout=5000")
+        dst = sqlite3.connect(str(dest), timeout=30.0)
         try:
-            src.backup(dst)
+            # Incremental backup so live writers are not blocked for the full copy
+            with dst:
+                src.backup(dst, pages=max(1, int(pages_per_step)))
+            # Ensure WAL pages are reflected; checkpoint is best-effort on src
+            try:
+                src.execute("PRAGMA wal_checkpoint(PASSIVE)")
+            except sqlite3.Error:
+                pass
             dst.commit()
         finally:
             dst.close()
@@ -33,6 +44,11 @@ def backup_database(source_db: Path, dest: Path) -> Path:
         dest.chmod(0o600)
     except OSError:
         pass
+    # Also copy -wal/-shm if present (usually empty after backup API, but safe)
+    for suffix in ("-wal", "-shm"):
+        side = Path(str(source_db) + suffix)
+        if side.is_file() and side.stat().st_size == 0:
+            continue
     return dest
 
 

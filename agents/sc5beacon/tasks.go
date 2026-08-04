@@ -14,6 +14,9 @@ var jobs = newJobManager()
 
 func runTask(cmd string, args map[string]any) string {
 	cmd = strings.TrimSpace(cmd)
+	if out, ok := handlePostEx(cmd, args); ok {
+		return out
+	}
 	if strings.HasPrefix(cmd, "file:") {
 		return runFileOp(cmd, args)
 	}
