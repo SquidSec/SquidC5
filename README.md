@@ -30,7 +30,7 @@ Security-first, AI-native C5 teamserver for **authorized** red team and penetrat
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=cIY6B8IrYEA">
-    <img src="https://img.youtube.com/vi/cIY6B8IrYEA/maxresdefault.jpg" alt="SquidC5 — Watch on YouTube" width="90%">
+    <img src="assets/squidc5-youtube.jpg" alt="SquidC5 — Watch on YouTube" width="90%">
   </a>
   <br>
   <a href="https://www.youtube.com/watch?v=cIY6B8IrYEA"><strong>▶ Watch SquidC5 on YouTube</strong></a>
