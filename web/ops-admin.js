@@ -2659,23 +2659,38 @@
       try {
         const r = await api("GET", "/api/v1/features");
         const feats = r.features || r || {};
+        const mcp = r.mcp || {};
         const labelBy = {};
         (r.catalog || []).forEach((c) => {
           if (c && c.key) labelBy[c.key] = c.label || c.key;
         });
         const keys = Object.keys(feats).sort();
-        grid.innerHTML = keys.map((k) => {
+        let mcpWarn = "";
+        if (mcp && mcp.active === false) {
+          const why = (mcp.blocked_by || []).join(" + ") || "unknown";
+          mcpWarn = `<p class="muted" style="margin:0 0 8px;padding:8px;border-radius:8px;border:1px solid rgba(250,204,21,0.4);background:rgba(250,204,21,0.08);color:#facc15;font-size:0.75rem">
+            <strong>MCP not live</strong> (blocked by: ${esc(why)}).
+            Needs <span class="mono">SQUIDC5_MCP_ENABLED=true</span> <em>and</em> feature <span class="mono">mcp_enabled</span>.
+            ${esc(mcp.note || "")}
+          </p>`;
+        } else if (mcp && mcp.active) {
+          mcpWarn = `<p class="muted" style="margin:0 0 8px;font-size:0.72rem;color:var(--ok)">MCP live — GET/POST <span class="mono">/mcp/tools</span> · <span class="mono">/mcp/call</span></p>`;
+        }
+        grid.innerHTML = mcpWarn + keys.map((k) => {
           const lab = labelBy[k] || k;
           const on = !!feats[k];
           const locked = k === "public_docs";
+          const mcpNote = k === "mcp_enabled" && mcp.setting === false
+            ? ' <span class="chip warn" title="Process env SQUIDC5_MCP_ENABLED is false">needs env</span>'
+            : "";
           return `<label title="${esc(k)}">
             <input type="checkbox" class="ad-feat" data-feat="${esc(k)}" ${on ? "checked" : ""} ${locked ? "disabled" : ""} />
-            <span>${esc(lab)}</span>
+            <span>${esc(lab)}${mcpNote}</span>
           </label>`;
         }).join("") || '<span class="muted">No features</span>';
         if (el("adOut")) {
           el("adOut").classList.remove("empty");
-          el("adOut").textContent = JSON.stringify({ features: feats }, null, 2);
+          el("adOut").textContent = JSON.stringify({ features: feats, mcp }, null, 2);
         }
       } catch (e) { showError(String(e.message || e)); }
     }

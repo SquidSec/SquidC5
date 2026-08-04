@@ -38,7 +38,7 @@ Ops UI: `/ops` (admin UI loaded only after server-side admin token check)
 |---------|---------|
 | Public Swagger / OpenAPI | **OFF** (hard-locked) |
 | CORS | **empty** (no `*`) |
-| MCP external tools | **OFF** until settings/feature enable |
+| MCP external tools | **OFF** until **both** `SQUIDC5_MCP_ENABLED=true` and feature `mcp_enabled` |
 | Shell exec probe | **ON** |
 | False-shell filter | **ON** |
 | Auto stage-2 stabilize | **OFF** (manual Stabilize or feature flag) |
