@@ -6,10 +6,9 @@ on:
   pull_request:
     branches: [main, master]
 
-# Self-hosted runners: labels [self-hosted, Linux|Windows, X64, squidsec]
-# Avoid fixed host ports (8443) - concurrent jobs and lab stacks share the machine.
-# SECURITY: never schedule untrusted fork PR code on self-hosted (CWE-284).
-# Same-repo PRs and pushes only (private SquidSec runners).
+# Public repo CI runs on GitHub-hosted runners (ubuntu-latest / windows-latest).
+# Org self-hosted runners disallow public repos (RCE / LAN risk).
+# SECURITY: same-repo PRs only for jobs that could touch secrets / heavy build.
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -19,25 +18,24 @@ jobs:
   test:
     # PRs: 3.12 only (faster). master/main push: 3.11 + 3.12 matrix.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, squidsec]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.11", "3.12"]') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ matrix.python-version }}
-          # Self-hosted: GitHub Actions pip cache download hangs (0 MB/s). Use local pip only.
           cache: ""
       - name: Install dependencies
         run: |
           set -euo pipefail
           python -c "import sys; print(sys.executable, sys.version)"
           python -m pip install --upgrade pip
-          # Same interpreter as tests (never bare `pip` on self-hosted)
+          # Same interpreter as tests
           python -m pip install -r requirements-dev.txt
           python -m pip install -e .
       - name: Lint
@@ -62,11 +60,11 @@ jobs:
 
   native-agent:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, squidsec]
+    runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff  # v5
         with:
           go-version: "1.25"
       - name: Test + build sc5beacon matrix
@@ -92,7 +90,7 @@ jobs:
           set -e
           test "$code" -ne 0
           grep -qi config /tmp/sc5beacon_err_$$.txt || grep -qi psk /tmp/sc5beacon_err_$$.txt || grep -qi required /tmp/sc5beacon_err_$$.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         continue-on-error: true
         with:
           name: sc5beacon-native
@@ -102,17 +100,17 @@ jobs:
 
   docker:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, squidsec]
+    runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Build image
         run: docker build -t "squidc5:ci-${{ github.run_id }}" .
       - name: Run container smoke test
         run: |
           set -euo pipefail
           NAME="squidc5-ci-${{ github.run_id }}-$$"
-          # Ephemeral host port - never bind fixed 8443 on shared runners
+          # Ephemeral host port
           HOST_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
           docker rm -f "$NAME" 2>/dev/null || true
           docker run -d --name "$NAME" -p "127.0.0.1:${HOST_PORT}:8443" "squidc5:ci-${{ github.run_id }}"
@@ -141,14 +139,13 @@ jobs:
 
   security:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, squidsec]
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
-          # Self-hosted: GitHub Actions pip cache download hangs (0 MB/s). Use local pip only.
           cache: ""
       - name: Install pip-audit
         run: |
@@ -158,7 +155,6 @@ jobs:
       - name: Audit dependencies
         run: |
           set -euo pipefail
-          # Self-hosted can hit transient PyPI timeouts
           for i in 1 2 3; do
             # setup-python puts this env's scripts on PATH after python -m pip install
             pip-audit -r requirements.txt && exit 0
@@ -176,18 +172,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: [self-hosted, Linux, X64, squidsec]
+          - runner: ubuntu-latest
             artifact: linux-x64
             is_windows: false
-          - runner: [self-hosted, Windows, X64, squidsec]
+          - runner: windows-latest
             artifact: windows-x64
             is_windows: true
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: ""
@@ -207,9 +203,7 @@ jobs:
         if: matrix.is_windows == true
         shell: pwsh
         run: |
-          # Bare `pip` on self-hosted Windows often targets a different Python than
-          # actions/setup-python. Always install via `python -m pip` so PyInstaller
-          # lands in the interpreter that runs packaging/build_binaries.py.
+          # Always install via `python -m pip` so PyInstaller matches this interpreter.
           python -c "import sys; print(sys.executable)"
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
@@ -266,7 +260,7 @@ jobs:
           exit 1
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         continue-on-error: true
         with:
           name: squidc5-${{ matrix.artifact }}
@@ -285,14 +279,14 @@ jobs:
     name: github-release
     needs: [test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    runs-on: [self-hosted, Linux, X64, squidsec]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: ""
@@ -322,7 +316,7 @@ jobs:
 
       - name: Try Windows artifacts (optional)
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: squidc5-windows-x64
           path: artifacts/windows
