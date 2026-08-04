@@ -30,11 +30,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
-            pyproject.toml
+          # Self-hosted: GitHub Actions pip cache download hangs (0 MB/s). Use local pip only.
+          cache: ""
       - name: Install dependencies
         run: |
           set -euo pipefail
@@ -151,8 +148,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: requirements.txt
+          # Self-hosted: GitHub Actions pip cache download hangs (0 MB/s). Use local pip only.
+          cache: ""
       - name: Install pip-audit
         run: |
           set -euo pipefail
