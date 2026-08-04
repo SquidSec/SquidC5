@@ -36,47 +36,87 @@
     return false;
   }
 
+  /** Remember active page-tab / sub-tab so refresh does not reset UI */
+  const tabState = Object.create(null); // pageTabsId -> tabId
+  let ctxSubTab = null; // "shell" | "task" | null
+
+  function rememberPageTab(wrap) {
+    if (!wrap) return;
+    const key = wrap.id || wrap.getAttribute("data-tabs-key") || "";
+    const active = wrap.querySelector(".page-tab-btn.active");
+    const id = active && active.getAttribute("data-ptab");
+    if (key && id) tabState[key] = id;
+  }
+
+  function rememberAllPageTabs(root) {
+    const scope = root || document;
+    scope.querySelectorAll(".page-tabs").forEach(rememberPageTab);
+  }
+
+  function rememberCtxSubTab(root) {
+    const scope = root || document;
+    const active = scope.querySelector(".sub-tab-btn.active");
+    if (active) {
+      const id = active.getAttribute("data-stab");
+      if (id) ctxSubTab = id;
+    }
+  }
+
   /** Build tabbed page shell. tabs: [{id,label,html}] */
   function tabbedHtml(tabs, opts) {
     const o = opts || {};
+    const tid = o.id || "";
+    const preferred = (tid && tabState[tid]) || o.active || null;
+    let activeIdx = 0;
+    if (preferred) {
+      const ix = tabs.findIndex((t) => t.id === preferred);
+      if (ix >= 0) activeIdx = ix;
+    }
     const bar = tabs.map((t, i) =>
-      `<button type="button" class="page-tab-btn${i === 0 ? " active" : ""}" data-ptab="${esc(t.id)}">${esc(t.label)}</button>`
+      `<button type="button" class="page-tab-btn${i === activeIdx ? " active" : ""}" data-ptab="${esc(t.id)}">${esc(t.label)}</button>`
     ).join("");
     const panels = tabs.map((t, i) =>
-      `<div class="page-tab-panel${i === 0 ? " active" : ""}" data-ptab-panel="${esc(t.id)}">${t.html || ""}</div>`
+      `<div class="page-tab-panel${i === activeIdx ? " active" : ""}" data-ptab-panel="${esc(t.id)}">${t.html || ""}</div>`
     ).join("");
-    return `<div class="page-tabs" id="${esc(o.id || "")}">
+    return `<div class="page-tabs" id="${esc(tid)}" data-tabs-key="${esc(tid)}">
       <div class="page-tab-bar">${bar}</div>
       <div class="page-tab-panels">${panels}</div>
     </div>`;
   }
 
+  function applyPageTab(wrap, id) {
+    if (!wrap || !id) return;
+    wrap.querySelectorAll(".page-tab-btn").forEach((b) => {
+      b.classList.toggle("active", b.getAttribute("data-ptab") === id);
+    });
+    wrap.querySelectorAll(".page-tab-panel").forEach((p) => {
+      const on = p.getAttribute("data-ptab-panel") === id;
+      p.classList.toggle("active", on);
+      p.style.display = on ? "flex" : "none";
+    });
+    const key = wrap.id || wrap.getAttribute("data-tabs-key") || "";
+    if (key) tabState[key] = id;
+  }
+
   function bindPageTabs(root) {
     const scope = root || document;
     scope.querySelectorAll(".page-tabs").forEach((wrap) => {
-      // Always (re)bind — rebuilds replace the node
+      const key = wrap.id || wrap.getAttribute("data-tabs-key") || "";
+      // Restore remembered tab after rebuild
+      if (key && tabState[key]) {
+        const want = tabState[key];
+        const exists = Array.from(wrap.querySelectorAll(".page-tab-btn")).some((b) => b.getAttribute("data-ptab") === want);
+        if (exists) applyPageTab(wrap, want);
+      }
       wrap.querySelectorAll(".page-tab-btn").forEach((btn) => {
         btn.onclick = (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
           const id = btn.getAttribute("data-ptab");
           if (!id) return;
-          wrap.querySelectorAll(".page-tab-btn").forEach((b) => {
-            b.classList.toggle("active", b.getAttribute("data-ptab") === id);
-          });
-          wrap.querySelectorAll(".page-tab-panel").forEach((p) => {
-            const on = p.getAttribute("data-ptab-panel") === id;
-            p.classList.toggle("active", on);
-            // Force layout so flex children paint after display:none → flex
-            if (on) {
-              p.style.display = "flex";
-            } else {
-              p.style.display = "none";
-            }
-          });
+          applyPageTab(wrap, id);
         };
       });
-      // Ensure initial active panel is visible
       wrap.querySelectorAll(".page-tab-panel").forEach((p) => {
         p.style.display = p.classList.contains("active") ? "flex" : "none";
       });
@@ -86,12 +126,7 @@
   function activatePageTab(wrapOrId, tabId) {
     const wrap = typeof wrapOrId === "string" ? el(wrapOrId) : wrapOrId;
     if (!wrap) return;
-    wrap.querySelectorAll(".page-tab-btn").forEach((b) => {
-      b.classList.toggle("active", b.getAttribute("data-ptab") === tabId);
-    });
-    wrap.querySelectorAll(".page-tab-panel").forEach((p) => {
-      p.classList.toggle("active", p.getAttribute("data-ptab-panel") === tabId);
-    });
+    applyPageTab(wrap, tabId);
   }
   function tools(html) { const t = el("viewTools"); if (t) t.innerHTML = html || ""; }
   function shortId(id) { return (id || "").length > 14 ? id.slice(0, 12) + "..." : (id || ""); }
@@ -742,6 +777,8 @@
 
   async function renderContextInto(body, force) {
     if (!body) return;
+    // Keep Shell/Task selection across soft refreshes
+    rememberCtxSubTab(body);
     if (!selectedId) {
       ctxBoundSid = null;
       body.innerHTML = `<div class="muted" style="padding:12px;text-align:center">Select a session to claim, stabilize, or shell it.</div>`;
@@ -761,27 +798,52 @@
       claim_remaining_sec: m.claim_remaining_sec,
       locked: !!m.claimed_by,
     };
+    // Soft update: same session + panel already built → refresh chips/meta only
+    if (!force && ctxBoundSid === selectedId && body.querySelector("#ctxOpTabs")) {
+      const chips = body.querySelector("#ctxMeta .chips");
+      if (chips) {
+        chips.innerHTML = `
+          <span class="chip">${esc(s.kind || "?")}</span>
+          <span class="chip ${s.verified ? "ok" : ""}">${s.verified ? "verified" : esc(s.status || "")}</span>
+          ${claimChipHtml(claim)}`;
+      }
+      const hostEl = body.querySelector("#ctxMeta > div");
+      if (hostEl && hostEl.style && hostEl.style.fontWeight) {
+        hostEl.textContent = s.hostname || s.remote_addr || "session";
+      }
+      return;
+    }
     body.innerHTML = ctxPanelHtml(s, claim);
     ctxBoundSid = selectedId;
     bindSubTabs(body);
     bindContextHandlers(body);
   }
 
+  function applySubTab(wrap, id) {
+    if (!wrap || !id) return;
+    wrap.querySelectorAll(".sub-tab-btn").forEach((b) => {
+      b.classList.toggle("active", b.getAttribute("data-stab") === id);
+    });
+    wrap.querySelectorAll(".sub-tab-panel").forEach((p) => {
+      const on = p.getAttribute("data-stab-panel") === id;
+      p.classList.toggle("active", on);
+      p.style.display = on ? "flex" : "none";
+    });
+    ctxSubTab = id;
+  }
+
   function bindSubTabs(root) {
     const scope = root || document;
     scope.querySelectorAll(".sub-tabs").forEach((wrap) => {
+      if (ctxSubTab) {
+        const has = Array.from(wrap.querySelectorAll(".sub-tab-btn")).some((b) => b.getAttribute("data-stab") === ctxSubTab);
+        if (has) applySubTab(wrap, ctxSubTab);
+      }
       wrap.querySelectorAll(".sub-tab-btn").forEach((btn) => {
         btn.onclick = (ev) => {
           ev.preventDefault();
           const id = btn.getAttribute("data-stab");
-          wrap.querySelectorAll(".sub-tab-btn").forEach((b) => {
-            b.classList.toggle("active", b.getAttribute("data-stab") === id);
-          });
-          wrap.querySelectorAll(".sub-tab-panel").forEach((p) => {
-            const on = p.getAttribute("data-stab-panel") === id;
-            p.classList.toggle("active", on);
-            p.style.display = on ? "flex" : "none";
-          });
+          if (id) applySubTab(wrap, id);
         };
       });
       wrap.querySelectorAll(".sub-tab-panel").forEach((p) => {
@@ -882,13 +944,28 @@
   function renderSessionsView(force) {
     const root = el("view-sessions");
     if (!root) return;
-    if (!force && viewBuilt.sessions && root.querySelector("#sesTbody")) {
-      fillSessionRows(el("sesTbody"));
+    if (!force && viewBuilt.sessions && root.querySelector(".page-tabs")) {
+      // Soft refresh: update list in place; never rebuild tabs (preserves active tab)
+      const tbody = el("sesTbody");
+      const empty = el("sesEmpty");
+      const rows = cache.sessions || [];
+      const listWrap = root.querySelector("[data-ptab-panel='slist'] > div[style*='overflow']")
+        || root.querySelector("[data-ptab-panel='slist'] .ses-list-wrap");
+      if (tbody) {
+        fillSessionRows(tbody);
+      } else if (listWrap && rows.length) {
+        listWrap.innerHTML = `<table class="data"><thead><tr><th>Session</th><th>Kind</th><th>Host</th></tr></thead><tbody id="sesTbody"></tbody></table>`;
+        fillSessionRows(el("sesTbody"));
+        if (empty) empty.remove();
+      } else if (listWrap && !rows.length && !empty) {
+        listWrap.innerHTML = '<div class="empty-state" id="sesEmpty"><strong>No sessions</strong>Land a beacon or reverse shell.</div>';
+      }
       const count = el("sesCount");
-      if (count) count.textContent = String((cache.sessions || []).length);
+      if (count) count.textContent = String(rows.length);
       if (el("sesCtxMount")) renderContextInto(el("sesCtxMount"), false);
       return;
     }
+    rememberAllPageTabs(root);
     const rows = cache.sessions || [];
     root.innerHTML = tabbedHtml([
       { id: "slist", label: "Sessions", html: `
@@ -898,7 +975,7 @@
           <button type="button" class="ghost sm" id="sesRefresh">Refresh</button>
           ${can("sessions:write") ? '<button type="button" class="danger sm" id="sesClose" style="margin-left:auto">Close</button>' : ""}
         </div>
-        <div style="flex:1;min-height:0;overflow:auto">
+        <div class="ses-list-wrap" style="flex:1;min-height:0;overflow:auto">
           ${rows.length
             ? `<table class="data"><thead><tr><th>Session</th><th>Kind</th><th>Host</th></tr></thead><tbody id="sesTbody"></tbody></table>`
             : '<div class="empty-state" id="sesEmpty"><strong>No sessions</strong>Land a beacon or reverse shell.</div>'}
@@ -1057,10 +1134,11 @@
   function renderListenersView(force) {
     const root = el("view-listeners");
     if (!root) return;
-    if (!force && viewBuilt.listeners && el("lisTbody")) {
-      fillListenerRows(el("lisTbody"));
+    if (!force && viewBuilt.listeners && root.querySelector(".page-tabs")) {
+      if (el("lisTbody")) fillListenerRows(el("lisTbody"));
       return;
     }
+    rememberAllPageTabs(root);
     root.innerHTML = tabbedHtml([
       { id: "lislist", label: "Listeners", html: `
         <div style="flex:1;min-height:0;overflow:auto">
@@ -1164,6 +1242,7 @@
     if (!root) return;
     if (!force && viewBuilt.payloads && root.querySelector("#payTpl")) return;
     const host = (() => { try { return location.hostname || "127.0.0.1"; } catch (_) { return "127.0.0.1"; } })();
+    rememberAllPageTabs(root);
     root.innerHTML = tabbedHtml([
       { id: "paygen", label: "Generate", html: `
         ${can("payloads:generate") ? `
@@ -1278,6 +1357,7 @@
     const root = el("view-postex");
     if (!root) return;
     if (!force && viewBuilt.postex && root.children.length) return;
+    rememberAllPageTabs(root);
     root.innerHTML = tabbedHtml([
       { id: "pxfiles", label: "Files", html: `
         <p class="muted" style="margin:0 0 10px;font-size:0.85rem">
@@ -1353,6 +1433,7 @@
     const root = el("view-collab");
     if (!root) return;
     if (!force && viewBuilt.collab && root.children.length) return;
+    rememberAllPageTabs(root);
     root.innerHTML = tabbedHtml([
       { id: "chchat", label: "Chat", html: `
         <label>Team channel (optional id)</label>
@@ -1443,6 +1524,7 @@
     const root = el("view-observe");
     if (!root) return;
     if (!force && viewBuilt.observe && root.children.length) return;
+    rememberAllPageTabs(root);
     root.innerHTML = tabbedHtml([
       { id: "obmet", label: "Metrics", html: `
         <div class="toolbar">
@@ -1863,6 +1945,7 @@
       { t: "Shell (HITL)", d: "Send to verified reverse shells when policy allows." },
       { t: "General ops Q&A", d: "Explain C5 concepts, ROE-safe guidance, and results." },
     ];
+    rememberAllPageTabs(root);
     root.innerHTML = tabbedHtml([
       { id: "aihome", label: "Workspace", html: `
             <p class="muted" style="font-size:0.82rem;margin:0 0 10px;line-height:1.45">
@@ -2123,6 +2206,7 @@
     ).join("") +
       `<button type="button" id="adScopeNone">Clear</button>` +
       `<button type="button" id="adScopeAll" title="Every non-privileged scope (never includes admin)">All non-admin</button>`;
+    rememberAllPageTabs(root);
     root.innerHTML = tabbedHtml([
       { id: "adtok", label: "Tokens", html: `
               <p class="muted" style="font-size:0.75rem;margin:0 0 8px">Mint or edit scopes. <strong>Link</strong> = one-time URL. <strong>Roll</strong> rotates secret.</p>
@@ -2755,6 +2839,7 @@
     const root = el("view-profiles");
     if (!root) return;
     if (!force && viewBuilt.profiles && root.querySelector("#profTbody")) return;
+    rememberAllPageTabs(root);
     root.innerHTML = tabbedHtml([
       { id: "proflist", label: "Profiles", html: `
         <div class="toolbar">
@@ -2867,6 +2952,7 @@
     const root = el("view-artifacts");
     if (!root) return;
     if (!force && viewBuilt.artifacts && root.querySelector("#astTbody")) return;
+    rememberAllPageTabs(root);
     root.innerHTML = tabbedHtml([
       { id: "astlist", label: "Library", html: `
         <div class="toolbar">
@@ -3380,13 +3466,21 @@
     const typing = ae && (
       ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || ae.isContentEditable
     );
-    // Soft update - never rebuild forms; skip panels while user is typing
+    // Soft update only — never wipe page tabs or forms while on a view
     if (currentIs("sessions")) {
       renderSessionsView(false);
       if (el("tskList") && !typing) loadTasksPanel();
     }
     if (currentIs("hosts") && !typing) renderHostsView(false);
     if (currentIs("listeners")) renderListenersView(false);
+    if (currentIs("payloads") && !typing) renderPayloadsView(false);
+    if (currentIs("profiles") && !typing) renderProfilesView(false);
+    if (currentIs("artifacts") && !typing) renderArtifactsView(false);
+    if (currentIs("postex") && !typing) renderPostexView(false);
+    if (currentIs("collab") && !typing) renderCollabView(false);
+    if (currentIs("observe") && !typing) renderObserveView(false);
+    if (currentIs("admin") && !typing) renderAdminView(false);
+    if (currentIs("ai") && !typing) renderAiView(false);
     if (el("pxSid") && !typing) el("pxSid").textContent = selectedId || "(none - pick in Sessions)";
     document.querySelectorAll("tr[data-sid]").forEach((tr) => {
       tr.classList.toggle("selected", tr.getAttribute("data-sid") === selectedId);
@@ -3394,10 +3488,14 @@
     document.querySelectorAll("tr[data-lid]").forEach((tr) => {
       tr.classList.toggle("selected", tr.getAttribute("data-lid") === selectedListenerId);
     });
-    // Context metadata only when not focused inside context form
-    if (selectedId) {
-      const inCtx = ae && el("ctxBody") && el("ctxBody").contains(ae);
-      if (!inCtx && !typing) renderContext(false);
+    // Context: soft meta refresh only (preserves Shell/Task + form state)
+    if (selectedId && !typing) {
+      const inCtxForm = ae && (
+        (el("ctxBody") && el("ctxBody").contains(ae)) ||
+        (el("sesCtxMount") && el("sesCtxMount").contains(ae)) ||
+        (el("hostCtxMount") && el("hostCtxMount").contains(ae))
+      );
+      if (!inCtxForm) renderContext(false);
     }
   };
   function currentIs(name) {
