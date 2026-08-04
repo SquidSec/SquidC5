@@ -28,6 +28,16 @@ Security-first, AI-native C5 teamserver for **authorized** red team and penetrat
 
 > **Authorized use only.** Unauthorized access is illegal.
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=cIY6B8IrYEA">
+    <img src="https://img.youtube.com/vi/cIY6B8IrYEA/maxresdefault.jpg" alt="SquidC5 — Watch on YouTube" width="90%">
+  </a>
+  <br>
+  <a href="https://www.youtube.com/watch?v=cIY6B8IrYEA"><strong>▶ Watch SquidC5 on YouTube</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://youtu.be/cIY6B8IrYEA">youtu.be/cIY6B8IrYEA</a>
+</p>
+
 ### What C5 means
 
 | Pillar | Role |
