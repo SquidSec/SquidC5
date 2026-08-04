@@ -16,7 +16,7 @@
 
 ## Mandatory git cycle (every change)
 
-From SquidSec `AGENTS.md` + `knowledge-base/MEMORY.md` and SquidC5 `AGENTS.md`:
+From this repo’s [AGENTS.md](../AGENTS.md) and [CONTRIBUTING.md](../CONTRIBUTING.md):
 
 1. Checkout and update `master` (pull latest).
 2. Create a **feature branch** named for the change only.

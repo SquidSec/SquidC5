@@ -14,12 +14,11 @@
 </p>
 
 <p align="center">
- <!-- Private repo: GitHub/shields status APIs return "not found" unauthenticated - static link badges only -->
- <a href="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/CI-workflow-2088FF?logo=githubactions&logoColor=white" alt="CI"></a>
- <a href="https://github.com/SquidSec/SquidC5/actions/workflows/squidgate.yml"><img src="https://img.shields.io/badge/SquidGate-workflow-6f42c1?logo=githubactions&logoColor=white" alt="SquidGate"></a>
- <a href="https://github.com/SquidSec/SquidC5/releases"><img src="https://img.shields.io/badge/releases-GitHub-181717?logo=github&logoColor=white" alt="Releases"></a>
+ <a href="https://github.com/SquidSec/SquidC5/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/SquidSec/SquidC5/ci.yml?branch=master&label=CI&logo=githubactions&logoColor=white" alt="CI"></a>
+ <a href="https://github.com/SquidSec/SquidC5/releases/latest"><img src="https://img.shields.io/github/v/release/SquidSec/SquidC5?label=release&logo=github" alt="Release"></a>
  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python"></a>
  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+ <a href="https://github.com/SquidSec/SquidC5"><img src="https://img.shields.io/badge/C5-teamserver-e91e8c" alt="C5"></a>
 </p>
 
 **Command / Control / Cognitive / Collaborative / Coordination**
@@ -170,18 +169,18 @@ Docs follow [Diátaxis](https://diataxis.fr/): tutorials & how-tos (runbook/depl
 
 ## Configuration
 
-See [.env.example](.env.example). Prefix `SQUIDC5_`.
+See [.env.example](.env.example). All settings use the **`SQUIDC5_`** prefix.
 
 | Variable | Default | Notes |
 |----------|---------|--------|
-| `TLS_ENABLED` | `true` | HTTPS |
-| `MCP_ENABLED` | `false` | External AI tools |
-| `IMPLANT_REQUIRE_AUTH` | `true` | AEAD beacons |
-| `LOCAL_LLM_ENABLED` | `false` | Opt-in Ollama path |
-| `LOCAL_LLM_BASE_URL` | `http://127.0.0.1:11434/v1` | Ollama-compatible |
-| `LOCAL_LLM_MODEL` | `llama3.2` | Model id when enabled |
-| `RATE_LIMIT_PER_MINUTE` | `60` | Raise for ops UI (e.g. 600) |
-| `PUBLIC_HOST` | empty | Stage-2 / SOCKS data host |
+| `SQUIDC5_TLS_ENABLED` | `true` | HTTPS |
+| `SQUIDC5_MCP_ENABLED` | `false` | External AI tools |
+| `SQUIDC5_IMPLANT_REQUIRE_AUTH` | `true` | AEAD beacons |
+| `SQUIDC5_LOCAL_LLM_ENABLED` | `false` | Opt-in Ollama path |
+| `SQUIDC5_LOCAL_LLM_BASE_URL` | `http://127.0.0.1:11434/v1` | Ollama-compatible |
+| `SQUIDC5_LOCAL_LLM_MODEL` | `llama3.2` | Model id when enabled |
+| `SQUIDC5_RATE_LIMIT_PER_MINUTE` | `60` | Raise for ops UI (e.g. 600) |
+| `SQUIDC5_PUBLIC_HOST` | empty | Stage-2 / SOCKS data host |
 
 ## Security model
 
@@ -199,7 +198,9 @@ ruff check src tests
 # optional: cd agents/sc5beacon && go build .
 ```
 
-Git cycle: feature branch -> tests -> PR -> green CI -> merge `master`. Never push straight to master.
+Git cycle: feature branch → tests → PR → green CI → merge `master`. Never push straight to master.
+
+**CI note:** org workflows run on SquidSec self-hosted runners and only execute same-repo PRs (fork PRs are not scheduled on those runners). External contributors should run `pytest -q` and `ruff check src tests` locally before opening a PR. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## About SquidSec
 

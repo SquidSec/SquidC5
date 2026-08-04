@@ -10,7 +10,7 @@ readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 authors = [{ name = "SquidC5 Contributors" }]
-keywords = ["c2", "red-team", "penetration-testing", "mcp", "security"]
+keywords = ["c5", "c2", "red-team", "penetration-testing", "mcp", "security"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Information Technology",
@@ -19,6 +19,14 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Security",
 ]
+
+# Package version stays 0.1.x alpha; GitHub Releases (v0.1.<run>-<sha>) are the version of record for binaries.
+[project.urls]
+Homepage = "https://github.com/SquidSec/SquidC5"
+Documentation = "https://github.com/SquidSec/SquidC5/blob/master/docs/README.md"
+Repository = "https://github.com/SquidSec/SquidC5"
+"Bug Tracker" = "https://github.com/SquidSec/SquidC5/issues"
+Changelog = "https://github.com/SquidSec/SquidC5/blob/master/CHANGELOG.md"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",

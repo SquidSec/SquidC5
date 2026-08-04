@@ -45,8 +45,13 @@ payloads/out/
 .secrets/
 admin_token.txt
 **/admin_token.txt
+implant_psk.txt
+**/implant_psk.txt
+*.pem
+!docs/**/*.pem
 data/*
 !data/.gitkeep
 # Local operator CLI config (contains tokens)
 .config/squidc5/
 **/squidc5/config.json
+**/config/squidc5/

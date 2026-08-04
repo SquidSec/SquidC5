@@ -50,9 +50,7 @@ When adding features: **deny by default**, enable via admin feature flags or env
 
 ## Development pipeline (mandatory)
 
-Source of truth also: Windows SquidSec workspace 
-`/mnt/c/Users/ynot_/OneDrive/Desktop/Company Data/SquidSec/AGENTS.md` + `knowledge-base/MEMORY.md` 
--> **Development cycles (git repos)**.
+Source of truth for this project: this repo’s **`AGENTS.md`**, **`docs/`**, and **`CONTRIBUTING.md`**.
 
 ### Git cycle (every change)
 
@@ -74,7 +72,7 @@ merge main -> CI builds Linux/Windows binaries -> GitHub Release published
  -> deploy Linux squidc5 binary ONLY (from Release assets or workflow Artifacts)
 ```
 
-Releases: `https://github.com/DotNetRussell/SquidC5/releases` (created by CI job `github-release` on main/master only).
+Releases: `https://github.com/SquidSec/SquidC5/releases` (created by CI job `github-release` on `master` only).
 
 - **Never** commit/push straight to `main`/`master`
 - **Never** rsync WIP source or `docker compose up --build` to prod

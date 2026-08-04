@@ -96,13 +96,27 @@ sc5 listeners list # status running
 
 ### Context
 
-Dedicated C2 lab host pattern: allow inbound so reverse-shell listener ports work without re-opening UFW each time. Only SSH + SquidC5 should listen publicly on a hardened prod host (tighten as required by your ROE).
+Dedicated lab host: open only the ports you need for SSH, the teamserver, and any reverse-shell / OAST listeners. **Never** copy a wide-open firewall policy to an internet-facing production host.
 
 ### Configuration
 
-Lab-permissive example:
+**Hardened default (recommended):**
 
 ```bash
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow OpenSSH
+ufw allow 8443/tcp comment 'squidc5 teamserver'
+# add listener ports as needed, e.g.:
+# ufw allow 443/tcp comment 'rev shell / https front'
+ufw --force enable
+```
+
+**Lab-only permissive** (isolated lab VMs — **not** for prod):
+
+```bash
+# DANGEROUS on the public internet — lab VMs only
 ufw --force reset
 ufw default allow incoming
 ufw default allow outgoing

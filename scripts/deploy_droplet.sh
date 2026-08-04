@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Deploy SquidC5 to a DigitalOcean droplet (Docker)
+# Lab-only: rsync source + Docker Compose to a cloud VM.
+# NOT for production. Prod = main CI squidc5 binary only (docs/deployment.md).
 set -euo pipefail
 
-DROPLET_IP="${1:?Usage: $0 <droplet-ip> [ssh-user]}"
+DROPLET_IP="${1:?Usage: $0 <host-ip> [ssh-user]}"
 SSH_USER="${2:-root}"
 REMOTE_DIR="/opt/squidc5"
 
-echo "==> Deploying SquidC5 to ${SSH_USER}@${DROPLET_IP}"
+echo "==> [LAB] Deploying SquidC5 (Docker) to ${SSH_USER}@${DROPLET_IP}"
 
 ssh -o StrictHostKeyChecking=accept-new "${SSH_USER}@${DROPLET_IP}" bash -s <<'REMOTE'
 set -euo pipefail
@@ -41,13 +42,14 @@ docker compose down || true
 docker compose up --build -d
 sleep 5
 docker compose ps
-echo "---- admin token ----"
-docker compose exec -T squidc5 cat /data/admin_token.txt || \
-  docker exec squidc5 cat /data/admin_token.txt
+echo "---- admin token (lab only; written once under data/) ----"
+echo "(retrieve with: docker compose exec -T squidc5 cat /data/admin_token.txt)"
 echo "---- health ----"
-curl -sf http://127.0.0.1:8443/api/v1/health
+curl -skf https://127.0.0.1:8443/api/v1/health || curl -sf http://127.0.0.1:8443/api/v1/health || true
 echo
 REMOTE
 
-echo "==> Deployed: http://${DROPLET_IP}:8443"
-echo "    Docs:     http://${DROPLET_IP}:8443/docs"
+echo "==> Lab deploy: https://${DROPLET_IP}:8443/ops"
+echo "    Docs (GitHub): https://github.com/SquidSec/SquidC5/blob/master/docs/README.md"
+echo "    Note: server has no public /docs or OpenAPI (by design)."
+echo "    Prod path is binary-from-Release only — see docs/deployment.md"

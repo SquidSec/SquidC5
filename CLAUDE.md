@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**SquidC5 is a military-grade, security-first, AI-native C2 under active development** for authorized red team / pen-test use only.
+**SquidC5 is a security-first, AI-native C5 teamserver** (Command · Control · Cognitive · Collaborative · Coordination) under active development for authorized red team / pen-test use only.
 
 Follow **[AGENTS.md](AGENTS.md)** as the primary agent memory for this repository.
 

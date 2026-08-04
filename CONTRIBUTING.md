@@ -35,8 +35,9 @@ ruff check src tests
 
 ## CI
 
-- **CI** workflow: pytest (3.11/3.12), ruff, Docker smoke, pip-audit, binaries on `master`.
-- **SquidGate** (`SquidSec/SquidGate@v1.0.0-build.4`): PR security gate. Set repository secret `LLM_API_KEY` to enable full analysis.
+- **CI** workflow: pytest (3.11/3.12), ruff, Docker smoke, pip-audit; Linux/Windows binaries + GitHub Release on push to `master`.
+- Workflows run on **SquidSec self-hosted runners** and only schedule jobs for **same-repo** PRs (fork code is not executed on org runners). If Actions looks empty on a fork PR, that is expected — run the local checks above and note results in the PR.
+- **SquidGate** (when configured): optional PR security gate via `SquidSec/SquidGate`. Repository secret `LLM_API_KEY` enables full analysis when available.
 
 ## Docs
 
