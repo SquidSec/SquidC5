@@ -160,6 +160,28 @@
     .pill.ok { color: var(--ok); border-color: rgba(52,211,153,0.35); }
     .pill.bad { color: var(--bad); border-color: rgba(248,113,113,0.35); }
     .pill.live { color: var(--pink2); border-color: rgba(233,30,140,0.4); }
+    .pill.privacy {
+      color: #facc15;
+      border-color: rgba(250, 204, 21, 0.55);
+      background: rgba(250, 204, 21, 0.12);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    body.privacy-mode #hostLine { color: #facc15; }
+    body.privacy-mode input#url,
+    body.privacy-mode input#token,
+    body.privacy-mode input#adSecretToken,
+    body.privacy-mode input#frToken,
+    body.privacy-mode input#adSecretLink {
+      -webkit-text-security: disc;
+      text-security: disc;
+    }
+    #btnPrivacy.active {
+      border-color: rgba(250, 204, 21, 0.55);
+      color: #facc15;
+      background: rgba(250, 204, 21, 0.1);
+    }
     .top button { padding: 5px 10px; font-size: 0.78rem; }
 
     /* Sidebar / mobile drawer */
@@ -1093,6 +1115,11 @@
         content: "QR"; font-size: 0.72rem; font-weight: 700;
       }
       .top #btnRefresh { min-width: 36px; padding: 0 8px; }
+      .top #btnPrivacy { padding: 0 8px; font-size: 0.68rem; }
+      .top #privacyBadge {
+        max-width: 88px; font-size: 0.55rem; padding: 3px 5px;
+        overflow: hidden; text-overflow: ellipsis;
+      }
 
       /* -- Hamburger drawer nav -- */
       .nav-burger { display: inline-flex; }
@@ -1271,8 +1298,10 @@
       <div class="sep"></div>
       <div class="host mono" id="hostLine" title="Server">not connected</div>
       <div class="spacer"></div>
+      <span class="pill privacy hidden" id="privacyBadge" title="PII masked in the UI (local only)">Privacy Mode Active</span>
       <span class="pill" id="statusBadge">offline</span>
       <span class="pill live hidden" id="roleBadge">-</span>
+      <button type="button" id="btnPrivacy" title="Toggle privacy mode (mask IPs, keys, server address)">Privacy</button>
       <button type="button" id="btnInko" class="inko-top-btn hidden" title="INKO - Intelligent Neural Kinetic Operator">INKO</button>
       <button type="button" id="btnPhoneQr" title="Phone QR - scan to open ops and auto-connect">Phone QR</button>
       <button type="button" id="btnConnect" title="Connection settings">Connect</button>
@@ -1484,28 +1513,109 @@
   const state = { scopes: [], actor: null, meta: null, token: "", sessions: [], listeners: [], selectedId: null };
 
   function showError(msg) {
-    const el = $("toastErr");
-    if (!msg) { el.classList.remove("show"); return; }
-    el.textContent = msg; el.classList.add("show");
-    setTimeout(() => el.classList.remove("show"), 5000);
+    const el = $("toastErr") || $("toast");
+    if (!el) return;
+    el.textContent = privacyModeOn() ? maskPii(msg) : msg;
+    el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 3000);
   }
   function showOk(msg) {
     const el = $("toastOk");
     if (!msg) { el.classList.remove("show"); return; }
-    el.textContent = msg; el.classList.add("show");
+    el.textContent = privacyModeOn() ? maskPii(msg) : msg;
+    el.classList.add("show");
     setTimeout(() => el.classList.remove("show"), 3000);
   }
   function showOutput(text, meta) {
     const box = $("consoleBox");
     if (!box) return;
-    const body = text == null || text === "" ? "(no output)" : String(text);
-    box.textContent = meta ? meta + "\n\n" + body : body;
+    let body = text == null || text === "" ? "(no output)" : String(text);
+    let head = meta ? String(meta) : "";
+    if (privacyModeOn()) {
+      body = maskPii(body);
+      if (head) head = maskPii(head);
+    }
+    box.textContent = head ? head + "\n\n" + body : body;
     box.scrollTop = box.scrollHeight;
   }
+  const PRIVACY_KEY = "sc5_ops_privacy";
+  function privacyModeOn() {
+    try { return localStorage.getItem(PRIVACY_KEY) === "1"; } catch (_) { return false; }
+  }
+  /** Mask IPs, tokens, API keys, server URLs, emails for screenshots / shared screens. */
+  function maskPii(text) {
+    if (text == null) return "";
+    let s = String(text);
+    s = s.replace(/-----BEGIN [A-Z0-9 ]+-----[\s\S]*?-----END [A-Z0-9 ]+-----/g, "[REDACTED PEM]");
+    s = s.replace(/\bsc5_[A-Za-z0-9_-]{8,}\b/g, "sc5_••••••••");
+    s = s.replace(/\b(?:sk|xai|pk|rk|key)-[A-Za-z0-9_-]{8,}\b/gi, (m) => m.split("-")[0] + "-••••••••");
+    s = s.replace(/(Bearer\s+)[A-Za-z0-9._\-+=/]+/gi, "$1••••••••");
+    s = s.replace(/(api[_-]?key\s*[:=]\s*)["']?[^"'\s,}]+/gi, "$1••••••••");
+    s = s.replace(/\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g, "•••.•••.•••.•••");
+    s = s.replace(/\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{0,4}\b/g, "••••:••••:••••");
+    s = s.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, "•••@•••.•••");
+    s = s.replace(/\b((?:https?|wss?):\/\/)([^/\s"'<>]+)(\/[^\s"'<>]*)?/gi, (_, p, host, path) => {
+      const port = host.includes(":") ? ":" + host.split(":").slice(1).join(":") : "";
+      return p + "••••••••" + (port && /^\d+$/.test(port.slice(1)) ? port : "") + (path || "");
+    });
+    // bare host:port (listeners / remote_addr without scheme)
+    s = s.replace(
+      /\b(?:(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+(?:com|net|org|io|dev|local|internal|lan|test|invalid|gov|mil|edu|co|uk|de|fr|au|ca|us|info|biz|app|cloud|ai|xyz|onion)|localhost)(?::\d{2,5})?\b/gi,
+      "••••.••••",
+    );
+    s = s.replace(/\b[0-9a-fA-F]{40,}\b/g, "••••••••");
+    return s;
+  }
   function esc(s) {
-    return String(s == null ? "" : s)
+    const raw = privacyModeOn() ? maskPii(s) : s;
+    return String(raw == null ? "" : raw)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
+  function setHostLine(url) {
+    const el = $("hostLine");
+    if (!el) return;
+    const u = (url == null || url === "") ? "not connected" : String(url);
+    if (u !== "not connected") el.dataset.real = u;
+    else delete el.dataset.real;
+    const real = el.dataset.real || u;
+    el.textContent = privacyModeOn() && real !== "not connected" ? maskPii(real) : real;
+    el.title = privacyModeOn() && real !== "not connected" ? "Server (hidden — privacy mode)" : "Server";
+  }
+  function applyPrivacyMode(on, opts) {
+    const enabled = !!on;
+    try { localStorage.setItem(PRIVACY_KEY, enabled ? "1" : "0"); } catch (_) {}
+    document.body.classList.toggle("privacy-mode", enabled);
+    const badge = $("privacyBadge");
+    if (badge) badge.classList.toggle("hidden", !enabled);
+    const btn = $("btnPrivacy");
+    if (btn) {
+      btn.classList.toggle("active", enabled);
+      btn.setAttribute("aria-pressed", enabled ? "true" : "false");
+      btn.title = enabled
+        ? "Privacy mode on — click to show IPs, keys, and server address"
+        : "Privacy mode — mask IPs, API keys, tokens, and server address";
+    }
+    try {
+      const el = $("hostLine");
+      const real = (el && el.dataset.real) || apiBase() || "";
+      if (real) setHostLine(real);
+    } catch (_) {}
+    if (!(opts && opts.silent)) {
+      if (window.__SC5_onView && typeof currentView !== "undefined" && currentView) {
+        try { window.__SC5_onView(currentView); } catch (_) {}
+      }
+      if (window.__SC5_refresh) {
+        try { window.__SC5_refresh(); } catch (_) {}
+      }
+    }
+  }
+  function togglePrivacyMode() {
+    applyPrivacyMode(!privacyModeOn());
+    showOk(privacyModeOn() ? "Privacy mode on" : "Privacy mode off");
+  }
+  window.__SC5_maskPii = maskPii;
+  window.__SC5_privacyOn = privacyModeOn;
+  window.__SC5_setPrivacy = applyPrivacyMode;
   function defaultServerUrl() {
     try {
       if (location.protocol.startsWith("http")) return location.origin;
@@ -1885,7 +1995,7 @@
       state.actor = meta.actor || meta.name || "operator";
       $("statusBadge").textContent = "online";
       $("statusBadge").className = "pill ok";
-      $("hostLine").textContent = apiBase();
+      setHostLine(apiBase());
       $("roleBadge").textContent = state.scopes.indexOf("admin") >= 0 ? "admin" : (state.actor || "op");
       $("roleBadge").classList.remove("hidden");
       applyNavGates();
@@ -2106,9 +2216,12 @@
     urlEl.textContent = "";
     try {
       const share = buildPhoneShareUrl();
-      urlEl.textContent = share;
+      urlEl.textContent = privacyModeOn() ? maskPii(share) : share;
+      urlEl.dataset.real = share;
       box.innerHTML = "";
-      if (typeof QRCode === "undefined") {
+      if (privacyModeOn()) {
+        box.innerHTML = '<span class="muted">QR hidden while Privacy Mode is active (token in payload).</span>';
+      } else if (typeof QRCode === "undefined") {
         box.innerHTML = '<span class="muted">QR library missing - copy the link below.</span>';
       } else {
         // qrcodejs clears and renders into element
@@ -2129,12 +2242,14 @@
     }
   }
   function closeQrModal() { $("qrModal").classList.remove("show"); }
+  $("btnPrivacy").onclick = togglePrivacyMode;
+  applyPrivacyMode(privacyModeOn(), { silent: true });
   $("btnPhoneQr").onclick = openQrModal;
   $("qrClose").onclick = closeQrModal;
   $("qrModal").addEventListener("click", (e) => { if (e.target === $("qrModal")) closeQrModal(); });
   $("qrCopy").onclick = async () => {
     try {
-      const t = $("qrUrl").textContent || buildPhoneShareUrl();
+      const t = ($("qrUrl").dataset && $("qrUrl").dataset.real) || $("qrUrl").textContent || buildPhoneShareUrl();
       await navigator.clipboard.writeText(t);
       showOk("Link copied");
     } catch (_) {

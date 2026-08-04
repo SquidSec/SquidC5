@@ -1476,7 +1476,12 @@
   }
 
   function escapeHtml(s) {
-    return String(s ?? "")
+    let t = String(s ?? "");
+    if (typeof window.__SC5_privacyOn === "function" && window.__SC5_privacyOn()
+        && typeof window.__SC5_maskPii === "function") {
+      t = window.__SC5_maskPii(t);
+    }
+    return t
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
