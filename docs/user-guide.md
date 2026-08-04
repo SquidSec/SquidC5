@@ -1279,9 +1279,14 @@ External models must not get open-ended shell on the C2:
 
 ### How
 
-1. Enable MCP via features when approved.
-2. Mint a token with `mcp:connect` and a tight `mcp_tools` list.
-3. **List tools** / **Call** with JSON args from Ops or CLI.
+1. Enable MCP: `SQUIDC5_MCP_ENABLED=true` **and** Admin → Features → `mcp_enabled`.
+2. Mint a token with `mcp:connect` and a tight `mcp_tools` list (Ops **Admin → Tokens**, or CLI).
+3. On mint/roll, Ops shows a green banner with:
+   - **Token** secret (once)
+   - **Ops connection link** (`/ops#sc5=…`)
+   - **MCP connection payload** — OpenCode / Grok-ready JSON (and Cursor / CLI copies)
+4. Paste the MCP payload into OpenCode `opencode.json` (merge under `mcp`), or Cursor MCP settings.
+5. Tools also work via REST: `GET /mcp/tools`, `POST /mcp/call`, and JSON-RPC `POST /mcp`.
 
 ### Example
 
@@ -1289,8 +1294,28 @@ External models must not get open-ended shell on the C2:
 sc5 tokens create ext-ai \
  --scopes "mcp:connect,sessions:read,tasks:read,tasks:write,metrics:read" \
  --mcp-tools "list_sessions,get_session,list_tasks,create_task,get_metrics"
+# stderr prints OpenCode MCP JSON payload; stdout has full API JSON including mcp_connection
 sc5 mcp tools
 sc5 mcp call list_sessions --args-json '{}'
+```
+
+OpenCode snippet shape (auto-generated on mint):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "squidc5-ext-ai": {
+      "type": "remote",
+      "url": "https://C2:8443/mcp",
+      "enabled": true,
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer sc5_…"
+      }
+    }
+  }
+}
 ```
 
 ### Contrast: MCP vs INKO / Admin AI

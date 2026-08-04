@@ -579,7 +579,31 @@ def build_api_router() -> APIRouter:
             )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
-        return {"id": tid, "token": raw, "name": body.name, "scopes": body.scopes}
+        out: dict[str, Any] = {
+            "id": tid,
+            "token": raw,
+            "name": body.name,
+            "scopes": body.scopes,
+        }
+        # Include MCP tools actually stored (defaults may apply)
+        try:
+            raw_row = await state.db.get_token_by_id(tid)
+            row = state.tokens.parse_row(raw_row) if raw_row else {}
+            out["mcp_tools"] = row.get("mcp_tools") or body.mcp_tools or []
+        except Exception:
+            out["mcp_tools"] = body.mcp_tools or []
+        if "mcp:connect" in (body.scopes or []) or "admin" in (body.scopes or []):
+            from squidc5.mcp.connection import build_mcp_connection
+
+            out["mcp_connection"] = build_mcp_connection(
+                api_base=_ops_base_url(request),
+                token=raw,
+                name=body.name,
+                scopes=list(body.scopes or []),
+                mcp_tools=list(out.get("mcp_tools") or []),
+                token_id=tid,
+            )
+        return out
 
     @api.get("/tokens")
     async def list_tokens(
@@ -623,7 +647,7 @@ def build_api_router() -> APIRouter:
             raise HTTPException(404, "token not found") from e
         except PermissionError as e:
             raise HTTPException(403, str(e)) from e
-        return {
+        out_roll: dict[str, Any] = {
             "id": row["id"],
             "name": row["name"],
             "scopes": row["scopes"],
@@ -631,6 +655,19 @@ def build_api_router() -> APIRouter:
             "token": raw,
             "rolled": True,
         }
+        scopes_r = list(row.get("scopes") or [])
+        if "mcp:connect" in scopes_r or "admin" in scopes_r:
+            from squidc5.mcp.connection import build_mcp_connection
+
+            out_roll["mcp_connection"] = build_mcp_connection(
+                api_base=_ops_base_url(request),
+                token=raw,
+                name=str(row.get("name") or "squidc5"),
+                scopes=scopes_r,
+                mcp_tools=list(row.get("mcp_tools") or []),
+                token_id=str(row["id"]),
+            )
+        return out_roll
 
     @api.post("/tokens/{token_id}/connection-link")
     async def create_connection_link(

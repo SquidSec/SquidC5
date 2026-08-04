@@ -702,7 +702,15 @@ def cmd_tokens_create(args: argparse.Namespace, client: Client) -> None:
     body: dict[str, Any] = {"name": args.name, "scopes": scopes}
     if args.mcp_tools:
         body["mcp_tools"] = [t.strip() for t in args.mcp_tools.split(",") if t.strip()]
-    pp(client.post("/api/v1/tokens", json=body))
+    r = client.post("/api/v1/tokens", json=body)
+    pp(r)
+    mcp = r.get("mcp_connection") if isinstance(r, dict) else None
+    if isinstance(mcp, dict) and mcp.get("copy_text"):
+        print("\n--- MCP connection payload (OpenCode / Grok) ---", file=sys.stderr)
+        print(mcp["copy_text"])
+        print("--- end payload ---", file=sys.stderr)
+        if mcp.get("cli"):
+            print(f"\nCLI: {mcp['cli']}", file=sys.stderr)
 
 
 def cmd_tokens_revoke(args: argparse.Namespace, client: Client) -> None:

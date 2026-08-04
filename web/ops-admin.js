@@ -2223,10 +2223,20 @@
                   <input id="adSecretToken" class="mono" readonly style="flex:1;font-size:0.75rem" />
                   <button type="button" id="adSecretCopyTok">Copy token</button>
                 </div>
-                <label>Connection link</label>
-                <div class="row" style="margin:4px 0 0;gap:6px;align-items:stretch">
+                <label>Connection link (Ops / phone)</label>
+                <div class="row" style="margin:4px 0 8px;gap:6px;align-items:stretch">
                   <input id="adSecretLink" class="mono" readonly style="flex:1;font-size:0.68rem" />
                   <button type="button" id="adSecretCopyLink">Copy link</button>
+                </div>
+                <div id="adMcpPayloadBox" class="hidden">
+                  <label>MCP connection payload (OpenCode / Grok / Cursor)</label>
+                  <p class="muted" style="margin:2px 0 4px;font-size:0.68rem">Paste into <span class="mono">opencode.json</span> or merge under <span class="mono">mcp</span>. Uses remote MCP + Bearer token.</p>
+                  <textarea id="adMcpPayload" class="mono" readonly rows="12" style="width:100%;font-size:0.68rem;resize:vertical"></textarea>
+                  <div class="row" style="margin:6px 0 0;gap:6px;flex-wrap:wrap">
+                    <button type="button" class="primary sm" id="adSecretCopyMcp">Copy MCP payload</button>
+                    <button type="button" class="ghost sm" id="adSecretCopyMcpCursor" title="Cursor mcpServers format">Copy Cursor format</button>
+                    <button type="button" class="ghost sm" id="adSecretCopyCli">Copy sc5 login</button>
+                  </div>
                 </div>
                 <p class="muted" id="adSecretMeta" style="margin:8px 0 0;font-size:0.68rem"></p>
               </div>
@@ -2503,13 +2513,17 @@
       const payload = { url: apiUrl, token: rawToken, refresh: 10 };
       return opsOrigin + "/ops#sc5=" + b64urlEncodeObj(payload);
     }
+    let _lastMcpConn = null;
     function hideSecretBanner() {
       const b = el("adSecretBanner");
       if (b) b.classList.add("hidden");
       if (el("adSecretToken")) el("adSecretToken").value = "";
       if (el("adSecretLink")) el("adSecretLink").value = "";
+      if (el("adMcpPayload")) el("adMcpPayload").value = "";
+      if (el("adMcpPayloadBox")) el("adMcpPayloadBox").classList.add("hidden");
+      _lastMcpConn = null;
     }
-    function showSecretBanner({ title, token, name, id, scopes, linkOnly }) {
+    function showSecretBanner({ title, token, name, id, scopes, linkOnly, mcp_connection }) {
       const b = el("adSecretBanner");
       if (!b) return;
       b.classList.remove("hidden");
@@ -2524,10 +2538,23 @@
           ? (token || "") // when linkOnly, `token` arg carries the URL
           : buildTokenConnectLink(token || "");
       }
+      _lastMcpConn = mcp_connection || null;
+      const mcpBox = el("adMcpPayloadBox");
+      const mcpTa = el("adMcpPayload");
+      if (mcpBox && mcpTa) {
+        if (_lastMcpConn && _lastMcpConn.copy_text) {
+          mcpBox.classList.remove("hidden");
+          mcpTa.value = _lastMcpConn.copy_text;
+        } else {
+          mcpBox.classList.add("hidden");
+          mcpTa.value = "";
+        }
+      }
       if (el("adSecretMeta")) {
         const sc = (scopes || []).slice(0, 8).join(", ");
+        const mcpHint = _lastMcpConn ? " · MCP payload ready" : "";
         el("adSecretMeta").textContent =
-          (name ? name + " - " : "") + (id || "") + (sc ? " - " + sc : "");
+          (name ? name + " - " : "") + (id || "") + (sc ? " - " + sc : "") + mcpHint;
       }
       try { b.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {}
     }
@@ -2657,13 +2684,14 @@
             try {
               const r = await api("POST", "/api/v1/tokens/" + encodeURIComponent(id) + "/roll");
               showSecretBanner({
-                title: "Rolled token secret",
+                title: r.mcp_connection ? "Rolled MCP token + connection payload" : "Rolled token secret",
                 token: r.token,
                 name: r.name || (tok && tok.name),
                 id: r.id || id,
                 scopes: r.scopes || (tok && tok.scopes),
+                mcp_connection: r.mcp_connection || null,
               });
-              showOk("Token rolled - copy new secret");
+              showOk(r.mcp_connection ? "Token rolled — copy new MCP payload" : "Token rolled - copy new secret");
               clearEditMode();
               loadTokenTable();
             } catch (e) { showError(String(e.message || e)); }
@@ -2720,6 +2748,27 @@
     if (el("adSecretDismiss")) el("adSecretDismiss").onclick = () => hideSecretBanner();
     if (el("adSecretCopyTok")) el("adSecretCopyTok").onclick = () => copyField("adSecretToken", "Token copied");
     if (el("adSecretCopyLink")) el("adSecretCopyLink").onclick = () => copyField("adSecretLink", "Connection link copied");
+    if (el("adSecretCopyMcp")) el("adSecretCopyMcp").onclick = () => copyField("adMcpPayload", "MCP payload copied — paste into opencode.json");
+    if (el("adSecretCopyMcpCursor")) el("adSecretCopyMcpCursor").onclick = async () => {
+      if (!_lastMcpConn || !_lastMcpConn.formats || !_lastMcpConn.formats.cursor_json) {
+        return showError("No Cursor MCP payload (mint an mcp:connect token)");
+      }
+      try {
+        await navigator.clipboard.writeText(_lastMcpConn.formats.cursor_json);
+        showOk("Cursor mcpServers JSON copied");
+      } catch (_) {
+        showError("Clipboard unavailable");
+      }
+    };
+    if (el("adSecretCopyCli")) el("adSecretCopyCli").onclick = async () => {
+      if (!_lastMcpConn || !_lastMcpConn.cli) return showError("No CLI line");
+      try {
+        await navigator.clipboard.writeText(_lastMcpConn.cli);
+        showOk("sc5 login command copied");
+      } catch (_) {
+        showError("Clipboard unavailable");
+      }
+    };
     if (el("adMint")) el("adMint").onclick = async () => {
       try {
         const scopes = selectedScopes();
@@ -2732,13 +2781,20 @@
         }
         const r = await api("POST", "/api/v1/tokens", body);
         showSecretBanner({
-          title: "Minted token secret",
+          title: scopes.includes("mcp:connect") || scopes.includes("admin")
+            ? "Minted MCP token + connection payload"
+            : "Minted token secret",
           token: r.token,
           name: r.name || name,
           id: r.id,
           scopes: r.scopes || scopes,
+          mcp_connection: r.mcp_connection || null,
         });
-        showOk("Token minted - copy secret or connection link");
+        showOk(
+          r.mcp_connection
+            ? "Token minted — copy MCP payload for OpenCode/Grok"
+            : "Token minted - copy secret or connection link"
+        );
         loadTokenTable();
       } catch (e) { showError(String(e.message || e)); }
     };
