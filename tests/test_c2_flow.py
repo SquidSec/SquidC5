@@ -1,4 +1,15 @@
+import socket
+
 import pytest
+
+
+def _free_tcp_port(host: str = "127.0.0.1") -> int:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((host, 0))
+    port = int(sock.getsockname()[1])
+    sock.close()
+    return port
 
 
 @pytest.mark.asyncio
@@ -57,13 +68,17 @@ async def test_payload_generate(client, admin_headers):
 
 @pytest.mark.asyncio
 async def test_listener_create(client, admin_headers):
+    # Ephemeral port — fixed 9001 collides when 3.11/3.12 CI jobs share a runner host.
+    port = _free_tcp_port()
     r = await client.post(
         "/api/v1/listeners",
         headers=admin_headers,
-        json={"name": "http-1", "kind": "http", "port": 9001},
+        json={"name": "http-1", "kind": "http", "host": "127.0.0.1", "port": port},
     )
-    assert r.status_code == 200
+    assert r.status_code == 200, r.text
     lid = r.json()["id"]
     start = await client.post(f"/api/v1/listeners/{lid}/start", headers=admin_headers)
-    assert start.status_code == 200
+    assert start.status_code == 200, start.text
     assert start.json()["status"] == "running"
+    stop = await client.post(f"/api/v1/listeners/{lid}/stop", headers=admin_headers)
+    assert stop.status_code == 200, stop.text
