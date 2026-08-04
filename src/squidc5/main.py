@@ -224,6 +224,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "audit_purged": purged,
             },
         )
+        try:
+            state.metrics.start()
+        except Exception:
+            log.exception("metrics.start failed")
         log.info("SquidC5 v%s listening on %s:%s", __version__, settings.host, settings.port)
         yield
         # Prefer live app_state (factory reset swaps it in-process)
@@ -232,6 +236,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await cur.listeners.stop_all()
         except Exception:
             log.exception("shutdown stop_all failed")
+        try:
+            await cur.metrics.stop()
+        except Exception:
+            log.exception("metrics.stop failed")
         try:
             await cur.db.audit(actor="system", actor_type="system", action="server.stop")
         except Exception:
