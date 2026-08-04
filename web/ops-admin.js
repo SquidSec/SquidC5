@@ -557,27 +557,63 @@
   }
   bindCtxChrome();
 
-  function bindContextHandlers() {
-    if (el("ctxClaim")) el("ctxClaim").onclick = async () => {
+  function bindContextHandlers(root) {
+    /* Scope to mount root — multiple panels mirror the same markup; document.getElementById
+       would only wire the first (often hidden ctx rail) and leave Session-tab Run dead. */
+    const scope = root && root.querySelector ? root : document;
+    const q = (sel) => scope.querySelector(sel);
+    const setOut = (text) => {
+      const box = q("#ctxOut");
+      if (!box) return;
+      box.textContent = text == null || text === "" ? "(no output)" : String(text);
+      box.classList.remove("empty");
+    };
+    const runShell = async () => {
+      const cmdEl = q("#ctxCmd");
+      const command = (cmdEl && cmdEl.value || "").trim();
+      if (!command) return showError("Command required");
+      if (!selectedId) return showError("Select a session");
+      const btn = q("#ctxRun");
+      if (btn) btn.disabled = true;
+      try {
+        const r = await api("POST", "/api/v1/shell/command", {
+          session_id: selectedId,
+          command,
+          wait_sec: 8,
+        });
+        const out = r.output != null ? r.output : (r.result != null ? r.result : JSON.stringify(r, null, 2));
+        if (typeof showOutput === "function") showOutput(out, "$ " + command);
+        else if (window.__SC5_showOutput) window.__SC5_showOutput(out, "$ " + command);
+        setOut(out);
+        if (typeof window.__SC5_focusConsole === "function") window.__SC5_focusConsole();
+        showOk("Shell command sent");
+      } catch (e) {
+        showError(String(e.message || e));
+        setOut("Error: " + String(e.message || e));
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+    if (q("#ctxClaim")) q("#ctxClaim").onclick = async () => {
       try {
         const r = await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/claim`, {});
         showOk("Lock claimed");
-        if (el("ctxOut")) { el("ctxOut").textContent = JSON.stringify(r, null, 2); el("ctxOut").classList.remove("empty"); }
+        setOut(JSON.stringify(r, null, 2));
         if (window.__SC5_refresh) await window.__SC5_refresh();
         renderContext(true);
       } catch (e) { showError(String(e.message || e)); }
     };
-    if (el("ctxForceClaim")) el("ctxForceClaim").onclick = async () => {
+    if (q("#ctxForceClaim")) q("#ctxForceClaim").onclick = async () => {
       if (!(await askConfirm("Force-steal lock from current holder?"))) return;
       try {
         const r = await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/claim`, { force: true });
         showOk("Force claimed");
-        if (el("ctxOut")) { el("ctxOut").textContent = JSON.stringify(r, null, 2); el("ctxOut").classList.remove("empty"); }
+        setOut(JSON.stringify(r, null, 2));
         if (window.__SC5_refresh) await window.__SC5_refresh();
         renderContext(true);
       } catch (e) { showError(String(e.message || e)); }
     };
-    if (el("ctxRelease")) el("ctxRelease").onclick = async () => {
+    if (q("#ctxRelease")) q("#ctxRelease").onclick = async () => {
       try {
         await api("POST", `/api/v1/sessions/${encodeURIComponent(selectedId)}/release`);
         showOk("Lock released");
@@ -585,14 +621,14 @@
         renderContext(true);
       } catch (e) { showError(String(e.message || e)); }
     };
-    if (el("ctxSpectate")) el("ctxSpectate").onclick = async () => {
+    if (q("#ctxSpectate")) q("#ctxSpectate").onclick = async () => {
       try {
         const r = await api("GET", `/api/v1/sessions/${encodeURIComponent(selectedId)}/spectator`);
-        if (el("ctxOut")) { el("ctxOut").textContent = JSON.stringify(r, null, 2); el("ctxOut").classList.remove("empty"); }
+        setOut(JSON.stringify(r, null, 2));
         showOk("Spectator snapshot");
       } catch (e) { showError(String(e.message || e)); }
     };
-    if (el("ctxStabilize")) el("ctxStabilize").onclick = async () => {
+    if (q("#ctxStabilize")) q("#ctxStabilize").onclick = async () => {
       if (!selectedId) return;
       if (!(await askConfirm("Inject stage-2 stabilize agent? Detects Linux vs Windows and reconnects a durable channel."))) return;
       try {
@@ -602,31 +638,29 @@
           { os: "auto" },
         );
         showOk(r.status === "already_stable" ? "Already stable" : ("Stabilized as " + (r.os || "?")));
-        if (el("ctxOut")) {
-          el("ctxOut").textContent = JSON.stringify(r, null, 2);
-          el("ctxOut").classList.remove("empty");
-        }
+        setOut(JSON.stringify(r, null, 2));
         if (window.__SC5_refresh) await window.__SC5_refresh();
         renderContext(true);
       } catch (e) { showError(String(e.message || e)); }
     };
-    if (el("ctxRun")) el("ctxRun").onclick = async () => {
-      const command = (el("ctxCmd").value || "").trim();
-      if (!command) return showError("Command required");
-      try {
-        const r = await api("POST", "/api/v1/shell/command", { session_id: selectedId, command, wait_sec: 5 });
-        const out = r.output || r.result || JSON.stringify(r, null, 2);
-        showOutput(out, "$ " + command);
-        if (el("ctxOut")) { el("ctxOut").textContent = out; el("ctxOut").classList.remove("empty"); }
-      } catch (e) { showError(String(e.message || e)); }
-    };
-    if (el("ctxTaskBtn")) el("ctxTaskBtn").onclick = async () => {
-      const command = (el("ctxTask").value || "").trim();
+    if (q("#ctxRun")) q("#ctxRun").onclick = () => { runShell(); };
+    if (q("#ctxCmd")) {
+      q("#ctxCmd").onkeydown = (ev) => {
+        if (ev.key === "Enter" && !ev.shiftKey) {
+          ev.preventDefault();
+          runShell();
+        }
+      };
+    }
+    if (q("#ctxTaskBtn")) q("#ctxTaskBtn").onclick = async () => {
+      const taskEl = q("#ctxTask");
+      const command = (taskEl && taskEl.value || "").trim();
       if (!command) return showError("Command required");
       try {
         const r = await api("POST", "/api/v1/tasks", { session_id: selectedId, command });
         showOk("Task " + (r.id || "queued"));
-        if (el("ctxOut")) { el("ctxOut").textContent = JSON.stringify(r, null, 2); el("ctxOut").classList.remove("empty"); }
+        setOut(JSON.stringify(r, null, 2));
+        if (typeof showOutput === "function") showOutput(JSON.stringify(r, null, 2), "task " + (r.id || ""));
       } catch (e) { showError(String(e.message || e)); }
     };
   }
@@ -702,7 +736,7 @@
           ${shellTab}
           ${taskTab}
         </div>
-        <div class="outbox empty" id="ctxOut" style="max-height:160px;margin-top:10px;flex-shrink:0">Output</div>
+        <div class="outbox empty ctx-outbox" id="ctxOut">Output</div>
       </div>`;
   }
 
@@ -730,7 +764,7 @@
     body.innerHTML = ctxPanelHtml(s, claim);
     ctxBoundSid = selectedId;
     bindSubTabs(body);
-    bindContextHandlers();
+    bindContextHandlers(body);
   }
 
   function bindSubTabs(root) {
@@ -861,17 +895,17 @@
         <div class="toolbar">
           <span class="muted" id="sesCount">${rows.length} active</span>
           ${can("sessions:write") ? '<button type="button" class="ghost sm" id="sesReap">Reap dead</button>' : ""}
-          ${can("sessions:write") ? '<button type="button" class="danger sm" id="sesClose">Close</button>' : ""}
           <button type="button" class="ghost sm" id="sesRefresh">Refresh</button>
+          ${can("sessions:write") ? '<button type="button" class="danger sm" id="sesClose" style="margin-left:auto">Close</button>' : ""}
         </div>
         <div style="flex:1;min-height:0;overflow:auto">
           ${rows.length
             ? `<table class="data"><thead><tr><th>Session</th><th>Kind</th><th>Host</th></tr></thead><tbody id="sesTbody"></tbody></table>`
             : '<div class="empty-state" id="sesEmpty"><strong>No sessions</strong>Land a beacon or reverse shell.</div>'}
         </div>
-        <div id="sesDetail" class="outbox empty" style="max-height:100px;margin-top:8px;flex-shrink:0">Select a session...</div>
+        <div id="sesDetail" class="outbox empty ses-detail-out">Select a session...</div>
       `},
-      { id: "sctx", label: "Session", html: `<div id="sesCtxMount" style="flex:1;min-height:0;overflow:auto"></div>` },
+      { id: "sctx", label: "Session", html: `<div id="sesCtxMount" class="ctx-mount" style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column"></div>` },
       { id: "stasks", label: "Tasks", html: `
         <div class="toolbar">
           <button type="button" class="ghost sm" id="tskReload">Reload</button>

@@ -24,7 +24,7 @@
       --purple: #a78bfa;
       --sidebar-w: 200px;
       --top-h: 48px;
-      --bottom-h: 160px;
+      --bottom-h: 280px;
       --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --radius: 8px;
@@ -54,11 +54,30 @@
     }
     button.accent:hover { background: rgba(52,211,153,0.22); }
     button.icon-close {
-      width: 32px; height: 32px; min-height: 32px; padding: 0;
+      width: 30px; height: 30px; min-height: 30px; min-width: 30px; padding: 0;
       border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
-      font-size: 1.1rem; line-height: 1; color: var(--muted);
+      font-size: 1.05rem; line-height: 1; font-weight: 500;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid var(--border);
+      box-shadow: none;
+      flex-shrink: 0;
     }
-    button.icon-close:hover { color: var(--text); border-color: rgba(233,30,140,0.4); background: rgba(255,255,255,0.04); }
+    button.icon-close:hover {
+      color: var(--text);
+      border-color: rgba(233,30,140,0.45);
+      background: rgba(233,30,140,0.1);
+    }
+    button.icon-close:active { background: rgba(233,30,140,0.16); }
+    .ai-drawer-head-actions {
+      display: inline-flex; align-items: center; gap: 6px;
+      flex-shrink: 0; margin-left: auto;
+    }
+    .ai-drawer-head-actions #aiNewChat {
+      min-height: 30px;
+      padding: 4px 12px;
+      border-radius: 8px;
+    }
     button.ghost {
       background: transparent; border-color: var(--border); color: var(--muted); font-weight: 500;
     }
@@ -427,6 +446,7 @@
       margin-bottom: -1px;
     }
     .page-tab-panels { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+    .page-tab-panel .ctx-mount { width: 100%; }
     .page-tab-panel {
       display: none !important;
       height: 100%; min-height: 0; overflow: auto; padding: 10px 12px;
@@ -536,6 +556,24 @@
     }
     .ctx-compact .ctx-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
     .ctx-compact label { margin-top: 6px; }
+    .ctx-compact {
+      display: flex; flex-direction: column; min-height: 0; height: 100%;
+    }
+    .ctx-compact .ctx-outbox,
+    .outbox.ctx-outbox {
+      flex: 1 1 auto;
+      min-height: 220px;
+      max-height: none;
+      margin-top: 10px;
+      overflow: auto;
+    }
+    .ses-detail-out {
+      flex: 0 0 auto;
+      min-height: 120px;
+      max-height: 28vh;
+      margin-top: 8px;
+      overflow: auto;
+    }
     /* Nested sub-tabs inside a page tab (e.g. Session → Shell / Task) */
     .sub-tabs { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
     .sub-tab-bar {
@@ -836,7 +874,7 @@
       background: rgba(244,114,182,0.9);
     }
     .ai-drawer-head {
-      display: flex; align-items: flex-start; gap: 8px; padding: 12px 12px 10px;
+      display: flex; align-items: center; gap: 8px; padding: 12px 12px 10px;
       border-bottom: 1px solid var(--border); font-size: 0.85rem; flex-shrink: 0;
       padding-top: calc(12px + env(safe-area-inset-top, 0px));
     }
@@ -1389,8 +1427,10 @@
           <strong class="inko-brand-full"><span class="inko-acronym">INKO</span></strong>
           <span class="muted" style="font-size:0.72rem;font-weight:600;line-height:1.25">Intelligent Neural Kinetic Operator</span>
         </div>
-        <button type="button" class="accent sm" id="aiNewChat" title="Start a new chat" style="flex-shrink:0">New chat</button>
-        <button type="button" class="icon-close" id="aiDrawerClose" style="margin-left:4px;flex-shrink:0" title="Close INKO" aria-label="Close INKO">&times;</button>
+        <div class="ai-drawer-head-actions">
+          <button type="button" class="accent sm" id="aiNewChat" title="Start a new chat">New chat</button>
+          <button type="button" class="icon-close" id="aiDrawerClose" title="Close INKO" aria-label="Close INKO">&times;</button>
+        </div>
       </div>
       <div class="ai-drawer-body" id="aiChatLog"></div>
       <div class="ai-drawer-foot" id="aiDrawerFoot">
@@ -1526,6 +1566,20 @@
     el.classList.add("show");
     setTimeout(() => el.classList.remove("show"), 3000);
   }
+  function focusConsolePane() {
+    const panes = $("bottomPanes");
+    if (!panes) return;
+    if (panes.classList.contains("mode-tabs")) {
+      panes.querySelectorAll(".bottom-pane").forEach((p) => {
+        p.classList.toggle("tab-active", p.getAttribute("data-bpane") === "console");
+      });
+      document.querySelectorAll("#bottomTabBar [data-bpane]").forEach((b) => {
+        b.classList.toggle("active", b.getAttribute("data-bpane") === "console");
+      });
+    }
+    const box = $("consoleBox");
+    if (box) box.scrollTop = box.scrollHeight;
+  }
   function showOutput(text, meta) {
     const box = $("consoleBox");
     if (!box) return;
@@ -1537,7 +1591,9 @@
     }
     box.textContent = head ? head + "\n\n" + body : body;
     box.scrollTop = box.scrollHeight;
+    focusConsolePane();
   }
+  window.__SC5_focusConsole = focusConsolePane;
   const PRIVACY_KEY = "sc5_ops_privacy";
   function privacyModeOn() {
     try { return localStorage.getItem(PRIVACY_KEY) === "1"; } catch (_) { return false; }
