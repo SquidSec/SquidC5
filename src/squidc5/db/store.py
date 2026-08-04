@@ -25,23 +25,47 @@ def _uid(prefix: str = "") -> str:
 
 
 class Database:
-    """Async SQLite store. One connection guarded by an asyncio lock."""
+    """Async SQLite store with WAL + separate read/write connections.
+
+    Writes serialize on ``_wlock``. Reads use a dedicated read-only connection
+    so concurrent operators/beacons do not block each other on the write lock.
+    """
 
     def __init__(self, path: Path) -> None:
         self.path = path
         self._db: aiosqlite.Connection | None = None
-        self._lock = asyncio.Lock()
+        self._ro: aiosqlite.Connection | None = None
+        self._wlock = asyncio.Lock()
+        self._rlock = asyncio.Lock()
+        # Back-compat alias used by a few call sites / tests
+        self._lock = self._wlock
+
+    async def _configure_conn(self, conn: aiosqlite.Connection, *, readonly: bool = False) -> None:
+        conn.row_factory = aiosqlite.Row
+        await conn.execute("PRAGMA journal_mode=WAL")
+        await conn.execute("PRAGMA foreign_keys=ON")
+        await conn.execute("PRAGMA busy_timeout=5000")
+        await conn.execute("PRAGMA synchronous=NORMAL")
+        await conn.execute("PRAGMA temp_store=MEMORY")
+        await conn.execute("PRAGMA cache_size=-8000")  # ~8MB page cache
+        if readonly:
+            # Fail fast if a read path tries to write
+            await conn.execute("PRAGMA query_only=ON")
 
     async def connect(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._db = await aiosqlite.connect(str(self.path))
-        self._db.row_factory = aiosqlite.Row
-        await self._db.execute("PRAGMA journal_mode=WAL")
-        await self._db.execute("PRAGMA foreign_keys=ON")
+        await self._configure_conn(self._db, readonly=False)
         await apply_migrations(self._db)
         await self._db.commit()
+        # Second connection for concurrent reads under WAL
+        self._ro = await aiosqlite.connect(f"file:{self.path}?mode=ro", uri=True)
+        await self._configure_conn(self._ro, readonly=True)
 
     async def close(self) -> None:
+        if self._ro is not None:
+            await self._ro.close()
+            self._ro = None
         if self._db is not None:
             await self._db.close()
             self._db = None
@@ -52,21 +76,36 @@ class Database:
             raise RuntimeError("Database not connected")
         return self._db
 
+    def _read_conn(self) -> aiosqlite.Connection:
+        if self._ro is not None:
+            return self._ro
+        if self._db is None:
+            raise RuntimeError("Database not connected")
+        return self._db
+
     async def execute(self, sql: str, params: tuple[Any, ...] = ()) -> aiosqlite.Cursor:
-        async with self._lock:
+        async with self._wlock:
             cur = await self.conn.execute(sql, params)
             await self.conn.commit()
             return cur
 
+    async def executemany(self, sql: str, seq: list[tuple[Any, ...]]) -> None:
+        """Batch write under a single lock/commit (metrics flush, bulk ops)."""
+        if not seq:
+            return
+        async with self._wlock:
+            await self.conn.executemany(sql, seq)
+            await self.conn.commit()
+
     async def fetchone(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
-        async with self._lock:
-            cur = await self.conn.execute(sql, params)
+        async with self._rlock:
+            cur = await self._read_conn().execute(sql, params)
             row = await cur.fetchone()
             return dict(row) if row else None
 
     async def fetchall(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
-        async with self._lock:
-            cur = await self.conn.execute(sql, params)
+        async with self._rlock:
+            cur = await self._read_conn().execute(sql, params)
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
 
@@ -740,17 +779,33 @@ class Database:
     # --- Metrics ---
 
     async def incr_metric(self, key: str, amount: float = 1.0) -> None:
-        row = await self.fetchone("SELECT value FROM metrics WHERE key = ?", (key,))
-        if row:
-            await self.execute(
-                "UPDATE metrics SET value = ?, updated_at = ? WHERE key = ?",
-                (row["value"] + amount, _now(), key),
+        """Atomic upsert — single statement, no read-modify-write race."""
+        now = _now()
+        await self.execute(
+            """INSERT INTO metrics (key, value, updated_at) VALUES (?, ?, ?)
+               ON CONFLICT(key) DO UPDATE SET
+                 value = value + excluded.value,
+                 updated_at = excluded.updated_at""",
+            (key, float(amount), now),
+        )
+
+    async def incr_metrics_batch(self, amounts: dict[str, float]) -> None:
+        """Flush many counter deltas in one lock/commit."""
+        if not amounts:
+            return
+        now = _now()
+        rows = [(k, float(v), now) for k, v in amounts.items() if v]
+        if not rows:
+            return
+        async with self._wlock:
+            await self.conn.executemany(
+                """INSERT INTO metrics (key, value, updated_at) VALUES (?, ?, ?)
+                   ON CONFLICT(key) DO UPDATE SET
+                     value = value + excluded.value,
+                     updated_at = excluded.updated_at""",
+                rows,
             )
-        else:
-            await self.execute(
-                "INSERT INTO metrics (key, value, updated_at) VALUES (?, ?, ?)",
-                (key, amount, _now()),
-            )
+            await self.conn.commit()
 
     async def get_metrics(self) -> dict[str, float]:
         rows = await self.fetchall("SELECT key, value FROM metrics")
