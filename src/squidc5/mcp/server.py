@@ -140,68 +140,7 @@ def build_mcp_router() -> APIRouter:
         auth: AuthContext = Depends(_auth),
     ) -> MCPToolResult:
         state = _get_state(request)
-        if hasattr(state, "features") and not await state.features.enabled("mcp_enabled"):
-            return MCPToolResult(ok=False, tool=body.name, error="MCP disabled by feature flag")
-        if not auth.can_mcp_tool(body.name):
-            await state.db.audit(
-                actor=auth.name,
-                actor_type=auth.actor_type,
-                action="mcp.call.denied",
-                details={"tool": body.name},
-                allowed=False,
-                risk_score=6,
-            )
-            return MCPToolResult(ok=False, tool=body.name, error="Tool not allow-listed for this token")
-
-        if not _check_budget(auth.token_id):
-            return MCPToolResult(ok=False, tool=body.name, error="MCP rate budget exceeded")
-
-        gate = _TOOL_GATES.get(body.name)
-        if not gate:
-            return MCPToolResult(ok=False, tool=body.name, error="Unknown tool")
-        need_scopes, policy_action = gate
-        if not any(auth.has_scope(s) for s in need_scopes) and not auth.has_scope("admin"):
-            return MCPToolResult(
-                ok=False, tool=body.name, error=f"Requires one of scopes: {need_scopes}"
-            )
-
-        extra: dict[str, Any] = {
-            "args_keys": list(body.arguments.keys()),
-            "command": body.arguments.get("command"),
-            "hitl_request_id": body.arguments.get("hitl_request_id"),
-        }
-        # X05: ignore client chain_length for autonomy (always treat as 1)
-        decision = await state.policy.check_and_audit(
-            auth,
-            action=policy_action,
-            resource=body.arguments.get("session_id"),
-            extra=extra,
-        )
-        if not decision.allowed:
-            return MCPToolResult(ok=False, tool=body.name, error=decision.reason)
-
-        handlers = _handlers(state, auth)
-        handler = handlers.get(body.name)
-        if not handler:
-            return MCPToolResult(ok=False, tool=body.name, error="Unknown tool")
-
-        try:
-            result = await handler(body.arguments)
-            await state.metrics.incr("mcp.calls")
-            await state.metrics.emit("mcp.call", {"tool": body.name, "actor": auth.name})
-            return MCPToolResult(ok=True, tool=body.name, result=result)
-        except PermissionError as exc:
-            return MCPToolResult(ok=False, tool=body.name, error=str(exc))
-        except Exception as exc:
-            await state.db.audit(
-                actor=auth.name,
-                actor_type=auth.actor_type,
-                action="mcp.call.error",
-                details={"tool": body.name, "error": type(exc).__name__},
-                allowed=False,
-                risk_score=4,
-            )
-            return MCPToolResult(ok=False, tool=body.name, error="tool error")
+        return await _dispatch_tool_call(state, auth, body.name, body.arguments)
 
     @router.get("/health")
     async def mcp_health(request: Request) -> dict[str, str]:
@@ -213,7 +152,205 @@ def build_mcp_router() -> APIRouter:
             raise HTTPException(404, "not found")
         raise HTTPException(401, "auth required")
 
+    @router.post("")
+    @router.post("/")
+    async def mcp_jsonrpc(
+        request: Request,
+        auth: AuthContext = Depends(_auth),
+    ) -> dict[str, Any]:
+        """MCP JSON-RPC over HTTP (OpenCode / Grok / Cursor remote MCP).
+
+        Supports initialize, notifications/initialized, tools/list, tools/call,
+        ping. Same auth + allow-list + policy gates as /mcp/call.
+        """
+        state = _get_state(request)
+        try:
+            body = await request.json()
+        except Exception as e:
+            raise HTTPException(400, "invalid JSON body") from e
+
+        async def handle_one(msg: dict[str, Any]) -> dict[str, Any] | None:
+            if not isinstance(msg, dict):
+                return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid Request"}}
+            mid = msg.get("id")
+            method = str(msg.get("method") or "")
+            params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
+            # Notifications (no id) — acknowledge with empty body via None
+            is_notif = mid is None and method.startswith("notifications/")
+
+            if method in ("initialize",):
+                try:
+                    from squidc5 import __version__ as _ver
+                except Exception:
+                    _ver = "0.1.0"
+                return {
+                    "jsonrpc": "2.0",
+                    "id": mid,
+                    "result": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {"tools": {"listChanged": False}},
+                        "serverInfo": {
+                            "name": "squidc5",
+                            "version": str(_ver),
+                        },
+                        "instructions": (
+                            "SquidC5 external MCP — authorized red team only. "
+                            "Tools are allow-listed per token; chain length is server-enforced."
+                        ),
+                    },
+                }
+            if method in ("notifications/initialized", "initialized"):
+                return None if is_notif else {"jsonrpc": "2.0", "id": mid, "result": {}}
+            if method in ("ping",):
+                return {"jsonrpc": "2.0", "id": mid, "result": {}}
+            if method in ("tools/list",):
+                allowed = set(auth.mcp_tools) if "admin" not in auth.scopes else None
+                tools = []
+                for t in _tool_catalog():
+                    if allowed is not None and t["name"] not in allowed:
+                        continue
+                    if not auth.can_mcp_tool(t["name"]):
+                        continue
+                    tools.append(
+                        {
+                            "name": t["name"],
+                            "description": t.get("description") or t["name"],
+                            "inputSchema": t.get("inputSchema")
+                            or {"type": "object", "properties": {}},
+                        }
+                    )
+                await state.db.audit(
+                    actor=auth.name,
+                    actor_type=auth.actor_type,
+                    action="mcp.jsonrpc.tools_list",
+                    details={"count": len(tools)},
+                )
+                return {"jsonrpc": "2.0", "id": mid, "result": {"tools": tools}}
+            if method in ("tools/call",):
+                name = str(params.get("name") or "")
+                arguments = params.get("arguments") if isinstance(params.get("arguments"), dict) else {}
+                result = await _dispatch_tool_call(state, auth, name, arguments)
+                if not result.ok:
+                    # MCP tool errors are result content, not JSON-RPC errors
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": mid,
+                        "result": {
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": result.error or "tool failed",
+                                }
+                            ],
+                            "isError": True,
+                        },
+                    }
+                text = result.result
+                if not isinstance(text, str):
+                    import json as _json
+
+                    try:
+                        text = _json.dumps(text, default=str, indent=2)
+                    except Exception:
+                        text = str(text)
+                return {
+                    "jsonrpc": "2.0",
+                    "id": mid,
+                    "result": {
+                        "content": [{"type": "text", "text": text}],
+                        "isError": False,
+                    },
+                }
+            if is_notif:
+                return None
+            return {
+                "jsonrpc": "2.0",
+                "id": mid,
+                "error": {"code": -32601, "message": f"Method not found: {method}"},
+            }
+
+        # Batch or single
+        if isinstance(body, list):
+            out: list[dict[str, Any]] = []
+            for item in body:
+                r = await handle_one(item if isinstance(item, dict) else {})
+                if r is not None:
+                    out.append(r)
+            return out  # type: ignore[return-value]
+        if not isinstance(body, dict):
+            raise HTTPException(400, "JSON-RPC body must be object or array")
+        single = await handle_one(body)
+        if single is None:
+            # Notification — empty 202-style body; FastAPI needs a body
+            return {}
+        return single
+
     return router
+
+
+async def _dispatch_tool_call(
+    state: AppState,
+    auth: AuthContext,
+    name: str,
+    arguments: dict[str, Any],
+) -> MCPToolResult:
+    """Shared path for REST /mcp/call and JSON-RPC tools/call."""
+    if hasattr(state, "features") and not await state.features.enabled("mcp_enabled"):
+        return MCPToolResult(ok=False, tool=name, error="MCP disabled by feature flag")
+    if not auth.can_mcp_tool(name):
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="mcp.call.denied",
+            details={"tool": name},
+            allowed=False,
+            risk_score=6,
+        )
+        return MCPToolResult(ok=False, tool=name, error="Tool not allow-listed for this token")
+    if not _check_budget(auth.token_id):
+        return MCPToolResult(ok=False, tool=name, error="MCP rate budget exceeded")
+    gate = _TOOL_GATES.get(name)
+    if not gate:
+        return MCPToolResult(ok=False, tool=name, error="Unknown tool")
+    need_scopes, policy_action = gate
+    if not any(auth.has_scope(s) for s in need_scopes) and not auth.has_scope("admin"):
+        return MCPToolResult(
+            ok=False, tool=name, error=f"Requires one of scopes: {need_scopes}"
+        )
+    extra: dict[str, Any] = {
+        "args_keys": list(arguments.keys()),
+        "command": arguments.get("command"),
+        "hitl_request_id": arguments.get("hitl_request_id"),
+    }
+    decision = await state.policy.check_and_audit(
+        auth,
+        action=policy_action,
+        resource=arguments.get("session_id"),
+        extra=extra,
+    )
+    if not decision.allowed:
+        return MCPToolResult(ok=False, tool=name, error=decision.reason)
+    handlers = _handlers(state, auth)
+    handler = handlers.get(name)
+    if not handler:
+        return MCPToolResult(ok=False, tool=name, error="Unknown tool")
+    try:
+        result = await handler(arguments)
+        await state.metrics.incr("mcp.calls")
+        await state.metrics.emit("mcp.call", {"tool": name, "actor": auth.name})
+        return MCPToolResult(ok=True, tool=name, result=result)
+    except PermissionError as exc:
+        return MCPToolResult(ok=False, tool=name, error=str(exc))
+    except Exception:
+        await state.db.audit(
+            actor=auth.name,
+            actor_type=auth.actor_type,
+            action="mcp.call.error",
+            details={"tool": name, "error": "tool error"},
+            allowed=False,
+            risk_score=4,
+        )
+        return MCPToolResult(ok=False, tool=name, error="tool error")
 
 
 def _tool_catalog() -> list[dict[str, Any]]:
