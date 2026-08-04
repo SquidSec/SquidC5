@@ -28,13 +28,13 @@ Security-first, AI-native C5 teamserver for **authorized** red team and penetrat
 > **Authorized use only.** Unauthorized access is illegal.
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=cIY6B8IrYEA">
+  <a href="https://www.youtube.com/watch?v=UPGqVn81mVw">
     <img src="assets/squidc5-youtube.jpg" alt="SquidC5 — Watch on YouTube" width="90%">
   </a>
   <br>
-  <a href="https://www.youtube.com/watch?v=cIY6B8IrYEA"><strong>▶ Watch SquidC5 on YouTube</strong></a>
+  <a href="https://www.youtube.com/watch?v=UPGqVn81mVw"><strong>▶ Watch SquidC5 on YouTube</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://youtu.be/cIY6B8IrYEA">youtu.be/cIY6B8IrYEA</a>
+  <a href="https://youtu.be/UPGqVn81mVw">youtu.be/UPGqVn81mVw</a>
 </p>
 
 ### What C5 means
