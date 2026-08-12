@@ -2246,15 +2246,16 @@
               <div class="row" style="margin:4px 0;gap:6px" id="adPresetRow">${presetBtns}</div>
               <p class="muted" id="adPresetDesc" style="font-size:0.72rem;margin:4px 0 8px;min-height:2.2em">${esc((defaultPreset && defaultPreset.description) || "Pick a preset or tick scopes manually.")}</p>
               <label>Scopes</label>
-              <div class="scope-grid" id="adScopeGrid" style="max-height:280px">
+              <p class="muted" style="font-size:0.68rem;margin:2px 0 0">Full scope ids + descriptions. Scroll inside the box to see all; tick to grant.</p>
+              <div class="scope-grid" id="adScopeGrid">
                 ${allScopes.map((s) => {
                   const priv = privileged.has(s);
                   const dis = priv && !can("admin");
-                  return `<label style="align-items:flex-start">
+                  return `<label title="${esc(s)}${priv ? " (privileged)" : ""}">
                     <input type="checkbox" class="ad-scope" value="${esc(s)}"
                       ${defaultScopes.has(s) ? "checked" : ""}
-                      ${dis ? "disabled" : ""} style="margin-top:3px" />
-                    <span>${scopeLabel(s)}</span>
+                      ${dis ? "disabled" : ""} />
+                    <span>${scopeLabel(s)}${priv ? ' <span class="chip warn" style="font-size:0.58rem;padding:1px 5px;vertical-align:middle">priv</span>' : ""}</span>
                   </label>`;
                 }).join("")}
               </div>
@@ -2263,9 +2264,9 @@
               </label>
               <div id="adMcpBox" class="hidden" style="margin-top:8px">
                 <label>MCP tools</label>
-                <div class="scope-grid" id="adMcpGrid" style="max-height:140px">
+                <div class="scope-grid" id="adMcpGrid">
                   ${(meta.all_mcp_tools || []).map((t) =>
-                    `<label><input type="checkbox" class="ad-mcp" value="${esc(t)}" /> <span class="mono" style="font-size:0.72rem">${esc(t)}</span></label>`
+                    `<label title="${esc(t)}"><input type="checkbox" class="ad-mcp" value="${esc(t)}" /> <span class="mono" style="font-size:0.74rem">${esc(t)}</span></label>`
                   ).join("") || '<span class="muted">No MCP catalog</span>'}
                 </div>
               </div>
