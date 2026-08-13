@@ -1428,6 +1428,7 @@
         <button type="button" class="nav-item" data-view="sessions">Sessions <span class="badge-n" id="navNSes">0</span></button>
         <button type="button" class="nav-item" data-view="hosts">Assets</button>
         <button type="button" class="nav-item" data-view="listeners">Listeners <span class="badge-n" id="navNLis">0</span></button>
+        <button type="button" class="nav-item" data-view="oast">OAST</button>
         <button type="button" class="nav-item" data-view="payloads">Payloads</button>
         <button type="button" class="nav-item" data-view="profiles">Profiles</button>
         <button type="button" class="nav-item" data-view="artifacts">Artifacts</button>
@@ -1482,6 +1483,7 @@
         <div class="view" id="view-sessions"></div>
         <div class="view" id="view-hosts"></div>
         <div class="view" id="view-listeners"></div>
+        <div class="view" id="view-oast"></div>
         <div class="view" id="view-payloads"></div>
         <div class="view" id="view-profiles"></div>
         <div class="view" id="view-artifacts"></div>
@@ -1781,6 +1783,7 @@
     sessions: ["sessions:read"],
     hosts: ["sessions:read"],
     listeners: ["listeners:read"],
+    oast: ["oast:read"],
     payloads: ["payloads:generate"],
     profiles: ["profiles:read"],
     artifacts: ["payloads:generate", "profiles:read"],
@@ -1807,7 +1810,7 @@
     const need = NAV_GATES[preferred];
     if (!need || canAny(need)) return preferred;
     const order = [
-      "sessions", "hosts", "listeners", "payloads", "profiles", "artifacts",
+      "sessions", "hosts", "listeners", "oast", "payloads", "profiles", "artifacts",
       "postex", "collab", "ai", "observe", "admin",
     ];
     for (const v of order) {
@@ -1845,6 +1848,7 @@
     sessions: { title: "Sessions", sub: "Beacons and reverse shells", doc: "sessions" },
     hosts: { title: "Assets", sub: "Host graph - implants, access, system info", doc: "sessions" },
     listeners: { title: "Listeners", sub: "Bind ports and manage acceptors", doc: "listeners" },
+    oast: { title: "OAST", sub: "Mint tokens, revoke, poll hits", doc: "oast-collaborator" },
     payloads: { title: "Payloads", sub: "Generate implants and templates", doc: "payloads-and-implants" },
     profiles: { title: "Profiles", sub: "Malleable C2 profiles - activate, edit, push", doc: "c2-profiles" },
     artifacts: { title: "Artifacts", sub: "Saved payloads, templates, profiles, implants", doc: "payloads-and-implants" },

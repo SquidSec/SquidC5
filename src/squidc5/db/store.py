@@ -994,6 +994,18 @@ class Database:
             (limit,),
         )
 
+    async def count_oast_hits_by_client(self) -> dict[str, int]:
+        rows = await self.fetchall(
+            "SELECT client_id, COUNT(*) AS n FROM oast_interactions "
+            "WHERE client_id IS NOT NULL GROUP BY client_id"
+        )
+        out: dict[str, int] = {}
+        for r in rows:
+            cid = r.get("client_id")
+            if cid:
+                out[str(cid)] = int(r.get("n") or 0)
+        return out
+
     async def delete_oast_client(self, client_id: str) -> bool:
         await self.execute("DELETE FROM oast_interactions WHERE client_id = ?", (client_id,))
         cur = await self.execute("DELETE FROM oast_clients WHERE id = ?", (client_id,))
