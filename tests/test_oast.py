@@ -47,9 +47,11 @@ async def test_oast_token_api_shape(client, admin_headers):
     assert body["token"] in body["dns_name"]
     assert body["token"] in body["http_url"]
     assert body["smtp_to"].startswith(body["token"] + "@")
+    assert body.get("hit_count") == 0
     lst = await client.get("/api/v1/oast/tokens", headers=admin_headers)
     assert lst.status_code == 200
-    assert any(x["id"] == body["id"] for x in lst.json())
+    row = next(x for x in lst.json() if x["id"] == body["id"])
+    assert row["hit_count"] == 0
 
 
 @pytest.mark.asyncio

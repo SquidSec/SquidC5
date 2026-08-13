@@ -39,6 +39,11 @@ TOOL_GATES: dict[str, tuple[list[str], str]] = {
     "list_audit": (["audit:read", "admin"], "audit.read"),
     "get_platform_status": (["metrics:read", "ai:use", "admin"], "metrics.read"),
     "interact_shell": (["shell:interact", "admin"], "shell.interact"),
+    "oast_mint": (["oast:write", "admin"], "oast.token.create"),
+    "oast_list_tokens": (["oast:read", "admin"], "oast.tokens.list"),
+    "oast_get_token": (["oast:read", "admin"], "oast.tokens.get"),
+    "oast_revoke": (["oast:write", "admin"], "oast.token.delete"),
+    "oast_hits": (["oast:read", "admin"], "oast.hits.list"),
 }
 
 # OpenAI-compatible tool schemas for chat/completions
@@ -369,6 +374,68 @@ OPENAI_TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "oast_mint",
+            "description": "Mint an OAST correlation token and return token + callback URLs (HTTP/DNS/SMTP).",
+            "parameters": {
+                "type": "object",
+                "properties": {"note": {"type": "string", "description": "Operator label"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "oast_list_tokens",
+            "description": "List minted OAST tokens with hit_count and callback URLs.",
+            "parameters": {
+                "type": "object",
+                "properties": {"limit": {"type": "integer"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "oast_get_token",
+            "description": "Get one OAST token by id (oast_...) including URLs and hit_count.",
+            "parameters": {
+                "type": "object",
+                "properties": {"token_id": {"type": "string"}},
+                "required": ["token_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "oast_revoke",
+            "description": "Revoke/delete an OAST token and its stored hits.",
+            "parameters": {
+                "type": "object",
+                "properties": {"token_id": {"type": "string"}},
+                "required": ["token_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "oast_hits",
+            "description": "Poll OAST hits (count + details). Filter by token, client_id, or protocol.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "token": {"type": "string"},
+                    "client_id": {"type": "string"},
+                    "protocol": {"type": "string", "enum": ["http", "dns", "smtp"]},
+                    "limit": {"type": "integer"},
+                },
+            },
+        },
+    },
 ]
 
 CHAT_SYSTEM_PROMPT = """You are INKO (Intelligent Neural Kinetic Operator) - SquidC5's neural operator assistant for this C5 teamserver.
@@ -442,7 +509,7 @@ On reverse_shell capture the server classifies noise, probes OS, injects stage-2
 Mute/echo-only sessions are reaped.
 
 ## Ops UI map (for operator guidance)
-Sessions, Listeners, Payloads, Profiles, Artifacts, Shell/Tasks, Pivot/Files, Collab, Observability,
+Sessions, Listeners, OAST, Payloads, Profiles, Artifacts, Shell/Tasks, Pivot/Files, Collab, Observability,
 Admin (LLM config, tokens, features, TLS cert library), Docs (user guide - not served on C2 /docs).
 
 ## Auth & policy
@@ -465,6 +532,7 @@ If a tool fails on permissions/HITL, say what to approve or which scope is missi
 | Profiles | list_profiles, upsert_profile, activate_profile |
 | Save work | save_asset, list_assets |
 | Health | get_platform_status, get_metrics, list_recent_events, list_audit |
+| OAST | oast_mint, oast_list_tokens, oast_get_token, oast_revoke, oast_hits |
 
 # Formatting for the ops console
 - Prefer short sections with markdown headings
@@ -724,6 +792,39 @@ def _handlers(
             raise RuntimeError("No live reverse shell for session")
         return {"sent": True, "session_id": sid}
 
+    def _oast():
+        if state.oast is None:
+            raise RuntimeError("OAST not available")
+        return state.oast
+
+    async def oast_mint(args: dict[str, Any]) -> Any:
+        return await _oast().create_token(note=str(args.get("note") or ""), created_by=auth.name)
+
+    async def oast_list_tokens(args: dict[str, Any]) -> Any:
+        rows = await _oast().list_tokens(limit=int(args.get("limit") or 100))
+        return {"count": len(rows), "tokens": rows}
+
+    async def oast_get_token(args: dict[str, Any]) -> Any:
+        row = await _oast().get_token(args["token_id"])
+        if not row:
+            raise KeyError("oast token not found")
+        return row
+
+    async def oast_revoke(args: dict[str, Any]) -> Any:
+        ok = await _oast().delete_client(args["token_id"])
+        if not ok:
+            raise KeyError("oast token not found")
+        return {"revoked": True, "token_id": args["token_id"]}
+
+    async def oast_hits(args: dict[str, Any]) -> Any:
+        hits = await _oast().list_hits(
+            token=args.get("token"),
+            protocol=args.get("protocol"),
+            client_id=args.get("client_id"),
+            limit=int(args.get("limit") or 100),
+        )
+        return {"hits": hits, "count": len(hits)}
+
     async def register_payload_template(args: dict[str, Any]) -> Any:
         name = str(args.get("name") or "").strip().replace(" ", "_")
         content = str(args.get("content") or "")
@@ -822,6 +923,11 @@ def _handlers(
         "list_audit": list_audit,
         "get_platform_status": get_platform_status,
         "interact_shell": interact_shell,
+        "oast_mint": oast_mint,
+        "oast_list_tokens": oast_list_tokens,
+        "oast_get_token": oast_get_token,
+        "oast_revoke": oast_revoke,
+        "oast_hits": oast_hits,
     }
 
 
@@ -916,6 +1022,9 @@ _RE_CREATE_LISTENER = re.compile(
 _RE_LIST_SESSIONS = re.compile(r"(?i)\b(list|show|what)\b.*\b(sessions?|shells?|beacons?)\b")
 _RE_LIST_LISTENERS = re.compile(r"(?i)\b(list|show|what)\b.*\blisteners?\b")
 _RE_METRICS = re.compile(r"(?i)\b(metrics|status|health)\b")
+_RE_OAST_MINT = re.compile(r"(?i)\b(mint|create|issue|give)\b.*\b(oast|canary|oob)\b")
+_RE_OAST_HITS = re.compile(r"(?i)\b(oast|oob)\b.*\b(hits?|poll)\b|\b(hits?|poll)\b.*\b(oast|oob)\b")
+_RE_OAST_LIST = re.compile(r"(?i)\b(list|show)\b.*\boast\b")
 _RE_EVENTS = re.compile(r"(?i)\b(events?|event\s*stream)\b")
 
 
@@ -972,6 +1081,27 @@ async def offline_chat_intent(
         return {
             "mode": "offline",
             "reply": _offline_reply_for_tool(r, "Metrics"),
+            "tool_trace": [r],
+        }
+    if _RE_OAST_MINT.search(msg):
+        r = await execute_ops_tool(state, auth, "oast_mint", {"note": "inko"})
+        return {
+            "mode": "offline",
+            "reply": _offline_reply_for_tool(r, "OAST token"),
+            "tool_trace": [r],
+        }
+    if _RE_OAST_HITS.search(msg):
+        r = await execute_ops_tool(state, auth, "oast_hits", {"limit": 50})
+        return {
+            "mode": "offline",
+            "reply": _offline_reply_for_tool(r, "OAST hits"),
+            "tool_trace": [r],
+        }
+    if _RE_OAST_LIST.search(msg):
+        r = await execute_ops_tool(state, auth, "oast_list_tokens", {})
+        return {
+            "mode": "offline",
+            "reply": _offline_reply_for_tool(r, "OAST tokens"),
             "tool_trace": [r],
         }
     return None

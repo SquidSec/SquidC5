@@ -53,6 +53,7 @@ async def test_all_views_use_page_tabs(tmp_path):
                 "profilesTabs",
                 "artifactsTabs",
                 "assetsTabs",
+                "oastTabs",
             ):
                 assert tid in js, f"missing tabs shell {tid}"
 

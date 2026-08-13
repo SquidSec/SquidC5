@@ -161,7 +161,13 @@ class OastService:
         )
 
     def format_token_response(
-        self, client_id: str, token: str, *, note: str = ""
+        self,
+        client_id: str,
+        token: str,
+        *,
+        note: str = "",
+        hit_count: int = 0,
+        created_by: str | None = None,
     ) -> dict[str, Any]:
         zone = self.zone
         host = self.public_host or zone
@@ -187,15 +193,27 @@ class OastService:
             },
             "zone": zone,
             "public_ip": self.public_ip,
+            "hit_count": int(hit_count),
+            "created_by": created_by,
         }
 
     async def list_tokens(self, limit: int = 100) -> list[dict[str, Any]]:
         rows = await self.db.list_oast_clients(limit=limit)
+        counts = await self.db.count_oast_hits_by_client()
         out = []
         for r in rows:
             n = self._norm_client(r)
             note = str((n.get("meta") or {}).get("note") or n.get("label") or "")
-            out.append(self.format_token_response(n["id"], n["token"], note=note))
+            cid = str(n["id"])
+            out.append(
+                self.format_token_response(
+                    cid,
+                    n["token"],
+                    note=note,
+                    hit_count=counts.get(cid, 0),
+                    created_by=n.get("created_by"),
+                )
+            )
         return out
 
     async def get_token(self, token_id: str) -> dict[str, Any] | None:
@@ -204,7 +222,15 @@ class OastService:
             return None
         n = self._norm_client(row)
         note = str((n.get("meta") or {}).get("note") or n.get("label") or "")
-        return self.format_token_response(n["id"], n["token"], note=note)
+        counts = await self.db.count_oast_hits_by_client()
+        cid = str(n["id"])
+        return self.format_token_response(
+            cid,
+            n["token"],
+            note=note,
+            hit_count=counts.get(cid, 0),
+            created_by=n.get("created_by"),
+        )
 
     async def list_clients(self, limit: int = 100) -> list[dict[str, Any]]:
         return await self.list_tokens(limit=limit)

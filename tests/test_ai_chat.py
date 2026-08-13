@@ -67,6 +67,24 @@ async def test_ai_chat_offline_list_sessions(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_ai_chat_offline_oast_mint(tmp_path):
+    app = create_app(_settings(tmp_path))
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            h = {"Authorization": f"Bearer {ADMIN}"}
+            r = await client.post(
+                "/api/v1/ai/chat",
+                headers=h,
+                json={"message": "mint an oast token"},
+            )
+            assert r.status_code == 200
+            body = r.json()
+            assert body["mode"] == "offline"
+            assert any(t.get("tool") == "oast_mint" and t.get("ok") for t in body.get("tool_trace") or [])
+
+
+@pytest.mark.asyncio
 async def test_ai_tools_catalog(tmp_path):
     app = create_app(_settings(tmp_path))
     async with app.router.lifespan_context(app):
@@ -78,6 +96,8 @@ async def test_ai_tools_catalog(tmp_path):
             names = {t["name"] for t in r.json()["tools"]}
             assert "create_listener" in names
             assert "list_sessions" in names
+            assert "oast_mint" in names
+            assert "oast_hits" in names
             assert "generate_payload" in names
 
 
