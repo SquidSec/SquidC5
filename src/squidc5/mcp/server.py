@@ -357,16 +357,27 @@ def _tool_catalog() -> list[dict[str, Any]]:
     return [
         {"name": "list_sessions", "description": "List C2 sessions", "inputSchema": {"type": "object", "properties": {"status": {"type": "string"}}}},
         {"name": "get_session", "description": "Get session by id", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}}, "required": ["session_id"]}},
+        {"name": "close_session", "description": "Close a session", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}}, "required": ["session_id"]}},
         {"name": "list_tasks", "description": "List tasks", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}}}},
+        {"name": "get_task", "description": "Get task by id", "inputSchema": {"type": "object", "properties": {"task_id": {"type": "string"}}, "required": ["task_id"]}},
         {"name": "create_task", "description": "Task a session", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}, "command": {"type": "string"}, "args": {"type": "object"}, "hitl_request_id": {"type": "string"}}, "required": ["session_id", "command"]}},
         {"name": "list_listeners", "description": "List listeners", "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "create_listener", "description": "Create listener", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}, "kind": {"type": "string"}, "port": {"type": "integer"}, "host": {"type": "string"}}, "required": ["name", "kind", "port"]}},
+        {"name": "create_listener", "description": "Create listener", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}, "kind": {"type": "string"}, "port": {"type": "integer"}, "host": {"type": "string"}, "config": {"type": "object"}}, "required": ["name", "kind", "port"]}},
         {"name": "start_listener", "description": "Start listener", "inputSchema": {"type": "object", "properties": {"listener_id": {"type": "string"}}, "required": ["listener_id"]}},
         {"name": "stop_listener", "description": "Stop listener", "inputSchema": {"type": "object", "properties": {"listener_id": {"type": "string"}}, "required": ["listener_id"]}},
+        {"name": "delete_listener", "description": "Delete listener", "inputSchema": {"type": "object", "properties": {"listener_id": {"type": "string"}}, "required": ["listener_id"]}},
         {"name": "generate_payload", "description": "Generate payload from template", "inputSchema": {"type": "object", "properties": {"template": {"type": "string"}, "host": {"type": "string"}, "port": {"type": "integer"}}, "required": ["template", "host", "port"]}},
+        {"name": "list_payload_templates", "description": "List payload templates", "inputSchema": {"type": "object", "properties": {}}},
         {"name": "get_metrics", "description": "Get metrics snapshot", "inputSchema": {"type": "object", "properties": {}}},
         {"name": "list_audit", "description": "List audit entries", "inputSchema": {"type": "object", "properties": {"limit": {"type": "integer"}}}},
         {"name": "interact_shell", "description": "Send command to reverse shell session", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}, "command": {"type": "string"}, "hitl_request_id": {"type": "string"}}, "required": ["session_id", "command"]}},
+        {"name": "whoami", "description": "Current token name, scopes, MCP tools", "inputSchema": {"type": "object", "properties": {}}},
+        {"name": "get_platform_status", "description": "Public host, OAST flags, listener summary", "inputSchema": {"type": "object", "properties": {}}},
+        {"name": "oast_mint", "description": "Mint OAST token + callback URLs", "inputSchema": {"type": "object", "properties": {"note": {"type": "string"}}}},
+        {"name": "oast_list_tokens", "description": "List minted OAST tokens", "inputSchema": {"type": "object", "properties": {"limit": {"type": "integer"}}}},
+        {"name": "oast_get_token", "description": "Get OAST token + URLs by id", "inputSchema": {"type": "object", "properties": {"token_id": {"type": "string"}}, "required": ["token_id"]}},
+        {"name": "oast_revoke", "description": "Revoke OAST token and its hits", "inputSchema": {"type": "object", "properties": {"token_id": {"type": "string"}}, "required": ["token_id"]}},
+        {"name": "oast_hits", "description": "List OAST hits with count and details", "inputSchema": {"type": "object", "properties": {"token": {"type": "string"}, "protocol": {"type": "string"}, "client_id": {"type": "string"}, "since": {"type": "number"}, "limit": {"type": "integer"}}}},
     ]
 
 
@@ -380,8 +391,18 @@ def _handlers(state: AppState, auth: AuthContext) -> dict[str, Callable[[dict[st
             raise KeyError("session not found")
         return s
 
+    async def close_session(args: dict[str, Any]) -> Any:
+        await state.sessions.close(args["session_id"])
+        return {"closed": True, "session_id": args["session_id"]}
+
     async def list_tasks(args: dict[str, Any]) -> Any:
         return await state.tasks.list(session_id=args.get("session_id"))
+
+    async def get_task(args: dict[str, Any]) -> Any:
+        t = await state.tasks.get(args["task_id"])
+        if not t:
+            raise KeyError("task not found")
+        return t
 
     async def create_task(args: dict[str, Any]) -> Any:
         sid = args["session_id"]
@@ -408,6 +429,7 @@ def _handlers(state: AppState, auth: AuthContext) -> dict[str, Callable[[dict[st
             kind=args["kind"],
             port=int(args["port"]),
             host=args.get("host", "0.0.0.0"),
+            config=args.get("config"),
         )
 
     async def start_listener(args: dict[str, Any]) -> Any:
@@ -415,6 +437,12 @@ def _handlers(state: AppState, auth: AuthContext) -> dict[str, Callable[[dict[st
 
     async def stop_listener(args: dict[str, Any]) -> Any:
         return await state.listeners.stop(args["listener_id"])
+
+    async def delete_listener(args: dict[str, Any]) -> Any:
+        ok = await state.listeners.delete(args["listener_id"])
+        if not ok:
+            raise KeyError("listener not found")
+        return {"deleted": True, "listener_id": args["listener_id"]}
 
     async def generate_payload(args: dict[str, Any]) -> Any:
         if not await state.features.enabled("payloads_generate"):
@@ -424,6 +452,9 @@ def _handlers(state: AppState, auth: AuthContext) -> dict[str, Callable[[dict[st
             host=args["host"],
             port=int(args["port"]),
         )
+
+    async def list_payload_templates(args: dict[str, Any]) -> Any:
+        return state.payloads.list_templates()
 
     async def get_metrics(args: dict[str, Any]) -> Any:
         return await state.metrics.snapshot()
@@ -439,17 +470,90 @@ def _handlers(state: AppState, auth: AuthContext) -> dict[str, Callable[[dict[st
             raise RuntimeError("No live reverse shell for session")
         return {"sent": True, "session_id": sid}
 
+    async def whoami(args: dict[str, Any]) -> Any:
+        return {
+            "name": auth.name,
+            "scopes": sorted(auth.scopes),
+            "mcp_tools": sorted(auth.mcp_tools),
+            "actor_type": auth.actor_type,
+        }
+
+    async def get_platform_status(args: dict[str, Any]) -> Any:
+        flags = await state.features.get_all()
+        listeners = await state.listeners.list()
+        return {
+            "public_host": state.settings.public_host or state.settings.oast_zone,
+            "oast_enabled": bool(state.settings.oast_enabled and flags.get("oast_enabled")),
+            "dns_oast": bool(flags.get("dns_listeners")),
+            "smtp_oast": bool(flags.get("smtp_oast")),
+            "oast_zone": state.settings.oast_zone,
+            "listeners": [
+                {
+                    "id": x.get("id"),
+                    "name": x.get("name"),
+                    "kind": x.get("kind"),
+                    "port": x.get("port"),
+                    "status": x.get("status"),
+                }
+                for x in listeners
+            ],
+        }
+
+    def _oast():
+        if state.oast is None:
+            raise RuntimeError("OAST not available")
+        return state.oast
+
+    async def oast_mint(args: dict[str, Any]) -> Any:
+        return await _oast().create_token(note=str(args.get("note") or ""), created_by=auth.name)
+
+    async def oast_list_tokens(args: dict[str, Any]) -> Any:
+        return await _oast().list_tokens(limit=int(args.get("limit") or 100))
+
+    async def oast_get_token(args: dict[str, Any]) -> Any:
+        row = await _oast().get_token(args["token_id"])
+        if not row:
+            raise KeyError("oast token not found")
+        return row
+
+    async def oast_revoke(args: dict[str, Any]) -> Any:
+        ok = await _oast().delete_client(args["token_id"])
+        if not ok:
+            raise KeyError("oast token not found")
+        return {"revoked": True, "token_id": args["token_id"]}
+
+    async def oast_hits(args: dict[str, Any]) -> Any:
+        hits = await _oast().list_hits(
+            token=args.get("token"),
+            protocol=args.get("protocol"),
+            client_id=args.get("client_id"),
+            since=args.get("since"),
+            limit=int(args.get("limit") or 100),
+        )
+        return {"hits": hits, "count": len(hits)}
+
     return {
         "list_sessions": list_sessions,
         "get_session": get_session,
+        "close_session": close_session,
         "list_tasks": list_tasks,
+        "get_task": get_task,
         "create_task": create_task,
         "list_listeners": list_listeners,
         "create_listener": create_listener,
         "start_listener": start_listener,
         "stop_listener": stop_listener,
+        "delete_listener": delete_listener,
         "generate_payload": generate_payload,
+        "list_payload_templates": list_payload_templates,
         "get_metrics": get_metrics,
         "list_audit": list_audit,
         "interact_shell": interact_shell,
+        "whoami": whoami,
+        "get_platform_status": get_platform_status,
+        "oast_mint": oast_mint,
+        "oast_list_tokens": oast_list_tokens,
+        "oast_get_token": oast_get_token,
+        "oast_revoke": oast_revoke,
+        "oast_hits": oast_hits,
     }

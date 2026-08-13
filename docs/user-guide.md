@@ -1299,6 +1299,8 @@ sc5 mcp tools
 sc5 mcp call list_sessions --args-json '{}'
 ```
 
+Admin tokens see the full catalog, including OAST: `oast_mint`, `oast_list_tokens`, `oast_get_token`, `oast_revoke`, `oast_hits` (count + hit details). Restricted MCP tokens still need those names in `mcp_tools`.
+
 OpenCode snippet shape (auto-generated on mint):
 
 ```json

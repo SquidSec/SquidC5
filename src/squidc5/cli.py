@@ -674,6 +674,10 @@ def cmd_oast_tokens_list(args: argparse.Namespace, client: Client) -> None:
     pp(client.get("/api/v1/oast/tokens"))
 
 
+def cmd_oast_token_delete(args: argparse.Namespace, client: Client) -> None:
+    pp(client.delete(f"/api/v1/oast/tokens/{args.token_id}"))
+
+
 def cmd_oast_hits(args: argparse.Namespace, client: Client) -> None:
     q: dict[str, Any] = {"limit": getattr(args, "limit", 100)}
     if getattr(args, "token", None):
@@ -1360,6 +1364,12 @@ def build_parser() -> argparse.ArgumentParser:
     o_tok_c = o_tok_sub.add_parser("create", help="Mint unique OAST payloads")
     o_tok_c.add_argument("--note", default="", help="Operator note")
     o_tok_c.set_defaults(func=cmd_oast_token_create, needs_client=True)
+    o_tok_d = o_tok_sub.add_parser("delete", help="Revoke OAST token")
+    o_tok_d.add_argument("token_id")
+    o_tok_d.set_defaults(func=cmd_oast_token_delete, needs_client=True)
+    o_tok_r = o_tok_sub.add_parser("revoke", help="Alias: token delete")
+    o_tok_r.add_argument("token_id")
+    o_tok_r.set_defaults(func=cmd_oast_token_delete, needs_client=True)
     o_tokens = oast_sub.add_parser("tokens", help="List OAST tokens")
     o_tokens_sub = o_tokens.add_subparsers(dest="oast_tokens_cmd", required=False)
     o_tokens_list = o_tokens_sub.add_parser("list", help="List tokens")

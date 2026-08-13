@@ -245,16 +245,27 @@ ALL_MCP_TOOLS = frozenset(
     {
         "list_sessions",
         "get_session",
+        "close_session",
         "list_tasks",
+        "get_task",
         "create_task",
         "list_listeners",
         "create_listener",
         "start_listener",
         "stop_listener",
+        "delete_listener",
         "generate_payload",
+        "list_payload_templates",
         "get_metrics",
         "list_audit",
         "interact_shell",
+        "whoami",
+        "get_platform_status",
+        "oast_mint",
+        "oast_list_tokens",
+        "oast_get_token",
+        "oast_revoke",
+        "oast_hits",
     }
 )
 
