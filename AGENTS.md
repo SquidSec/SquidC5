@@ -163,6 +163,7 @@ sc5 listeners start|stop|delete <id>
 
 sc5 --insecure ... # skip TLS verify (self-signed teamserver)
 sc5 oast token create [--note "..."]
+sc5 oast token delete|revoke <token_id>
 sc5 oast tokens list
 sc5 oast hits --token T [--protocol dns|http|smtp]
 # aliases: oast mint | oast poll
