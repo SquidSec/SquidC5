@@ -96,6 +96,17 @@ _TOOL_GATES: dict[str, tuple[list[str], str]] = {
     "get_metrics": (["metrics:read", "admin"], "metrics.read"),
     "list_audit": (["audit:read", "admin"], "audit.read"),
     "interact_shell": (["shell:interact", "admin"], "shell.interact"),
+    "close_session": (["sessions:write", "admin"], "sessions.close"),
+    "get_task": (["tasks:read", "admin"], "tasks.list"),
+    "delete_listener": (["listeners:write", "admin"], "listeners.delete"),
+    "list_payload_templates": (["payloads:generate", "admin"], "payloads.list"),
+    "whoami": (["mcp:connect", "admin"], "mcp.whoami"),
+    "get_platform_status": (["metrics:read", "admin"], "metrics.read"),
+    "oast_mint": (["oast:write", "admin"], "oast.token.create"),
+    "oast_list_tokens": (["oast:read", "admin"], "oast.tokens.list"),
+    "oast_get_token": (["oast:read", "admin"], "oast.tokens.get"),
+    "oast_revoke": (["oast:write", "admin"], "oast.token.delete"),
+    "oast_hits": (["oast:read", "admin"], "oast.hits.list"),
 }
 
 
