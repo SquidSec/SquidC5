@@ -403,8 +403,10 @@ def _handlers(state: AppState, auth: AuthContext) -> dict[str, Callable[[dict[st
         return s
 
     async def close_session(args: dict[str, Any]) -> Any:
-        await state.sessions.close(args["session_id"])
-        return {"closed": True, "session_id": args["session_id"]}
+        sid = args["session_id"]
+        await state.teams.assert_write_access(sid, auth.name, is_admin=auth.has_scope("admin"))
+        await state.sessions.close(sid)
+        return {"closed": True, "session_id": sid}
 
     async def list_tasks(args: dict[str, Any]) -> Any:
         return await state.tasks.list(session_id=args.get("session_id"))
@@ -413,6 +415,11 @@ def _handlers(state: AppState, auth: AuthContext) -> dict[str, Callable[[dict[st
         t = await state.tasks.get(args["task_id"])
         if not t:
             raise KeyError("task not found")
+        sid = t.get("session_id")
+        if sid:
+            await state.teams.assert_write_access(
+                str(sid), auth.name, is_admin=auth.has_scope("admin"), renew=False
+            )
         return t
 
     async def create_task(args: dict[str, Any]) -> Any:
@@ -515,29 +522,67 @@ def _handlers(state: AppState, auth: AuthContext) -> dict[str, Callable[[dict[st
             raise RuntimeError("OAST not available")
         return state.oast
 
+    async def _oast_owned(token_id: str) -> dict[str, Any]:
+        raw = await state.db.get_oast_client(token_id)
+        if not raw:
+            raise KeyError("oast token not found")
+        if not auth.has_scope("admin") and (raw.get("created_by") or "") != auth.name:
+            raise PermissionError("OAST token not owned by this actor")
+        note = ""
+        meta = raw.get("meta")
+        if isinstance(meta, str):
+            try:
+                import json as _json
+
+                meta = _json.loads(meta)
+            except Exception:
+                meta = {}
+        if isinstance(meta, dict):
+            note = str(meta.get("note") or raw.get("label") or "")
+        return _oast().format_token_response(str(raw["id"]), str(raw["token"]), note=note)
+
     async def oast_mint(args: dict[str, Any]) -> Any:
         return await _oast().create_token(note=str(args.get("note") or ""), created_by=auth.name)
 
     async def oast_list_tokens(args: dict[str, Any]) -> Any:
-        return await _oast().list_tokens(limit=int(args.get("limit") or 100))
+        rows = await _oast().list_tokens(limit=int(args.get("limit") or 100))
+        if auth.has_scope("admin"):
+            return rows
+        owned = []
+        for r in rows:
+            try:
+                owned.append(await _oast_owned(r["id"]))
+            except PermissionError:
+                continue
+        return owned
 
     async def oast_get_token(args: dict[str, Any]) -> Any:
-        row = await _oast().get_token(args["token_id"])
-        if not row:
-            raise KeyError("oast token not found")
-        return row
+        return await _oast_owned(args["token_id"])
 
     async def oast_revoke(args: dict[str, Any]) -> Any:
+        await _oast_owned(args["token_id"])
         ok = await _oast().delete_client(args["token_id"])
         if not ok:
             raise KeyError("oast token not found")
         return {"revoked": True, "token_id": args["token_id"]}
 
     async def oast_hits(args: dict[str, Any]) -> Any:
+        cid = args.get("client_id")
+        tok = args.get("token")
+        if cid:
+            await _oast_owned(str(cid))
+        elif tok:
+            by = await _oast().get_by_token(str(tok))
+            if not by:
+                raise KeyError("oast token not found")
+            await _oast_owned(by["id"])
+            cid = by["id"]
+        elif not auth.has_scope("admin"):
+            raise PermissionError("token or client_id required")
         hits = await _oast().list_hits(
-            token=args.get("token"),
+            token=None if cid else tok,
             protocol=args.get("protocol"),
-            client_id=args.get("client_id"),
+            client_id=cid,
             since=args.get("since"),
             limit=int(args.get("limit") or 100),
         )

@@ -8,6 +8,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -675,7 +676,8 @@ def cmd_oast_tokens_list(args: argparse.Namespace, client: Client) -> None:
 
 
 def cmd_oast_token_delete(args: argparse.Namespace, client: Client) -> None:
-    pp(client.delete(f"/api/v1/oast/tokens/{args.token_id}"))
+    tid = quote(str(args.token_id), safe="")
+    pp(client.delete(f"/api/v1/oast/tokens/{tid}"))
 
 
 def cmd_oast_hits(args: argparse.Namespace, client: Client) -> None:
