@@ -39,7 +39,26 @@ async def handle_http_client(
         path_only = path.split("?", 1)[0]
 
         if method == "GET" and path_only in ("/", "/health", "/api/v1/health"):
-            # L07: minimal fingerprint
+            host = str(headers.get("host") or "")
+            zone = str(getattr(manager, "oast_zone", "") or "")
+            from squidc5.oast.store import extract_token_from_host
+
+            if extract_token_from_host(host, zone=zone):
+                hit = {
+                    "listener_id": listener_id,
+                    "remote": remote,
+                    "method": method,
+                    "path": path,
+                    "query": query,
+                    "headers": {
+                        k: v
+                        for k, v in headers.items()
+                        if k.lower() not in ("authorization", "cookie")
+                    },
+                    "body_preview": "",
+                    "ts": time.time(),
+                }
+                await manager.record_http_hit(listener_id, hit)
             await _respond(writer, 200, {"status": "ok"})
             return
 

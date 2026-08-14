@@ -149,7 +149,7 @@ class OastService:
         )
         if self.metrics:
             await self.metrics.emit("oast.token.created", {"id": cid, "token": token})
-        return self.format_token_response(cid, token, note=note)
+        return await self.format_token_response(cid, token, note=note, created_by=created_by)
 
     # aliases used by older routes
     async def create_client(self, **kwargs: Any) -> dict[str, Any]:
@@ -160,7 +160,29 @@ class OastService:
             meta=kwargs.get("meta"),
         )
 
-    def format_token_response(
+    async def _http_catcher(self) -> tuple[str, int, str]:
+        host = self.public_host or self.zone
+        port = int(self.http_port or 80)
+        scheme = self.scheme or "http"
+        try:
+            rows = await self.db.list_listeners()
+        except Exception:
+            return host, port, scheme
+        running = [
+            r
+            for r in rows
+            if str(r.get("kind") or "") in ("http", "https")
+            and str(r.get("status") or "") == "running"
+        ]
+        if not running:
+            return host, port, scheme
+        pick = next((r for r in running if int(r.get("port") or 0) == port), running[0])
+        port = int(pick.get("port") or port)
+        if str(pick.get("kind")) == "https":
+            scheme = "https"
+        return host, port, scheme
+
+    async def format_token_response(
         self,
         client_id: str,
         token: str,
@@ -170,12 +192,21 @@ class OastService:
         created_by: str | None = None,
     ) -> dict[str, Any]:
         zone = self.zone
-        host = self.public_host or zone
-        port_s = f":{self.http_port}" if self.http_port not in (80, 443) else ""
+        host, port, scheme = await self._http_catcher()
+        port_s = f":{port}" if port not in (80, 443) else ""
         dns_name = f"{token}.{zone}"
-        http_url = f"{self.scheme}://{token}.{zone}{port_s}/"
-        http_path = f"{self.scheme}://{host}{port_s}/{token}/"
+        http_url = f"{scheme}://{token}.{zone}{port_s}/"
+        http_path = f"{scheme}://{host}{port_s}/{token}/"
         smtp_to = f"{token}@{zone}"
+        notes: list[str] = []
+        if port not in (80, 443):
+            notes.append(f"HTTP catcher is {scheme}://{host}:{port}/<token>/ — include the port")
+        try:
+            lis = await self.db.list_listeners()
+            if not any(str(r.get("kind")) == "dns" and str(r.get("status")) == "running" for r in lis):
+                notes.append("DNS name will not resolve until a DNS listener is running for this zone")
+        except Exception:
+            pass
         return {
             "id": client_id,
             "token": token,
@@ -193,8 +224,11 @@ class OastService:
             },
             "zone": zone,
             "public_ip": self.public_ip,
+            "http_port": port,
+            "http_scheme": scheme,
             "hit_count": int(hit_count),
             "created_by": created_by,
+            "notes": notes,
         }
 
     async def list_tokens(self, limit: int = 100) -> list[dict[str, Any]]:
@@ -206,7 +240,7 @@ class OastService:
             note = str((n.get("meta") or {}).get("note") or n.get("label") or "")
             cid = str(n["id"])
             out.append(
-                self.format_token_response(
+                await self.format_token_response(
                     cid,
                     n["token"],
                     note=note,
@@ -224,7 +258,7 @@ class OastService:
         note = str((n.get("meta") or {}).get("note") or n.get("label") or "")
         counts = await self.db.count_oast_hits_by_client()
         cid = str(n["id"])
-        return self.format_token_response(
+        return await self.format_token_response(
             cid,
             n["token"],
             note=note,
@@ -244,7 +278,7 @@ class OastService:
             return None
         n = self._norm_client(row)
         note = str((n.get("meta") or {}).get("note") or n.get("label") or "")
-        return self.format_token_response(n["id"], n["token"], note=note)
+        return await self.format_token_response(n["id"], n["token"], note=note)
 
     async def resolve_token(self, token: str | None) -> str | None:
         if not token:
@@ -337,8 +371,16 @@ class OastService:
         return await self.db.delete_oast_client(client_id)
 
     def payload_urls(self, token: str, **kwargs: Any) -> dict[str, str]:
-        r = self.format_token_response("x", token)
-        return r["payloads"]
+        port = int(self.http_port or 80)
+        port_s = f":{port}" if port not in (80, 443) else ""
+        host = self.public_host or self.zone
+        return {
+            "dns": f"{token}.{self.zone}",
+            "http": f"{self.scheme}://{token}.{self.zone}{port_s}/",
+            "http_path": f"{self.scheme}://{host}{port_s}/{token}/",
+            "smtp": f"{token}@{self.zone}",
+            "token": token,
+        }
 
     def _norm_client(self, row: dict[str, Any]) -> dict[str, Any]:
         out = dict(row)

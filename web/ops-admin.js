@@ -1241,6 +1241,48 @@
   }
 
   let selectedOastId = null;
+  let lastOastMint = null;
+
+  function labeledOastUrls(o) {
+    return [
+      "token: " + (o.token || ""),
+      "http: " + (o.http_url_path || ""),
+      "http_host: " + (o.http_url || ""),
+      "dns: " + (o.dns_name || ""),
+      "smtp: " + (o.smtp_to || ""),
+    ].join("\n");
+  }
+
+  function renderOastMintResult(o) {
+    const cards = el("oastMintCards");
+    if (cards) {
+      const rows = [
+        ["Use this HTTP URL", o.http_url_path],
+        ["Host-header HTTP", o.http_url],
+        ["DNS", o.dns_name],
+        ["SMTP", o.smtp_to],
+        ["Token", o.token],
+      ];
+      const notes = (o.notes || []).map((n) => `<p class="muted" style="margin:4px 0">${esc(n)}</p>`).join("");
+      cards.className = "";
+      cards.innerHTML = notes + rows.map(([lab, val]) => `
+        <div class="row" style="align-items:center;gap:8px;margin:4px 0">
+          <span class="muted" style="min-width:140px">${esc(lab)}</span>
+          <code class="mono" style="flex:1;font-size:0.75rem">${esc(val || "")}</code>
+          <button type="button" class="ghost oast-copy-one" data-copy="${esc(val || "")}">Copy</button>
+        </div>`).join("");
+      cards.querySelectorAll(".oast-copy-one").forEach((b) => {
+        b.onclick = () => {
+          const v = b.getAttribute("data-copy") || "";
+          navigator.clipboard.writeText(v).then(() => showOk("Copied")).catch(() => showError("Copy failed"));
+        };
+      });
+    }
+    if (el("oastMintOut")) {
+      el("oastMintOut").textContent = JSON.stringify(o, null, 2);
+      el("oastMintOut").classList.remove("empty");
+    }
+  }
 
   function renderOastView(force) {
     const root = el("view-oast");
@@ -1268,9 +1310,10 @@
           </div>
           <div class="row">
             <button type="button" class="primary" id="oastMintBtn">Mint token</button>
-            <button type="button" id="oastCopyUrls">Copy URLs</button>
+            <button type="button" id="oastCopyUrls">Copy labeled URLs</button>
           </div>
         ` : '<p class="muted">Need oast:write to mint</p>'}
+        <div id="oastMintCards" class="muted" style="margin-top:8px">Mint to get callback URLs</div>
         <div class="outbox empty" id="oastMintOut" style="flex:1;max-height:none">-</div>
       `},
       { id: "oasthits", label: "Hits", html: `
@@ -1302,23 +1345,17 @@
         const note = (el("oastNote") && el("oastNote").value) || "";
         const r = await api("POST", "/api/v1/oast/tokens", { note });
         selectedOastId = r.id;
-        if (el("oastMintOut")) {
-          el("oastMintOut").textContent = JSON.stringify(r, null, 2);
-          el("oastMintOut").classList.remove("empty");
-        }
+        lastOastMint = r;
+        renderOastMintResult(r);
         if (el("oastHitToken")) el("oastHitToken").value = r.token || "";
         showOk("OAST token minted");
         await loadOastTokens();
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("oastCopyUrls")) el("oastCopyUrls").onclick = () => {
-      const t = el("oastMintOut") && el("oastMintOut").textContent;
-      if (!t || t === "-") return showError("Mint a token first");
-      try {
-        const o = JSON.parse(t);
-        const blob = [o.token, o.http_url, o.http_url_path, o.dns_name, o.smtp_to].filter(Boolean).join("\n");
-        navigator.clipboard.writeText(blob).then(() => showOk("Copied")).catch(() => showError("Copy failed"));
-      } catch (_) { showError("No mint result"); }
+      if (!lastOastMint) return showError("Mint a token first");
+      const blob = labeledOastUrls(lastOastMint);
+      navigator.clipboard.writeText(blob).then(() => showOk("Copied labeled URLs")).catch(() => showError("Copy failed"));
     };
     if (el("oastPoll")) el("oastPoll").onclick = () => pollOastHits();
     if (el("oastRevoke")) el("oastRevoke").onclick = async () => {

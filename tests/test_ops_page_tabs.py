@@ -56,6 +56,8 @@ async def test_all_views_use_page_tabs(tmp_path):
                 "oastTabs",
             ):
                 assert tid in js, f"missing tabs shell {tid}"
+            assert "labeledOastUrls" in js
+            assert "oast-copy-one" in js
 
             # INKO has Status & tools tab
             assert "aistatus" in js

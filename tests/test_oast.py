@@ -91,6 +91,50 @@ async def test_oast_http_hit(client, admin_headers):
 
 
 @pytest.mark.asyncio
+async def test_oast_urls_include_running_http_port(client, admin_headers):
+    lr = await client.post(
+        "/api/v1/listeners",
+        headers=admin_headers,
+        json={"name": "oast-http-port", "kind": "http", "port": 19051},
+    )
+    lid = lr.json()["id"]
+    await client.post(f"/api/v1/listeners/{lid}/start", headers=admin_headers)
+    r = await client.post("/api/v1/oast/tokens", headers=admin_headers, json={"note": "port"})
+    body = r.json()
+    assert ":19051" in body["http_url_path"]
+    assert body["http_port"] == 19051
+    await client.post(f"/api/v1/listeners/{lid}/stop", headers=admin_headers)
+
+
+@pytest.mark.asyncio
+async def test_oast_root_host_header_records_hit(client, admin_headers):
+    r = await client.post("/api/v1/oast/tokens", headers=admin_headers, json={"note": "root"})
+    token = r.json()["token"]
+    lr = await client.post(
+        "/api/v1/listeners",
+        headers=admin_headers,
+        json={"name": "oast-root", "kind": "http", "port": 19052},
+    )
+    lid = lr.json()["id"]
+    await client.post(f"/api/v1/listeners/{lid}/start", headers=admin_headers)
+    reader, writer = await asyncio.open_connection("127.0.0.1", 19052)
+    writer.write(
+        f"GET / HTTP/1.1\r\nHost: {token}.oast.lab.invalid\r\nConnection: close\r\n\r\n".encode()
+    )
+    await writer.drain()
+    await reader.read(4096)
+    writer.close()
+    try:
+        await writer.wait_closed()
+    except Exception:
+        pass
+    poll = await client.get(f"/api/v1/oast/hits?token={token}", headers=admin_headers)
+    hits = poll.json()["hits"]
+    assert any(h.get("token") == token for h in hits)
+    await client.post(f"/api/v1/listeners/{lid}/stop", headers=admin_headers)
+
+
+@pytest.mark.asyncio
 async def test_dns_oast_subdomain(client, admin_headers):
     r = await client.post("/api/v1/oast/tokens", headers=admin_headers, json={"note": "dns"})
     token = r.json()["token"]
