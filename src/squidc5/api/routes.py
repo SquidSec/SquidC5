@@ -96,6 +96,11 @@ class OastTokenCreate(BaseModel):
     meta: dict[str, Any] = Field(default_factory=dict)
 
 
+class OastTokenUpdate(BaseModel):
+    note: str | None = None
+    label: str | None = None
+
+
 # backward-compatible alias
 OastClientCreate = OastTokenCreate
 
@@ -3662,6 +3667,20 @@ def build_api_router() -> APIRouter:
             request, auth, token=token, protocol=protocol, client_id=client_id, since=since, limit=limit
         )
         return {"interactions": r["hits"], "count": r["count"]}
+
+    @api.patch("/oast/tokens/{token_id}")
+    async def oast_update_token(
+        token_id: str,
+        body: OastTokenUpdate,
+        request: Request,
+        auth: AuthContext = Depends(require_scope("oast:write", "admin")),
+    ) -> dict[str, Any]:
+        state = await _oast_or_403(request)
+        note = body.note if body.note is not None else body.label
+        row = await state.oast.update_token(token_id, note=note)
+        if not row:
+            raise HTTPException(404, "token not found")
+        return row
 
     @api.delete("/oast/tokens/{token_id}")
     async def oast_delete_token(

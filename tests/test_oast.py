@@ -55,6 +55,27 @@ async def test_oast_token_api_shape(client, admin_headers):
 
 
 @pytest.mark.asyncio
+async def test_oast_token_update_and_delete(client, admin_headers):
+    r = await client.post("/api/v1/oast/tokens", headers=admin_headers, json={"note": "old"})
+    assert r.status_code == 200
+    tid = r.json()["id"]
+    secret = r.json()["token"]
+    patched = await client.patch(
+        f"/api/v1/oast/tokens/{tid}",
+        headers=admin_headers,
+        json={"note": "renamed-canary"},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["note"] == "renamed-canary"
+    assert patched.json()["token"] == secret
+    got = await client.get(f"/api/v1/oast/tokens/{tid}", headers=admin_headers)
+    assert got.json()["note"] == "renamed-canary"
+    gone = await client.delete(f"/api/v1/oast/tokens/{tid}", headers=admin_headers)
+    assert gone.status_code == 200
+    assert (await client.get(f"/api/v1/oast/tokens/{tid}", headers=admin_headers)).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_oast_http_hit(client, admin_headers):
     r = await client.post(
         "/api/v1/oast/tokens",

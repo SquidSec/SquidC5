@@ -367,6 +367,21 @@ class OastService:
     async def poll(self, **kwargs: Any) -> list[dict[str, Any]]:
         return await self.list_hits(**kwargs)
 
+    async def update_token(self, token_id: str, *, note: str | None = None) -> dict[str, Any] | None:
+        row = await self.db.get_oast_client(token_id)
+        if not row:
+            return None
+        meta: dict[str, Any] | None = None
+        label = None
+        if note is not None:
+            n = str(note)[:200]
+            meta = {"note": n}
+            label = n or str(row.get("token") or "")
+        ok = await self.db.update_oast_client(token_id, label=label, meta=meta)
+        if not ok:
+            return None
+        return await self.get_token(token_id)
+
     async def delete_client(self, client_id: str) -> bool:
         return await self.db.delete_oast_client(client_id)
 

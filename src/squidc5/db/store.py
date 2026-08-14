@@ -1006,6 +1006,35 @@ class Database:
                 out[str(cid)] = int(r.get("n") or 0)
         return out
 
+    async def update_oast_client(
+        self,
+        client_id: str,
+        *,
+        label: str | None = None,
+        meta: dict[str, Any] | None = None,
+    ) -> bool:
+        row = await self.get_oast_client(client_id)
+        if not row:
+            return False
+        new_label = row.get("label") if label is None else label
+        raw_meta = row.get("meta")
+        if isinstance(raw_meta, str):
+            try:
+                cur_meta = json.loads(raw_meta)
+            except Exception:
+                cur_meta = {}
+        elif isinstance(raw_meta, dict):
+            cur_meta = dict(raw_meta)
+        else:
+            cur_meta = {}
+        if meta is not None:
+            cur_meta.update(meta)
+        cur = await self.execute(
+            "UPDATE oast_clients SET label = ?, meta = ? WHERE id = ?",
+            (new_label or "", json.dumps(cur_meta), client_id),
+        )
+        return cur.rowcount > 0
+
     async def delete_oast_client(self, client_id: str) -> bool:
         await self.execute("DELETE FROM oast_interactions WHERE client_id = ?", (client_id,))
         cur = await self.execute("DELETE FROM oast_clients WHERE id = ?", (client_id,))
