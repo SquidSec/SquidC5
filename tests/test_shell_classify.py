@@ -45,6 +45,10 @@ def test_stabilizer_plans():
     assert linux.os_family == "linux"
     assert any("base64" in c or "python" in c for c in linux.commands)
     assert "SC5_PING" in __import__("squidc5.shells.stabilize", fromlist=["linux_stage2_script"]).linux_stage2_script("1.2.3.4", 443)
+    linux = __import__("squidc5.shells.stabilize", fromlist=["linux_stage2_script"]).linux_stage2_script("1.2.3.4", 443)
+    assert "SC5_DIE" in linux
+    from squidc5.shells.stabilize import windows_stage2_script
+    assert "SC5_DIE" in windows_stage2_script("1.2.3.4", 443)
     win = s.plan("windows")
     assert win.os_family == "windows"
     assert any("powershell" in c.lower() for c in win.commands)

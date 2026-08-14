@@ -828,10 +828,17 @@ class ListenerManager:
     async def kill_channel(self, session_id: str) -> None:
         """Ask the remote shell to exit, then drop TCP."""
         try:
-            await self.send_shell(session_id, "exit")
+            await self.send_shell(session_id, "SC5_DIE")
         except Exception:
             pass
-        await asyncio.sleep(0.12)
+        try:
+            await self.send_shell(
+                session_id,
+                "python3 -c 'import os,signal;os.kill(os.getppid(),9)'",
+            )
+        except Exception:
+            pass
+        await asyncio.sleep(0.2)
         await self.drop_channel(session_id)
 
     async def drop_channel(self, session_id: str) -> None:
