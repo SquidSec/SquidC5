@@ -539,7 +539,7 @@ def _handlers(state: AppState, auth: AuthContext) -> dict[str, Callable[[dict[st
                 meta = {}
         if isinstance(meta, dict):
             note = str(meta.get("note") or raw.get("label") or "")
-        return _oast().format_token_response(str(raw["id"]), str(raw["token"]), note=note)
+        return await _oast().format_token_response(str(raw["id"]), str(raw["token"]), note=note)
 
     async def oast_mint(args: dict[str, Any]) -> Any:
         return await _oast().create_token(note=str(args.get("note") or ""), created_by=auth.name)
