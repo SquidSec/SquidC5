@@ -1294,8 +1294,15 @@
     rememberAllPageTabs(root);
     root.innerHTML = tabbedHtml([
       { id: "oasttok", label: "Tokens", html: `
+        <div class="form-grid" style="margin-bottom:8px">
+          <div class="full"><label>Selected note</label><input id="oastEditNote" placeholder="Select a token, then edit note" /></div>
+        </div>
         <div class="row" style="margin-bottom:8px">
           <button type="button" class="primary" id="oastRefresh">Refresh</button>
+          ${can("oast:write") ? `
+            <button type="button" id="oastSaveNote">Save note</button>
+            <button type="button" class="danger" id="oastDeleteBtn">Delete</button>
+          ` : ""}
         </div>
         <div style="flex:1;min-height:0;overflow:auto">
           <table class="data"><thead><tr>
@@ -1340,6 +1347,18 @@
     bindPageTabs(root);
     loadOastTokens();
     if (el("oastRefresh")) el("oastRefresh").onclick = () => loadOastTokens();
+    if (el("oastSaveNote")) el("oastSaveNote").onclick = async () => {
+      if (!selectedOastId) return showError("Select a token");
+      try {
+        const note = (el("oastEditNote") && el("oastEditNote").value) || "";
+        const r = await api("PATCH", "/api/v1/oast/tokens/" + encodeURIComponent(selectedOastId), { note });
+        lastOastMint = r;
+        renderOastMintResult(r);
+        showOk("Note saved");
+        await loadOastTokens();
+      } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el("oastDeleteBtn")) el("oastDeleteBtn").onclick = () => deleteSelectedOast();
     if (el("oastMintBtn")) el("oastMintBtn").onclick = async () => {
       try {
         const note = (el("oastNote") && el("oastNote").value) || "";
@@ -1358,16 +1377,7 @@
       navigator.clipboard.writeText(blob).then(() => showOk("Copied labeled URLs")).catch(() => showError("Copy failed"));
     };
     if (el("oastPoll")) el("oastPoll").onclick = () => pollOastHits();
-    if (el("oastRevoke")) el("oastRevoke").onclick = async () => {
-      if (!selectedOastId) return showError("Select a token on Tokens tab");
-      try {
-        await api("DELETE", "/api/v1/oast/tokens/" + encodeURIComponent(selectedOastId));
-        selectedOastId = null;
-        showOk("Revoked");
-        if (el("oastHitOut")) { el("oastHitOut").textContent = "-"; el("oastHitOut").classList.add("empty"); }
-        await loadOastTokens();
-      } catch (e) { showError(String(e.message || e)); }
-    };
+    if (el("oastRevoke")) el("oastRevoke").onclick = () => deleteSelectedOast();
   }
 
   async function loadOastTokens() {
@@ -1382,7 +1392,7 @@
       }
       tb.innerHTML = list.map((r) => {
         const sel = r.id === selectedOastId ? " selected" : "";
-        return `<tr data-oid="${esc(r.id)}" data-tok="${esc(r.token)}" class="${sel}">
+        return `<tr data-oid="${esc(r.id)}" data-tok="${esc(r.token)}" data-note="${esc(r.note || "")}" class="${sel}">
           <td>${esc(r.note || "")}</td>
           <td class="mono">${esc(r.token || "")}</td>
           <td>${esc(String(r.hit_count != null ? r.hit_count : 0))}</td>
@@ -1395,12 +1405,30 @@
           const tok = tr.getAttribute("data-tok") || "";
           tb.querySelectorAll("tr").forEach((x) => x.classList.toggle("selected", x === tr));
           if (el("oastHitToken")) el("oastHitToken").value = tok;
+          if (el("oastEditNote")) el("oastEditNote").value = tr.getAttribute("data-note") || "";
           pollOastHits();
         };
       });
     } catch (e) {
       tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(String(e.message || e))}</td></tr>`;
     }
+  }
+
+  async function deleteSelectedOast() {
+    if (!selectedOastId) return showError("Select a token");
+    const ok = await askConfirm("Delete this OAST token and all its hits?", { danger: true, okLabel: "Delete" });
+    if (!ok) return;
+    try {
+      await api("DELETE", "/api/v1/oast/tokens/" + encodeURIComponent(selectedOastId));
+      selectedOastId = null;
+      lastOastMint = null;
+      if (el("oastEditNote")) el("oastEditNote").value = "";
+      if (el("oastHitToken")) el("oastHitToken").value = "";
+      if (el("oastHitOut")) { el("oastHitOut").textContent = "-"; el("oastHitOut").classList.add("empty"); }
+      if (el("oastMintCards")) { el("oastMintCards").className = "muted"; el("oastMintCards").textContent = "Mint to get callback URLs"; }
+      showOk("Deleted");
+      await loadOastTokens();
+    } catch (e) { showError(String(e.message || e)); }
   }
 
   async function pollOastHits() {
