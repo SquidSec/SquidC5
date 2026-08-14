@@ -682,6 +682,17 @@
         renderContext(true);
       } catch (e) { showError(String(e.message || e)); }
     };
+    if (q("#ctxKill")) q("#ctxKill").onclick = async () => {
+      if (!selectedId) return showError("Select a session");
+      if (!(await askConfirm("Kill this shell? Drops TCP and marks the session closed."))) return;
+      const sid = selectedId;
+      try {
+        await api("POST", "/api/v1/sessions/" + encodeURIComponent(sid) + "/close");
+        showOk("Shell killed");
+        selectSession(null);
+        if (window.__SC5_refresh) await window.__SC5_refresh();
+      } catch (e) { showError(String(e.message || e)); }
+    };
     if (q("#ctxRun")) q("#ctxRun").onclick = () => { runShell(); };
     if (q("#ctxCmd")) {
       q("#ctxCmd").onkeydown = (ev) => {
@@ -728,6 +739,7 @@
         <div class="row" style="margin-top:8px">
           <button type="button" class="primary sm" id="ctxRun">Run</button>
           <button type="button" class="primary sm" id="ctxStabilize">Stabilize shell</button>
+          ${can("sessions:write") ? '<button type="button" class="danger sm" id="ctxKill">Kill shell</button>' : ""}
         </div>
         <p class="muted" style="font-size:0.68rem;margin:6px 0 0">Stage-2 inject (Linux/Windows auto-detect). Auto-stabilize is OFF by default.</p>
       </div>` : `
@@ -977,7 +989,7 @@
           <span class="muted" id="sesCount">${rows.length} active</span>
           ${can("sessions:write") ? '<button type="button" class="ghost sm" id="sesReap">Reap dead</button>' : ""}
           <button type="button" class="ghost sm" id="sesRefresh">Refresh</button>
-          ${can("sessions:write") ? '<button type="button" class="danger sm" id="sesClose" style="margin-left:auto">Close</button>' : ""}
+          ${can("sessions:write") ? '<button type="button" class="danger sm" id="sesClose" style="margin-left:auto">Kill shell</button>' : ""}
         </div>
         <div class="ses-list-wrap" style="flex:1;min-height:0;overflow:auto">
           ${rows.length
@@ -1011,16 +1023,17 @@
     };
     if (el("sesClose")) el("sesClose").onclick = async () => {
       if (!selectedId) return showError("Select a session");
+      if (!(await askConfirm("Kill this shell? Drops TCP and marks the session closed."))) return;
       const sid = selectedId;
       try {
         await api("POST", "/api/v1/sessions/" + encodeURIComponent(sid) + "/close");
-        showOk("Closed");
+        showOk("Shell killed");
         selectSession(null);
         if (window.__SC5_refresh) await window.__SC5_refresh();
       } catch (e) {
         try {
           await api("DELETE", "/api/v1/sessions/" + encodeURIComponent(sid));
-          showOk("Closed");
+          showOk("Shell killed");
           selectSession(null);
           if (window.__SC5_refresh) await window.__SC5_refresh();
         } catch (e2) { showError(String(e2.message || e2)); }

@@ -25,6 +25,7 @@ class SessionManager:
         self.exec_probe: Callable[[str], Any] | None = None
         # Optional async drop of TCP channel
         self.drop_channel: Callable[[str], Any] | None = None
+        self.kill_channel: Callable[[str], Any] | None = None
 
     async def register(
         self,
@@ -72,11 +73,13 @@ class SessionManager:
         await self.metrics.emit("session.heartbeat", {"id": session_id})
 
     async def close(self, session_id: str, *, drop: bool = True) -> None:
-        if drop and self.drop_channel is not None:
-            try:
-                await self.drop_channel(session_id)
-            except Exception:
-                pass
+        if drop:
+            killer = getattr(self, "kill_channel", None) or self.drop_channel
+            if killer is not None:
+                try:
+                    await killer(session_id)
+                except Exception:
+                    pass
         await self.db.update_session(session_id, status="closed")
         async with self._lock:
             self._live.pop(session_id, None)

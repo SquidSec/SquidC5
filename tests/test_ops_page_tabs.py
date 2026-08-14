@@ -61,6 +61,8 @@ async def test_all_views_use_page_tabs(tmp_path):
             assert "oastSaveNote" in js
             assert "oastDeleteBtn" in js
             assert "deleteSelectedOast" in js
+            assert "ctxKill" in js
+            assert "Kill shell" in js
 
             # INKO has Status & tools tab
             assert "aistatus" in js

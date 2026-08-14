@@ -124,6 +124,7 @@ async def build_state(settings: Settings) -> AppState:
     sessions.verified_check = listeners.is_verified
     sessions.exec_probe = listeners.probe_exec
     sessions.drop_channel = listeners.drop_channel
+    sessions.kill_channel = listeners.kill_channel
     listeners.feature_check = features.enabled
     listeners.profile_engine = profiles
     # After restart, reverse_shell rows can still say active with no socket

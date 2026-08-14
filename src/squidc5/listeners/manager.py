@@ -825,6 +825,15 @@ class ListenerManager:
     # session ids that passed probe_exec
     # note: initialized in __init__ via attribute set below if missing
 
+    async def kill_channel(self, session_id: str) -> None:
+        """Ask the remote shell to exit, then drop TCP."""
+        try:
+            await self.send_shell(session_id, "exit")
+        except Exception:
+            pass
+        await asyncio.sleep(0.12)
+        await self.drop_channel(session_id)
+
     async def drop_channel(self, session_id: str) -> None:
         """Force-close a live TCP channel (used after failed exec probe)."""
         self._rejected.add(session_id)
