@@ -80,6 +80,20 @@ async def test_all_views_use_page_tabs(tmp_path):
             assert "bindSubTabs" in js
             assert "hostZoomIn" in js
 
+            assert 'id="ctxCmd" rows="4"' in js
+            assert 'id="ctxTask" rows="4"' in js
+            assert 'id="tskCmd" rows="4"' in js
+            assert 'id="chMsg" rows="4"' in js
+            assert 'id="tmNote" rows="4"' in js
+            assert 'id="oastNote" rows="4"' in js
+            assert 'id="aiPromptGlobal" rows="4"' in html
+            assert "min-height: calc(1.35em * 4 + 18px)" in html
+            assert "oastHitCards" in js
+            assert "oastHitCopyJson" in js
+            assert "llm-card" in js
+            assert "min-height:240px" in js
+            assert 'renderContextInto(el("sesCtxMount"), force)' in js
+
 
 @pytest.mark.asyncio
 async def test_bootstrap_admin_name_is_squidc5_admin(tmp_path):
