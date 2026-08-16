@@ -293,8 +293,11 @@
       <div class="row">
         <button type="button" class="primary" id="${prefix}Save" ${canSave ? "" : "disabled"}>Save LLM</button>
         <button type="button" id="${prefix}List">List saved</button>
+        <button type="button" class="ghost" id="${prefix}CopyJson">Copy JSON</button>
+        <button type="button" class="ghost" id="${prefix}ToggleJson">View JSON</button>
       </div>
-      <div class="outbox empty" id="${prefix}Out">-</div>`;
+      <div class="llm-cards" id="${prefix}Cards"></div>
+      <div class="outbox empty hidden" id="${prefix}Out">-</div>`;
   }
   function bindLlmForm(prefix) {
     const applyProvider = () => {
@@ -440,9 +443,38 @@
     if (el(prefix + "List")) el(prefix + "List").onclick = async () => {
       try {
         const r = await api("GET", "/api/v1/llm");
-        el(prefix + "Out").textContent = JSON.stringify(r, null, 2);
-        el(prefix + "Out").classList.remove("empty");
+        const list = Array.isArray(r) ? r : [];
+        const cards = el(prefix + "Cards");
+        const out = el(prefix + "Out");
+        if (cards) {
+          cards.innerHTML = list.length ? list.map((L) => `
+            <article class="llm-card">
+              <h4>${esc(L.name || L.id || "LLM")}</h4>
+              <dl>
+                <dt>ID</dt><dd class="mono">${esc(L.id || "-")}</dd>
+                <dt>Provider</dt><dd>${esc(L.provider || "-")}</dd>
+                <dt>Model</dt><dd class="mono">${esc(L.model || "-")}</dd>
+                <dt>Base URL</dt><dd class="mono">${esc(L.base_url || "-")}</dd>
+              </dl>
+            </article>`).join("") : '<p class="muted">No saved LLM connections.</p>';
+        }
+        if (out) {
+          out.textContent = JSON.stringify(r, null, 2);
+          out.classList.remove("empty");
+        }
       } catch (e) { showError(String(e.message || e)); }
+    };
+    if (el(prefix + "CopyJson")) el(prefix + "CopyJson").onclick = async () => {
+      const out = el(prefix + "Out");
+      const txt = out && out.textContent && out.textContent !== "-" ? out.textContent : "";
+      if (!txt) return showError("List saved first");
+      try { await navigator.clipboard.writeText(txt); showOk("JSON copied"); }
+      catch (_) { showError("Clipboard unavailable"); }
+    };
+    if (el(prefix + "ToggleJson")) el(prefix + "ToggleJson").onclick = () => {
+      const out = el(prefix + "Out");
+      if (!out) return;
+      out.classList.toggle("hidden");
     };
     // defaults
     if (el(prefix + "Provider") && !el(prefix + "Provider").dataset.bound) {
@@ -735,7 +767,7 @@
     const shellTab = shellOk ? `
       <div class="sub-tab-panel${shellFirst ? " active" : ""}" data-stab-panel="shell">
         <label for="ctxCmd">Command</label>
-        <textarea id="ctxCmd" rows="3" placeholder="whoami"></textarea>
+        <textarea id="ctxCmd" rows="4" placeholder="whoami"></textarea>
         <div class="row" style="margin-top:8px">
           <button type="button" class="primary sm" id="ctxRun">Run</button>
           <button type="button" class="primary sm" id="ctxStabilize">Stabilize shell</button>
@@ -749,7 +781,7 @@
     const taskTab = canTask ? `
       <div class="sub-tab-panel${!shellFirst ? " active" : ""}" data-stab-panel="task">
         <label for="ctxTask">Beacon / task command</label>
-        <input id="ctxTask" placeholder="id / sysinfo / pwd" />
+        <textarea id="ctxTask" rows="4" placeholder="id / sysinfo / pwd"></textarea>
         <div class="row" style="margin-top:8px">
           <button type="button" class="primary sm" id="ctxTaskBtn">Queue task</button>
         </div>
@@ -827,6 +859,13 @@
       if (hostEl && hostEl.style && hostEl.style.fontWeight) {
         hostEl.textContent = s.hostname || s.remote_addr || "session";
       }
+      const dds = body.querySelectorAll("#ctxMeta .meta-rows dd");
+      if (dds.length >= 4) {
+        dds[0].textContent = s.id || "";
+        dds[1].textContent = s.username || "-";
+        dds[2].textContent = s.os_info || "-";
+        dds[3].textContent = s.remote_addr || "-";
+      }
       return;
     }
     body.innerHTML = ctxPanelHtml(s, claim);
@@ -876,7 +915,7 @@
       await renderContextInto(el("hostCtxMount"), force);
     }
     if (el("sesCtxMount") && el("sesCtxMount") !== body) {
-      await renderContextInto(el("sesCtxMount"), true);
+      await renderContextInto(el("sesCtxMount"), force);
     }
   }
 
@@ -1007,7 +1046,7 @@
         </div>
         <div id="tskList" style="flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:6px"></div>
         <label for="tskCmd">Edit command (pending only)</label>
-        <input id="tskCmd" placeholder="select a pending task" />
+        <textarea id="tskCmd" rows="4" placeholder="select a pending task"></textarea>
       `},
     ], { id: "sessionsTabs" });
     viewBuilt.sessions = true;
@@ -1255,6 +1294,7 @@
 
   let selectedOastId = null;
   let lastOastMint = null;
+  let lastOastHitsJson = "";
 
   function labeledOastUrls(o) {
     return [
@@ -1308,7 +1348,7 @@
     root.innerHTML = tabbedHtml([
       { id: "oasttok", label: "Tokens", html: `
         <div class="form-grid" style="margin-bottom:8px">
-          <div class="full"><label>Selected note</label><input id="oastEditNote" placeholder="Select a token, then edit note" /></div>
+          <div class="full"><label>Selected note</label><textarea id="oastEditNote" rows="4" placeholder="Select a token, then edit note"></textarea></div>
         </div>
         <div class="row" style="margin-bottom:8px">
           <button type="button" class="primary" id="oastRefresh">Refresh</button>
@@ -1326,7 +1366,7 @@
       { id: "oastmint", label: "Mint", html: `
         ${can("oast:write") ? `
           <div class="form-grid">
-            <div class="full"><label>Note</label><input id="oastNote" placeholder="sqli-oob / xss-canary" /></div>
+            <div class="full"><label>Note</label><textarea id="oastNote" rows="4" placeholder="sqli-oob / xss-canary"></textarea></div>
           </div>
           <div class="row">
             <button type="button" class="primary" id="oastMintBtn">Mint token</button>
@@ -1352,8 +1392,13 @@
           <button type="button" class="primary" id="oastPoll">Poll hits</button>
           ${can("oast:write") ? '<button type="button" class="danger" id="oastRevoke">Revoke selected</button>' : ""}
         </div>
-        <p class="muted mono" id="oastHitCount" style="font-size:0.72rem;margin:6px 0 0">count: -</p>
-        <div class="outbox empty" id="oastHitOut" style="flex:1;max-height:none">-</div>
+         <p class="muted mono" id="oastHitCount" style="font-size:0.72rem;margin:6px 0 0">count: -</p>
+         <div class="row" style="margin-top:6px">
+           <button type="button" class="ghost sm" id="oastHitCopyJson">Copy JSON</button>
+           <button type="button" class="ghost sm" id="oastHitToggleJson">View JSON</button>
+         </div>
+         <div class="hit-cards" id="oastHitCards"></div>
+         <div class="outbox empty hidden" id="oastHitOut" style="flex:1;max-height:none">-</div>
       `},
     ], { id: "oastTabs" });
     viewBuilt.oast = true;
@@ -1391,6 +1436,15 @@
     };
     if (el("oastPoll")) el("oastPoll").onclick = () => pollOastHits();
     if (el("oastRevoke")) el("oastRevoke").onclick = () => deleteSelectedOast();
+    if (el("oastHitCopyJson")) el("oastHitCopyJson").onclick = async () => {
+      if (!lastOastHitsJson) return showError("Poll hits first");
+      try { await navigator.clipboard.writeText(lastOastHitsJson); showOk("JSON copied"); }
+      catch (_) { showError("Clipboard unavailable"); }
+    };
+    if (el("oastHitToggleJson")) el("oastHitToggleJson").onclick = () => {
+      const out = el("oastHitOut");
+      if (out) out.classList.toggle("hidden");
+    };
   }
 
   async function loadOastTokens() {
@@ -1438,6 +1492,8 @@
       if (el("oastEditNote")) el("oastEditNote").value = "";
       if (el("oastHitToken")) el("oastHitToken").value = "";
       if (el("oastHitOut")) { el("oastHitOut").textContent = "-"; el("oastHitOut").classList.add("empty"); }
+      if (el("oastHitCards")) el("oastHitCards").innerHTML = "";
+      lastOastHitsJson = "";
       if (el("oastMintCards")) { el("oastMintCards").className = "muted"; el("oastMintCards").textContent = "Mint to get callback URLs"; }
       showOk("Deleted");
       await loadOastTokens();
@@ -1453,10 +1509,37 @@
     q.set("limit", "200");
     try {
       const r = await api("GET", "/api/v1/oast/hits?" + q.toString());
-      if (el("oastHitCount")) el("oastHitCount").textContent = "count: " + (r.count != null ? r.count : (r.hits || []).length);
+      const hits = r.hits || [];
+      if (el("oastHitCount")) el("oastHitCount").textContent = "count: " + (r.count != null ? r.count : hits.length);
+      lastOastHitsJson = JSON.stringify(r, null, 2);
       if (el("oastHitOut")) {
-        el("oastHitOut").textContent = JSON.stringify(r, null, 2);
+        el("oastHitOut").textContent = lastOastHitsJson;
         el("oastHitOut").classList.remove("empty");
+      }
+      const cards = el("oastHitCards");
+      if (cards) {
+        cards.innerHTML = hits.length ? hits.map((h) => {
+          const raw = h.raw || {};
+          const method = raw.method || h.method || "";
+          const path = raw.path || h.path || "";
+          const q = raw.query && Object.keys(raw.query).length ? JSON.stringify(raw.query) : "";
+          const ua = (raw.headers && (raw.headers["user-agent"] || raw.headers["User-Agent"])) || "";
+          const host = (raw.headers && (raw.headers.host || raw.headers.Host)) || "";
+          const when = h.ts || h.created_at || h.time || raw.ts || "";
+          return `<article class="hit-card">
+            <h4><span class="chip">${esc(h.protocol || "?")}</span> ${esc(method)} ${esc(path || h.token || "")}</h4>
+            <dl>
+              <dt>Remote</dt><dd class="mono">${esc(h.remote || raw.remote || "-")}</dd>
+              <dt>Token</dt><dd class="mono">${esc(h.token || "-")}</dd>
+              <dt>Hit ID</dt><dd class="mono">${esc(h.id || "-")}</dd>
+              ${when ? `<dt>Time</dt><dd>${esc(String(when))}</dd>` : ""}
+              ${host ? `<dt>Host</dt><dd class="mono">${esc(host)}</dd>` : ""}
+              ${q ? `<dt>Query</dt><dd class="mono">${esc(q)}</dd>` : ""}
+              ${ua ? `<dt>User-Agent</dt><dd>${esc(ua)}</dd>` : ""}
+              ${h.listener_id ? `<dt>Listener</dt><dd class="mono">${esc(h.listener_id)}</dd>` : ""}
+            </dl>
+          </article>`;
+        }).join("") : '<p class="muted">No hits yet.</p>';
       }
     } catch (e) { showError(String(e.message || e)); }
   }
@@ -1664,7 +1747,7 @@
         <label>Team channel (optional id)</label>
         <input id="chTeam" placeholder="leave empty for global" />
         <label>Message</label>
-        <input id="chMsg" placeholder="status update..." />
+        <textarea id="chMsg" rows="4" placeholder="status update..."></textarea>
         <div class="row">
           <button type="button" class="primary" id="chSend" ${can("collab:use") || can("admin") ? "" : "disabled"}>Send</button>
           <button type="button" class="ghost" id="chReload">Reload</button>
@@ -1682,7 +1765,7 @@
         <label>Handoff to (actor)</label>
         <input id="tmTo" placeholder="bob" />
         <label>Note</label>
-        <textarea id="tmNote" rows="2"></textarea>
+        <textarea id="tmNote" rows="4"></textarea>
         <div class="row"><button type="button" id="tmHandoff">Handoff selected session</button></div>
         <div class="outbox empty" id="tmOut" style="flex:1;max-height:none">-</div>
       `},
@@ -2501,7 +2584,7 @@
                 <button type="button" id="adCancelEdit" class="hidden">Cancel edit</button>
                 <button type="button" class="ghost" id="adTokRefresh">Refresh list</button>
               </div>
-              <div id="adTokTable" style="margin-top:8px;overflow:auto;flex:1;min-height:120px"></div>
+               <div id="adTokTable" style="margin-top:8px;overflow:auto;flex:1;min-height:240px"></div>
       `},
       { id: "adfeat", label: "Features", html: `
               <div class="row">
@@ -2510,8 +2593,8 @@
                 <button type="button" class="primary" id="adFeatSave">Save features</button>
               </div>
               <p class="muted" style="font-size:0.72rem;margin:8px 0">Runtime switches. Auto stage-2 defaults OFF.</p>
-              <div id="adFeatGrid" class="scope-grid" style="max-height:min(50vh,400px);flex:1"></div>
-              <div class="outbox empty" id="adOut" style="max-height:180px">-</div>
+               <div id="adFeatGrid" class="scope-grid"></div>
+               <div class="outbox empty" id="adOut" style="max-height:min(40vh,280px);overflow:auto">-</div>
       `},
       { id: "adprof", label: "Profile", html: `
               <p class="muted" style="font-size:0.78rem;margin:0 0 8px">Display name for collab/audit (default on new install: squidc5-admin).</p>

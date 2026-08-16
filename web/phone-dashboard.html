@@ -92,6 +92,13 @@
       width: 100%; background: #0e0e14; border: 1px solid var(--border2);
       border-radius: 6px; padding: 7px 10px; outline: none;
     }
+    textarea {
+      min-height: calc(1.35em * 4 + 18px);
+      max-height: min(50vh, 28rem);
+      overflow: auto;
+      resize: vertical;
+      line-height: 1.35;
+    }
     /* Room for native/custom chevron so text never collides with the arrow */
     select {
       padding-right: 2rem;
@@ -576,7 +583,7 @@
     }
     .ses-detail-out {
       flex: 0 0 auto;
-      min-height: 80px;
+      min-height: calc(1.35em * 4 + 18px);
       max-height: 22vh;
       margin-top: 8px;
       overflow: auto;
@@ -698,6 +705,28 @@
       min-height: 220px;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     }
+    #adTokTable {
+      min-height: 240px;
+      max-height: min(70vh, 560px);
+      overflow: auto;
+    }
+    #adFeatGrid {
+      max-height: none !important;
+      min-height: 0 !important;
+      height: auto;
+      flex: 0 0 auto !important;
+      overflow: visible;
+    }
+    .llm-cards, .hit-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; flex: 1; min-height: calc(1.35em * 8 + 18px); overflow: auto; }
+    .llm-card, .hit-card {
+      background: #0e0e14; border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .llm-card h4, .hit-card h4 { margin: 0 0 6px; font-size: 0.88rem; }
+    .llm-card dl, .hit-card dl { display: grid; grid-template-columns: 7.5rem 1fr; gap: 3px 10px; margin: 0; font-size: 0.78rem; }
+    .llm-card dt, .hit-card dt { color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.65rem; }
+    .llm-card dd, .hit-card dd { margin: 0; word-break: break-word; }
+    .hit-card .hit-raw { margin-top: 8px; max-height: 180px; overflow: auto; font-size: 0.72rem; }
     #adMcpGrid {
       max-height: min(36vh, 320px) !important;
       min-height: 120px;
@@ -745,6 +774,7 @@
     .outbox {
       background: #08080c; border: 1px solid var(--border); border-radius: 6px;
       padding: 8px 10px; font-family: var(--mono); font-size: 0.75rem;
+      min-height: calc(1.35em * 4 + 18px);
       max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word;
       color: #d4d4de; margin-top: 8px;
     }
@@ -1524,7 +1554,7 @@
             <select id="aiModelGlobal" title="Model" disabled><option value="">Model...</option></select>
           </div>
         </div>
-        <textarea id="aiPromptGlobal" rows="3" placeholder="Ask INKO anything - list sessions, spin up a listener..."></textarea>
+        <textarea id="aiPromptGlobal" rows="4" placeholder="Ask INKO anything - list sessions, spin up a listener..."></textarea>
         <div class="row" style="margin:0;gap:6px">
           <button type="button" class="primary" id="aiSendGlobal" style="flex:1">Send</button>
           <button type="button" id="aiClearGlobal" title="Clear chat">Clear</button>
