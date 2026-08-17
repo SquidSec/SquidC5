@@ -34,7 +34,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
 
-Or use release binaries: `sc5-linux-x64` from [GitHub Releases](https://github.com/SquidSec/SquidC5/releases/latest).
+Or use release binaries: `sc5-linux-x64` or `sc5-linux-arm64` (Raspberry Pi 64-bit) from [GitHub Releases](https://github.com/SquidSec/SquidC5/releases/latest).
 
 ### Verify
 

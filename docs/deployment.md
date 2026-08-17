@@ -304,7 +304,7 @@ Pipeline:
 1. Open PR -> CI tests must pass
 2. Merge to `main` / `master`
 3. Main CI builds standalone binaries (`sc5`, `squidc5`) and publishes a GitHub Release
-4. Download **Linux `squidc5-linux-x64`** from that Release
+4. Download **Linux `squidc5-linux-x64`** (or **`squidc5-linux-arm64`** on Raspberry Pi 64-bit) from that Release
 5. Deploy **only that executable**; keep `data/` intact
 
 **Forbidden on prod:** rsync of WIP source, `docker compose up --build` from dirty checkout, feature-branch-only binaries.
@@ -316,6 +316,8 @@ Pipeline:
 - Install dir e.g. `/opt/squidc5/bin/squidc5`
 - Data dir e.g. `/opt/squidc5/data`
 - Unit: [`packaging/squidc5.service`](../packaging/squidc5.service)
+
+Raspberry Pi (64-bit OS, `aarch64`): use `squidc5-linux-arm64` / `sc5-linux-arm64`. 32-bit Raspberry Pi OS is not supported.
 
 ### Commands
 

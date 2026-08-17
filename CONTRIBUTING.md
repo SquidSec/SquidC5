@@ -35,8 +35,8 @@ ruff check src tests
 
 ## CI
 
-- **CI** workflow: pytest (3.11/3.12), ruff, Docker smoke, pip-audit; Linux/Windows binaries + GitHub Release on push to `master`.
-- **Public SquidC5 CI uses GitHub-hosted runners** (`ubuntu-latest` / `windows-latest`). Org self-hosted runners do not accept public repos.
+- **CI** workflow: pytest (3.11/3.12), ruff, Docker smoke, pip-audit; Linux x64/ARM64 + Windows binaries + GitHub Release on push to `master`.
+- **Public SquidC5 CI uses GitHub-hosted runners** (`ubuntu-latest` / `ubuntu-24.04-arm` / `windows-latest`). Org self-hosted runners do not accept public repos.
 - Actions are **SHA-pinned**; fork PR jobs that touch secrets are still gated to same-repo PRs. Fork contributors: run the local checks above and note results in the PR.
 - **`master` is protected**: PR required, status checks (`test (3.12)`, `security`), no force-push.
 - **SquidGate** (when configured): optional PR security gate. Repository secret `LLM_API_KEY` enables full analysis when available.
