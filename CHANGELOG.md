@@ -7,6 +7,7 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Release assets `sc5-linux-arm64` / `squidc5-linux-arm64` (Raspberry Pi OS 64-bit)
 - **INKO** (Intelligent Neural Kinetic Operator): rebrand of ops neural operator chat
 - INKO opens from a **top-bar button** as a right flyout panel (full-screen on mobile); floating FAB removed
 - SOCKS5 **duplex**: direct mode + implant reverse-dial bridge (`socks:connect`)

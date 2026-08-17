@@ -1464,7 +1464,7 @@ docker exec squidc5 cat /data/admin_token.txt
 **Production (binary only):**
 
 1. PR -> CI green -> merge `master`
-2. CI builds `squidc5-linux-x64` + GitHub Release
+2. CI builds `squidc5-linux-x64` / `squidc5-linux-arm64` + GitHub Release
 3. Deploy **that binary only**; keep `data/` intact
 
 ### Example

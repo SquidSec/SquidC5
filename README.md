@@ -91,8 +91,10 @@ Every push to `master` builds and releases:
 
 | Asset | Role |
 |-------|------|
-| `squidc5-linux-x64` | Teamserver |
-| `sc5-linux-x64` | Operator CLI |
+| `squidc5-linux-x64` | Teamserver (amd64) |
+| `sc5-linux-x64` | Operator CLI (amd64) |
+| `squidc5-linux-arm64` | Teamserver (Raspberry Pi / aarch64) |
+| `sc5-linux-arm64` | Operator CLI (Raspberry Pi / aarch64) |
 | `sc5beacon-*` (CI artifact) | Native implant |
 | `SHA256SUMS.txt` / `sbom.cdx.json` | Integrity |
 

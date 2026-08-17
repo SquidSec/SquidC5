@@ -74,7 +74,7 @@ merge main -> CI builds Linux/Windows binaries -> GitHub Release published
 
 Releases: `https://github.com/SquidSec/SquidC5/releases` (created by CI job `github-release` on `master` only).
 
-Public CI runs on **GitHub-hosted** runners (org self-hosted runners disallow public repositories). Prefer PRs into protected `master`.
+Public CI runs on **GitHub-hosted** runners (`ubuntu-latest`, `ubuntu-24.04-arm`, `windows-latest`; org self-hosted runners disallow public repositories). Prefer PRs into protected `master`. Releases include `squidc5-linux-x64` and `squidc5-linux-arm64` (Raspberry Pi 64-bit).
 
 - **Never** commit/push straight to `main`/`master`
 - **Never** rsync WIP source or `docker compose up --build` to prod
