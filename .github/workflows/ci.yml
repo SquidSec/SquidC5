@@ -6,8 +6,7 @@ on:
   pull_request:
     branches: [main, master]
 
-# Public repo CI runs on GitHub-hosted runners (ubuntu-latest / ubuntu-24.04-arm / windows-latest).
-# Org self-hosted runners disallow public repos (RCE / LAN risk).
+# Self-hosted only (squidsec). No GitHub-hosted runners.
 # SECURITY: same-repo PRs only for jobs that could touch secrets / heavy build.
 
 concurrency:
@@ -18,7 +17,7 @@ jobs:
   test:
     # PRs: 3.12 only (faster). master/main push: 3.11 + 3.12 matrix.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     strategy:
       fail-fast: false
       matrix:
@@ -60,7 +59,7 @@ jobs:
 
   native-agent:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     needs: test
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -100,7 +99,7 @@ jobs:
 
   docker:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     needs: test
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -139,7 +138,7 @@ jobs:
 
   security:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up Python
@@ -172,13 +171,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-latest
+          - runner: [self-hosted, Linux, X64, squidsec]
             artifact: linux-x64
             is_windows: false
-          - runner: ubuntu-24.04-arm
-            artifact: linux-arm64
-            is_windows: false
-          - runner: windows-latest
+          - runner: [self-hosted, Windows, X64, squidsec]
             artifact: windows-x64
             is_windows: true
     runs-on: ${{ matrix.runner }}
@@ -282,7 +278,7 @@ jobs:
     name: github-release
     needs: [test, binaries]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, squidsec]
     permissions:
       contents: write
     steps:
