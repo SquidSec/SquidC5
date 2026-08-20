@@ -56,7 +56,7 @@ def resolve_token(args: argparse.Namespace) -> str | None:
 
 
 def pp(data: Any) -> None:
-    if isinstance(data, (dict, list)):
+    if isinstance(data, dict | list):
         print(json.dumps(data, indent=2, default=str))
     else:
         print(data)

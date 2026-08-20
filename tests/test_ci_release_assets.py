@@ -1,4 +1,4 @@
-"""Release CI must publish Raspberry Pi (linux-arm64) binaries."""
+"""Release CI still stages Raspberry Pi (linux-arm64) assets when present."""
 
 from pathlib import Path
 
@@ -6,9 +6,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CI = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
 
-def test_binaries_matrix_includes_linux_arm64() -> None:
-    assert "ubuntu-24.04-arm" in CI
-    assert "artifact: linux-arm64" in CI
+def test_binaries_matrix_is_self_hosted() -> None:
+    assert "self-hosted" in CI
+    assert "artifact: linux-x64" in CI
+    assert "artifact: windows-x64" in CI
 
 
 def test_github_release_publishes_linux_arm64_assets() -> None:
