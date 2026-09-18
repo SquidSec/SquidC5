@@ -1377,8 +1377,9 @@
         <div class="outbox empty" id="oastMintOut" style="flex:1;max-height:none">-</div>
       `},
       { id: "oasthits", label: "Hits", html: `
+        <p class="muted" id="oastHitsMintedOnly">Only callbacks tied to minted OAST tokens. Scanner noise (no token) is omitted.</p>
         <div class="form-grid">
-          <div><label>Token</label><input id="oastHitToken" placeholder="hex token" /></div>
+          <div><label>Token</label><input id="oastHitToken" placeholder="hex token (minted)" /></div>
           <div><label>Protocol</label>
             <select id="oastHitProto">
               <option value="">all</option>
@@ -1509,9 +1510,9 @@
     q.set("limit", "200");
     try {
       const r = await api("GET", "/api/v1/oast/hits?" + q.toString());
-      const hits = r.hits || [];
-      if (el("oastHitCount")) el("oastHitCount").textContent = "count: " + (r.count != null ? r.count : hits.length);
-      lastOastHitsJson = JSON.stringify(r, null, 2);
+      const hits = (r.hits || []).filter((h) => h && h.client_id);
+      if (el("oastHitCount")) el("oastHitCount").textContent = "count: " + hits.length;
+      lastOastHitsJson = JSON.stringify({ hits, count: hits.length }, null, 2);
       if (el("oastHitOut")) {
         el("oastHitOut").textContent = lastOastHitsJson;
         el("oastHitOut").classList.remove("empty");

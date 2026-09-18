@@ -16,6 +16,7 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 - Docs: Diátaxis index, Artifacts / Profiles / OAST / TLS cert library chapters, Ops nav map
 
 ### Changed
+- OAST Hits page and `GET /api/v1/oast/hits` list only callbacks tied to minted tokens (scanner noise omitted)
 - Ops UI and chat system prompt use **INKO** naming; user guide / runbook / README / AGENTS updated
 - INKO chat: **persisted history** (browser localStorage), clear input on send, pending indicator, block send while waiting, **markdown** rendering for assistant replies
 - **Documentation consistency pass:** user guide What/Why/How/Example/See also; runbook Goal/Prereqs/Steps/Verify; deployment Context/Config/Commands/Verify; fixed cross-links and Ops Docs menu anchors

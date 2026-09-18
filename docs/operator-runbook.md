@@ -449,6 +449,7 @@ sc5 --insecure oast token create --note "sqli-oob"
 sc5 --insecure oast tokens list
 sc5 --insecure oast hits --token <TOKEN>
 sc5 --insecure oast hits --token <TOKEN> --protocol dns
+# Hits without a minted token (internet scanners) are omitted
 ```
 
 DNS listener config: `--zone oast.example.com --dns-mode both` (or `oast` / `beacon`). 

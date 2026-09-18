@@ -90,6 +90,8 @@ async def test_all_views_use_page_tabs(tmp_path):
             assert "min-height: calc(1.35em * 4 + 18px)" in html
             assert "oastHitCards" in js
             assert "oastHitCopyJson" in js
+            assert "oastHitsMintedOnly" in js
+            assert "tied to minted OAST tokens" in js
             assert "llm-card" in js
             assert "min-height:240px" in js
             assert 'renderContextInto(el("sesCtxMount"), force)' in js
