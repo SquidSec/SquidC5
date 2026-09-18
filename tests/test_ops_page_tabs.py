@@ -98,6 +98,11 @@ async def test_all_views_use_page_tabs(tmp_path):
             assert "oastHitCopyJson" in js
             assert "oastHitsMintedOnly" in js
             assert "tied to minted OAST tokens" in js
+            assert js.index('id: "oasthits"') < js.index('id: "oasttok"')
+            assert "oastHitPollOn" in js
+            assert "oastHitPollSec" in js
+            assert "startOastHitPoll" in js
+            assert 'min="1"' in js and 'max="60"' in js
             assert "llm-card" in js
             assert "min-height:240px" in js
             assert 'renderContextInto(el("sesCtxMount"), force)' in js
