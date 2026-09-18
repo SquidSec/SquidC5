@@ -1084,12 +1084,15 @@ class Database:
         since: float | None = None,
         limit: int = 100,
         token: str | None = None,
+        registered_only: bool = True,
     ) -> list[dict[str, Any]]:
         clauses: list[str] = []
         args: list[Any] = []
         if client_id:
             clauses.append("client_id = ?")
             args.append(client_id)
+        elif registered_only:
+            clauses.append("client_id IS NOT NULL AND client_id != ''")
         if token:
             clauses.append("token = ?")
             args.append(token.lower())

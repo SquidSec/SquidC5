@@ -299,6 +299,8 @@ class OastService:
     ) -> dict[str, Any]:
         if not client_id and token:
             client_id = await self.resolve_token(token)
+        if not client_id:
+            return {}
         summary = raw or {}
         if isinstance(summary.get("headers"), dict):
             summary = {**summary, "headers": strip_secrets(summary["headers"])}
@@ -352,15 +354,16 @@ class OastService:
     ) -> list[dict[str, Any]]:
         if token and not client_id:
             c = await self.db.get_oast_client_by_token(token.lower())
-            if c:
-                client_id = str(c["id"])
-            # also match by token column even if unregistered
+            if not c:
+                return []
+            client_id = str(c["id"])
         rows = await self.db.list_oast_interactions(
             client_id=client_id,
             protocol=protocol,
             since=since,
             limit=limit,
-            token=token if not client_id else None,
+            token=None,
+            registered_only=not bool(client_id),
         )
         return [self._norm_hit(r) for r in rows]
 

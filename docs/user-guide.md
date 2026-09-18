@@ -769,7 +769,7 @@ Confirm SSRF, blind XSS, and other OOB callbacks during authorized tests without
 1. Deploy DNS/HTTP/(SMTP) listeners and zone per [Deployment - OAST](deployment.md#oast-collaborator-dns-http-smtp).
 2. Ops **OAST** page: Mint tab (or `sc5 oast token create --note "..."` / INKO `oast_mint`).
 3. Use returned `dns_name` / `http_url` / `smtp_to` in the test payload.
-4. Tokens tab shows hit counts; Hits tab polls details (or `sc5 oast hits --token T`). Revoke from Hits / `sc5 oast token revoke`.
+4. Tokens tab shows hit counts; Hits tab polls details (or `sc5 oast hits --token T`). Only callbacks tied to a minted token are listed — internet scanner noise is omitted. Revoke from Hits / `sc5 oast token revoke`.
 
 ### Example
 
@@ -786,6 +786,7 @@ sc5 --insecure oast hits --token <TOKEN>
 | Zone NS not delegated | No DNS hits |
 | Port 25 blocked by cloud | Use 2525 lab SMTP or skip SMTP |
 | Expecting SMTP relay | SMTP is capture-only |
+| Expecting every HTTP probe on the catcher | Hits require a minted OAST token |
 
 ### See also
 

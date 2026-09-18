@@ -267,6 +267,57 @@ async def test_smtp_oast(client, admin_headers):
     await client.post(f"/api/v1/listeners/{lid}/stop", headers=admin_headers)
 
 
+@pytest.mark.asyncio
+async def test_oast_hits_omit_traffic_not_tied_to_minted_token(client, admin_headers):
+    minted = await client.post(
+        "/api/v1/oast/tokens",
+        headers=admin_headers,
+        json={"note": "real-canary"},
+    )
+    assert minted.status_code == 200
+    token = minted.json()["token"]
+
+    lr = await client.post(
+        "/api/v1/listeners",
+        headers=admin_headers,
+        json={"name": "oast-noise", "kind": "http", "port": 19060},
+    )
+    lid = lr.json()["id"]
+    await client.post(f"/api/v1/listeners/{lid}/start", headers=admin_headers)
+
+    async def _http(raw: bytes) -> None:
+        reader, writer = await asyncio.open_connection("127.0.0.1", 19060)
+        writer.write(raw)
+        await writer.drain()
+        await reader.read(4096)
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+
+    await _http(b"GET /.env HTTP/1.1\r\nHost: localhost:80\r\nConnection: close\r\n\r\n")
+    await _http(b"GET /configuration/.git/config HTTP/1.1\r\nHost: localhost:80\r\nConnection: close\r\n\r\n")
+    await _http(f"GET /{token}/ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n".encode())
+
+    all_hits = await client.get("/api/v1/oast/hits?limit=200", headers=admin_headers)
+    assert all_hits.status_code == 200
+    body = all_hits.json()
+    hits = body["hits"]
+    assert body["count"] == len(hits)
+    assert hits, "minted token callback should still appear"
+    assert all(h.get("client_id") for h in hits)
+    assert all(h.get("token") == token for h in hits)
+    assert not any((h.get("raw") or {}).get("path") in ("/.env", "/configuration/.git/config") for h in hits)
+
+    noise = await client.get("/api/v1/oast/hits?token=localhost", headers=admin_headers)
+    assert noise.status_code == 200
+    assert noise.json()["count"] == 0
+    assert noise.json()["hits"] == []
+
+    await client.post(f"/api/v1/listeners/{lid}/stop", headers=admin_headers)
+
+
 def test_parse_dns_roundtrip():
     assert parse_dns_query(b"") is None
     q = struct.pack("!HHHHHH", 1, 0x0100, 1, 0, 0, 0)
