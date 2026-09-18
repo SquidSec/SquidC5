@@ -727,6 +727,41 @@
     .llm-card dt, .hit-card dt { color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.65rem; }
     .llm-card dd, .hit-card dd { margin: 0; word-break: break-word; }
     .hit-card .hit-raw { margin-top: 8px; max-height: 180px; overflow: auto; font-size: 0.72rem; }
+    .page-tab-panel:has(> .team-chat) { padding: 0; overflow: hidden; }
+    .team-chat {
+      display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%;
+    }
+    .team-chat-head {
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+      padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--bg3);
+    }
+    .team-chat-head label { margin: 0; font-size: 0.68rem; color: var(--muted); flex-shrink: 0; }
+    .team-chat-head select { width: auto; flex: 1; min-width: 0; max-width: 280px; }
+    .team-chat-head #chOnline { font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .team-chat-log {
+      flex: 1; min-height: 0; overflow: auto; padding: 12px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .team-msg {
+      max-width: 78%; padding: 8px 10px; border-radius: 10px;
+      border: 1px solid var(--border); background: rgba(255,255,255,0.04);
+      align-self: flex-start;
+    }
+    .team-msg.mine {
+      align-self: flex-end;
+      background: rgba(233,30,140,0.12);
+      border-color: rgba(233,30,140,0.3);
+    }
+    .team-msg .who { font-size: 0.65rem; color: var(--muted); margin-bottom: 4px; }
+    .team-msg .when { opacity: 0.85; margin-left: 6px; }
+    .team-msg .body { font-size: 0.85rem; white-space: pre-wrap; word-break: break-word; line-height: 1.4; }
+    .team-chat-compose {
+      flex-shrink: 0; padding: 8px 12px;
+      border-top: 1px solid var(--border); background: var(--bg3);
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    .team-chat-compose textarea { width: 100%; }
+    .team-chat-compose .row { margin-top: 6px; }
     #adMcpGrid {
       max-height: min(36vh, 320px) !important;
       min-height: 120px;

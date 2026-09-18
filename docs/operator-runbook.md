@@ -692,7 +692,7 @@ curl -sk -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
 curl -sk -H "Authorization: Bearer $TOK" "$URL/api/v1/audit/me?limit=50"
 ```
 
-Ops -> **Collab**.
+Ops -> **Collab** → Chat: pick a channel; messages poll live; type at the bottom.
 
 ### Verify
 

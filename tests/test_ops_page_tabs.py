@@ -84,6 +84,12 @@ async def test_all_views_use_page_tabs(tmp_path):
             assert 'id="ctxTask" rows="4"' in js
             assert 'id="tskCmd" rows="4"' in js
             assert 'id="chMsg" rows="4"' in js
+            assert "team-chat" in js
+            assert 'id="chLog"' in js
+            assert 'id="chTeam"' in js
+            assert "startCollabPoll" in js
+            assert "loadCollabChat" in js
+            assert "id=\"chReload\"" not in js
             assert 'id="tmNote" rows="4"' in js
             assert 'id="oastNote" rows="4"' in js
             assert 'id="aiPromptGlobal" rows="4"' in html
