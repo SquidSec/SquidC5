@@ -217,8 +217,14 @@ async def test_ops_admin_collab_ui_markers(tmp_path):
                 "renderSessionsView",
                 "renderHostsView",
                 "drawHostGraph",
+                "team-chat",
+                "chLog",
+                "loadCollabChat",
+                "startCollabPoll",
             ):
                 assert m in js, m
+            assert "id=\"chReload\"" not in js
+            assert "Enter to send" in js
 
 
 @pytest.mark.asyncio

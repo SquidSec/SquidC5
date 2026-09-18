@@ -1738,22 +1738,131 @@
   }
 
   /* -- Collab -- */
+  let collabPollTimer = null;
+  let lastCollabBeat = 0;
+
+  function stopCollabPoll() {
+    if (collabPollTimer) {
+      clearInterval(collabPollTimer);
+      collabPollTimer = null;
+    }
+  }
+
+  function startCollabPoll() {
+    stopCollabPoll();
+    collabPollTimer = setInterval(() => {
+      if (!currentIs("collab")) {
+        stopCollabPoll();
+        return;
+      }
+      loadCollabChat().catch(() => {});
+      const now = Date.now();
+      if (now - lastCollabBeat > 30000) {
+        lastCollabBeat = now;
+        beatCollabPresence().then(() => loadCollabPresence()).catch(() => {});
+      } else {
+        loadCollabPresence().catch(() => {});
+      }
+    }, 2500);
+  }
+
+  function fmtChatTs(ts) {
+    const n = Number(ts);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    const ms = n > 1e12 ? n : n * 1000;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function loadCollabChannels() {
+    const sel = el("chTeam");
+    if (!sel) return;
+    const cur = sel.value || loadSel("sc5_ops_ch_team") || "";
+    let teams = [];
+    try {
+      const rows = await api("GET", "/api/v1/teams");
+      teams = Array.isArray(rows) ? rows : [];
+    } catch (_) {
+      teams = [];
+    }
+    sel.innerHTML = ['<option value="">Global</option>'].concat(
+      teams.map((t) => `<option value="${esc(t.id)}">${esc(t.name || t.id)}</option>`)
+    ).join("");
+    if (cur && Array.from(sel.options).some((o) => o.value === cur)) sel.value = cur;
+    else sel.value = "";
+    saveSel("sc5_ops_ch_team", sel.value || "");
+  }
+
+  async function beatCollabPresence() {
+    try {
+      await api("POST", "/api/v1/collab/presence", { status: "online", viewing_session: selectedId });
+    } catch (_) {}
+  }
+
+  async function loadCollabPresence() {
+    const n = el("chOnline");
+    if (!n) return;
+    try {
+      const r = await api("GET", "/api/v1/collab/presence");
+      const ops = r.operators || [];
+      n.textContent = ops.length ? ("online: " + ops.map((o) => o.actor || o.name || "?").join(", ")) : "online: —";
+    } catch (_) {
+      n.textContent = "";
+    }
+  }
+
+  async function loadCollabChat() {
+    const log = el("chLog");
+    if (!log) return;
+    const sel = el("chTeam");
+    const tid = sel ? (sel.value || "").trim() : "";
+    const q = tid ? "?team_id=" + encodeURIComponent(tid) + "&limit=200" : "?limit=200";
+    const r = await api("GET", "/api/v1/collab/chat" + q);
+    const messages = r.messages || [];
+    const sig = messages.map((m) => String(m.id || "") + ":" + String(m.ts || "") + ":" + String(m.message || "")).join("|");
+    if (log.getAttribute("data-sig") === sig) return;
+    const nearBottom = (log.scrollHeight - log.scrollTop - log.clientHeight) < 64;
+    log.setAttribute("data-sig", sig);
+    const me = String((state.actor || "")).toLowerCase();
+    log.innerHTML = messages.length ? messages.map((m) => {
+      const mine = String(m.actor || "").toLowerCase() === me;
+      const when = fmtChatTs(m.ts);
+      return `<article class="team-msg${mine ? " mine" : ""}">
+        <div class="who">${esc(m.actor || "?")}${when ? ` <span class="when">${esc(when)}</span>` : ""}</div>
+        <div class="body">${esc(m.message || "")}</div>
+      </article>`;
+    }).join("") : '<p class="muted">No messages yet.</p>';
+    if (nearBottom || !log.scrollTop) log.scrollTop = log.scrollHeight;
+  }
+
   function renderCollabView(force) {
     const root = el("view-collab");
     if (!root) return;
-    if (!force && viewBuilt.collab && root.children.length) return;
+    if (!force && viewBuilt.collab && root.querySelector(".page-tabs")) {
+      startCollabPoll();
+      loadCollabChat().catch(() => {});
+      return;
+    }
     rememberAllPageTabs(root);
+    const canChat = can("collab:use") || can("admin");
     root.innerHTML = tabbedHtml([
       { id: "chchat", label: "Chat", html: `
-        <label>Team channel (optional id)</label>
-        <input id="chTeam" placeholder="leave empty for global" />
-        <label>Message</label>
-        <textarea id="chMsg" rows="4" placeholder="status update..."></textarea>
-        <div class="row">
-          <button type="button" class="primary" id="chSend" ${can("collab:use") || can("admin") ? "" : "disabled"}>Send</button>
-          <button type="button" class="ghost" id="chReload">Reload</button>
+        <div class="team-chat">
+          <div class="team-chat-head">
+            <label for="chTeam">Channel</label>
+            <select id="chTeam" title="Open channels"><option value="">Global</option></select>
+            <span class="muted" id="chOnline"></span>
+          </div>
+          <div class="team-chat-log" id="chLog"></div>
+          <div class="team-chat-compose">
+            <textarea id="chMsg" rows="4" placeholder="Message the team..." ${canChat ? "" : "disabled"}></textarea>
+            <div class="row">
+              <button type="button" class="primary" id="chSend" ${canChat ? "" : "disabled"}>Send</button>
+            </div>
+            <p class="muted" style="margin:6px 0 0;font-size:0.62rem">Enter to send  /  Shift+Enter newline</p>
+          </div>
         </div>
-        <div class="outbox empty" id="chOut" style="flex:1;max-height:none">-</div>
       `},
       { id: "chteams", label: "Teams / handoff", html: `
         <div class="row">
@@ -1778,24 +1887,30 @@
       n.textContent = typeof r === "string" ? r : JSON.stringify(r, null, 2);
       n.classList.remove("empty");
     };
-    async function loadChat() {
-      const tid = (el("chTeam").value || "").trim();
-      const q = tid ? "?team_id=" + encodeURIComponent(tid) : "";
-      const r = await api("GET", "/api/v1/collab/chat" + q);
-      const lines = (r.messages || []).map((m) => `${m.actor}: ${m.message}`);
-      out("chOut", lines.join("\n") || "(empty)");
-    }
-    if (el("chReload")) el("chReload").onclick = () => loadChat().catch((e) => showError(String(e.message || e)));
-    if (el("chSend")) el("chSend").onclick = async () => {
+    async function sendCollabChat() {
       try {
         const message = (el("chMsg").value || "").trim();
         if (!message) return showError("Message required");
-        const team_id = (el("chTeam").value || "").trim() || null;
+        const team_id = (el("chTeam") && el("chTeam").value || "").trim() || null;
         await api("POST", "/api/v1/collab/chat", { message, team_id });
         el("chMsg").value = "";
-        await loadChat();
-        showOk("Sent");
+        await loadCollabChat();
+        const log = el("chLog");
+        if (log) log.scrollTop = log.scrollHeight;
       } catch (e) { showError(String(e.message || e)); }
+    }
+    if (el("chSend")) el("chSend").onclick = () => sendCollabChat();
+    if (el("chMsg")) el("chMsg").onkeydown = (ev) => {
+      if (ev.key === "Enter" && !ev.shiftKey) {
+        ev.preventDefault();
+        sendCollabChat();
+      }
+    };
+    if (el("chTeam")) el("chTeam").onchange = () => {
+      saveSel("sc5_ops_ch_team", el("chTeam").value || "");
+      const log = el("chLog");
+      if (log) log.removeAttribute("data-sig");
+      loadCollabChat().catch((e) => showError(String(e.message || e)));
     };
     if (el("tmList")) el("tmList").onclick = async () => {
       try { out("tmOut", await api("GET", "/api/v1/teams")); } catch (e) { showError(String(e.message || e)); }
@@ -1804,14 +1919,20 @@
       try {
         await api("POST", "/api/v1/collab/presence", { status: "online", viewing_session: selectedId });
         out("tmOut", await api("GET", "/api/v1/collab/presence"));
+        loadCollabPresence().catch(() => {});
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("tmCreate")) el("tmCreate").onclick = async () => {
       try {
         const name = (el("tmName").value || "").trim();
         if (!name) return showError("Name required");
-        out("tmOut", await api("POST", "/api/v1/teams", { name }));
+        const created = await api("POST", "/api/v1/teams", { name });
+        out("tmOut", created);
         showOk("Team created");
+        if (created && created.id && el("chTeam")) {
+          saveSel("sc5_ops_ch_team", created.id);
+        }
+        await loadCollabChannels();
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("tmHandoff")) el("tmHandoff").onclick = async () => {
@@ -1825,7 +1946,9 @@
         showOk("Handoff sent");
       } catch (e) { showError(String(e.message || e)); }
     };
-    loadChat().catch(() => {});
+    loadCollabChannels().then(() => loadCollabChat()).catch(() => {});
+    beatCollabPresence().then(() => loadCollabPresence()).catch(() => {});
+    startCollabPoll();
   }
 
   /* -- Observe -- */
@@ -3845,7 +3968,10 @@
     if (currentIs("profiles") && !typing) renderProfilesView(false);
     if (currentIs("artifacts") && !typing) renderArtifactsView(false);
     if (currentIs("postex") && !typing) renderPostexView(false);
-    if (currentIs("collab") && !typing) renderCollabView(false);
+    if (currentIs("collab") && !typing) {
+      loadCollabChat().catch(() => {});
+      loadCollabPresence().catch(() => {});
+    }
     if (currentIs("observe") && !typing) renderObserveView(false);
     if (currentIs("admin") && !typing) renderAdminView(false);
     if (currentIs("ai") && !typing) renderAiView(false);

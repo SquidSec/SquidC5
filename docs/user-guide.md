@@ -1162,7 +1162,7 @@ sc5 tokens revoke <id>
 
 Teams, **session claim/lock** (TTL + renew on activity), handoff packs, spectator snapshots, operator presence, team-scoped chat, per-operator audit filters, and the **Assets** host graph.
 
-**UI:** Ops -> **Collab** (teams/chat) · Ops -> **Assets** (host graph).
+**UI:** Ops -> **Collab** (channel picker + live team chat) · Ops -> **Assets** (host graph).
 
 ### Why
 
@@ -1181,7 +1181,7 @@ Two operators must not stomp the same shell; shift changes need context; leads n
 | Handoff pack | `POST /api/v1/sessions/{id}/handoff` `{to, note}` |
 | Spectate | `GET /api/v1/sessions/{id}/spectator` |
 | Presence | `POST/GET /api/v1/collab/presence` |
-| Team chat | `POST /api/v1/collab/chat` with optional `team_id` |
+| Team chat | Ops **Collab → Chat**: pick an open channel, messages poll live; composer at the bottom. API: `POST /api/v1/collab/chat` with optional `team_id` |
 | My audit | `GET /api/v1/audit/me` or `?mine=true` |
 
 Claim lock is enforced on shell, tasks, and file ops (admins bypass). Default TTL: `SQUIDC5_SESSION_CLAIM_TTL_SEC` (3600; `0` = no expiry). Feature flag: `collab_teams`.
