@@ -54,11 +54,13 @@ async def build_state(settings: Settings) -> AppState:
     sessions = SessionManager(db, metrics)
     tasks = TaskManager(db, metrics)
     payloads = PayloadGenerator()
+    from squidc5.crypto.key_store import AsymKeyService
     from squidc5.crypto.secrets import SecretBox, resolve_secrets_key
 
     secret_box = SecretBox(
         resolve_secrets_key(explicit=settings.secrets_key, data_dir=settings.data_dir)
     )
+    keys = AsymKeyService(db, secret_box)
     admin_ai = AdminAI(
         db,
         metrics,
@@ -188,6 +190,7 @@ async def build_state(settings: Settings) -> AppState:
         implant_psk=implant_psk,
         socks=socks,
         engagement=engagement,
+        keys=keys,
     )
 
 

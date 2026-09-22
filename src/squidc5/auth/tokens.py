@@ -38,6 +38,9 @@ SCOPES = frozenset(
         "collab:use",
         "oast:read",
         "oast:write",
+        "keys:read",
+        "keys:write",
+        "keys:decrypt",
     }
 )
 
@@ -68,11 +71,22 @@ SCOPE_DESCRIPTIONS: dict[str, str] = {
     "collab:use": "Teams, claim/handoff, chat, presence",
     "oast:read": "List OAST tokens and poll hits",
     "oast:write": "Mint and delete OAST tokens",
+    "keys:read": "List asymmetric keys and export public keys",
+    "keys:write": "Create and delete asymmetric keypairs",
+    "keys:decrypt": "Decrypt ciphertext sealed to a server public key",
 }
 
 # Privileged scopes - never included in "non-admin" presets
 PRIVILEGED_SCOPES = frozenset(
-    {"admin", "tokens:manage", "policy:manage", "llm:manage", "plugins:manage"}
+    {
+        "admin",
+        "tokens:manage",
+        "policy:manage",
+        "llm:manage",
+        "plugins:manage",
+        "keys:write",
+        "keys:decrypt",
+    }
 )
 
 # All operational scopes a non-admin full operator may hold

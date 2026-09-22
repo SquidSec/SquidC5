@@ -53,4 +53,5 @@ class AppState:
     implant_psk: str = ""
     socks: Any = None
     engagement: Any = None
+    keys: Any = None
     shell_buffers: dict[str, list[str]] = field(default_factory=dict)

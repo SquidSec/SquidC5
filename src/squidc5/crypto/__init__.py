@@ -1,1 +1,1 @@
-"""Crypto helpers (at-rest secrets)."""
+"""Crypto helpers (at-rest secrets, asymmetric key vault)."""

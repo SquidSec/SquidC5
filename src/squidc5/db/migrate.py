@@ -256,6 +256,21 @@ CREATE TABLE IF NOT EXISTS host_graph_hidden (
 );
 """
 
+ASYM_KEYS_SQL = """
+CREATE TABLE IF NOT EXISTS asym_keys (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    algorithm TEXT NOT NULL,
+    key_size INTEGER NOT NULL,
+    public_pem TEXT NOT NULL,
+    fingerprint_sha256 TEXT NOT NULL,
+    private_pem_enc TEXT NOT NULL,
+    created_by TEXT,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_asym_keys_created ON asym_keys(created_at);
+"""
+
 MIGRATIONS: Sequence[tuple[int, str, str]] = (
     (1, "baseline schema", BASELINE_SQL),
     (2, "HITL approval queue", HITL_REQUESTS_SQL),
@@ -263,6 +278,7 @@ MIGRATIONS: Sequence[tuple[int, str, str]] = (
     (4, "operator assets library", OPERATOR_ASSETS_SQL),
     (5, "connection tickets for token handoff", CONNECTION_TICKETS_SQL),
     (6, "host graph dismiss list", HOST_GRAPH_HIDDEN_SQL),
+    (7, "asymmetric key vault", ASYM_KEYS_SQL),
 )
 
 SCHEMA_VERSION_TABLE = """

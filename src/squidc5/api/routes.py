@@ -3695,6 +3695,8 @@ def build_api_router() -> APIRouter:
         return {"status": "deleted", "id": token_id}
 
     from squidc5.api.routers.implant import router as implant_router
+    from squidc5.api.routers.keys import router as keys_router
 
     api.include_router(implant_router)
+    api.include_router(keys_router)
     return api

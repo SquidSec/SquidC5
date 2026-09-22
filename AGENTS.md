@@ -45,6 +45,7 @@ Ops UI: `/ops` (admin UI loaded only after server-side admin token check)
 | Health details | **minimal** (`{"status":"ok"}`) |
 | Security headers | **ON** (nosniff, DENY frame, CSP, no-store) |
 | Admin ops UI | **server-gated** by admin scope |
+| Asymmetric key vault | **OFF** (`asym_keys`; private keys encrypted at rest, never returned) |
 
 When adding features: **deny by default**, enable via admin feature flags or env after review.
 
@@ -168,6 +169,13 @@ sc5 oast token delete|revoke <token_id>
 sc5 oast tokens list
 sc5 oast hits --token T [--protocol dns|http|smtp]
 # aliases: oast mint | oast poll
+
+sc5 keys create <name> [--bits 2048|4096]   # feature asym_keys; keys:write
+sc5 keys list
+sc5 keys public <id>                        # re-derive PEM / PKCS#1 / OpenSSH
+sc5 keys encrypt <id> ["text"] [--file PATH]
+sc5 keys decrypt <id> [ciphertext] [--file PATH] [--raw]
+sc5 keys delete <id>
 
 sc5 payloads templates
 sc5 payloads generate <template> <host> <port> [--interval 5] [--raw]
@@ -355,7 +363,9 @@ Also: `scripts/deploy_droplet.sh <ip>` (lab/Docker; not the prod binary path)
 - Header: `Authorization: Bearer <token>` or `X-API-Token: <token>`
 - Scopes: `admin`, `sessions:read|write`, `tasks:read|write`, `listeners:read|write`, 
  `payloads:generate`, `metrics:read`, `audit:read`, `shell:interact`, `ai:use`, 
- `mcp:connect`, `tokens:manage`, `llm:manage`, `policy:manage`, ...
+  `mcp:connect`, `tokens:manage`, `llm:manage`, `policy:manage`, `keys:read`, 
+  `keys:write`, `keys:decrypt`, ...
+- Key vault: `keys:write` and `keys:decrypt` are privileged; feature `asym_keys` default off
 - External AI: `mcp:connect` + per-token `mcp_tools` allow-list
 - Feature toggles: `GET/PUT /api/v1/features` (admin)
 
