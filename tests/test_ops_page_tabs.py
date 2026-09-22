@@ -54,6 +54,7 @@ async def test_all_views_use_page_tabs(tmp_path):
                 "artifactsTabs",
                 "assetsTabs",
                 "oastTabs",
+                "keysTabs",
             ):
                 assert tid in js, f"missing tabs shell {tid}"
             assert "labeledOastUrls" in js
@@ -97,6 +98,12 @@ async def test_all_views_use_page_tabs(tmp_path):
             assert "oastHitCards" in js
             assert "oastHitCopyJson" in js
             assert "oastHitsMintedOnly" in js
+            assert 'data-view="keys"' in html
+            assert 'id="view-keys"' in html
+            assert "renderKeysView" in js
+            assert "keyDecryptBtn" in js
+            assert "keyLoadPublic" in js
+            assert "keys:read" in html
             assert "tied to minted OAST tokens" in js
             assert "llm-card" in js
             assert "min-height:240px" in js

@@ -223,7 +223,7 @@ The `/ops` console is an **app shell** (multi-page nav + context rail + dock).
 | Region | Purpose |
 |--------|---------|
 | **Top bar** | Host, online status, Connect, Refresh, **INKO** flyout |
-| **Left nav** | Dashboard - Sessions - **Assets** - Listeners - Payloads - **Profiles** - **Artifacts** - Post-Ex - Collab - **INKO** - Observe - Admin |
+| **Left nav** | Dashboard - Sessions - **Assets** - Listeners - **OAST** - **Keys** - Payloads - **Profiles** - **Artifacts** - Post-Ex - Collab - **INKO** - Observe - Admin |
 | **Main** | Active workspace for the selected nav item |
 | **Right rail** | Selected session context (claim, shell, task) |
 | **Bottom dock** | Live event stream + command output (resizable) |
@@ -809,7 +809,7 @@ Operators can publish a public key and later open ciphertext on the teamserver w
 ### How
 
 1. Admin enables feature `asym_keys` (default **off**).
-2. `sc5 keys create <name> [--bits 2048|4096]` (scopes `keys:write` or `admin`).
+2. Ops **Keys** page, or `sc5 keys create <name> [--bits 2048|4096]` (scopes `keys:write` or `admin`).
 3. `sc5 keys public <id>` re-derives SPKI PEM, PKCS#1 PEM, and OpenSSH public keys (`keys:read`).
 4. Seal with `sc5 keys encrypt <id> "message"` (hybrid `sc5e1:` envelope) or with raw RSA-OAEP-SHA256 (MGF1-SHA256) against the public PEM.
 5. `sc5 keys decrypt <id> <ciphertext>` (`keys:decrypt` or `admin`). Plaintext is not written to the audit log.

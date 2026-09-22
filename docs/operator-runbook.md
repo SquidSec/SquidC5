@@ -776,6 +776,7 @@ Create an RSA keypair, export public keys derived from the private key, and decr
 # Admin -> Features -> asym_keys on, or:
 curl -sk -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
   -X PUT -d '{"features":{"asym_keys":true}}' https://C2:8443/api/v1/features
+# Ops -> Keys, or:
 sc5 --insecure keys create lab-vault --bits 2048
 sc5 --insecure keys public <id>
 sc5 --insecure keys decrypt <id> --file ciphertext.txt --raw
