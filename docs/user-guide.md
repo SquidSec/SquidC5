@@ -796,6 +796,52 @@ sc5 --insecure oast hits --token <TOKEN>
 
 ---
 
+## Asymmetric keys
+
+### What
+
+Server-side RSA key vault: create a keypair, derive public key encodings from the stored private key, and decrypt messages sealed to that public key.
+
+### Why
+
+Operators can publish a public key and later open ciphertext on the teamserver without exporting the private key. Private keys are encrypted at rest and never returned by the API.
+
+### How
+
+1. Admin enables feature `asym_keys` (default **off**).
+2. `sc5 keys create <name> [--bits 2048|4096]` (scopes `keys:write` or `admin`).
+3. `sc5 keys public <id>` re-derives SPKI PEM, PKCS#1 PEM, and OpenSSH public keys (`keys:read`).
+4. Seal with `sc5 keys encrypt <id> "message"` (hybrid `sc5e1:` envelope) or with raw RSA-OAEP-SHA256 (MGF1-SHA256) against the public PEM.
+5. `sc5 keys decrypt <id> <ciphertext>` (`keys:decrypt` or `admin`). Plaintext is not written to the audit log.
+
+`keys:write` and `keys:decrypt` are privileged (admin must grant them). MCP and INKO cannot call these endpoints.
+
+### Example
+
+```bash
+sc5 --insecure keys create lab-vault --bits 2048
+sc5 --insecure keys public key_0123456789abcdef
+sc5 --insecure keys encrypt key_0123456789abcdef "authorized note"
+sc5 --insecure keys decrypt key_0123456789abcdef 'sc5e1:...' --raw
+```
+
+### Pitfalls
+
+| Mistake | Result |
+|---------|--------|
+| Feature `asym_keys` still off | 403 asymmetric keys disabled |
+| Encrypting with the wrong public key | decrypt returns 400 |
+| Raw RSA-OAEP payload larger than the key can hold | use `keys encrypt` (hybrid envelope) |
+| Expecting the private PEM from the API | never returned; only public encodings |
+
+### See also
+
+- [Feature toggles](#feature-toggles)
+- [Tokens](#tokens)
+- [Security model](#security-model)
+
+---
+
 ## Plugins
 
 ### What
@@ -1223,6 +1269,7 @@ UI: **Admin** -> features -> **Save**.
 
 ```text
 Admin -> Features -> smtp_oast on -> Save (for SMTP OAST lab)
+Admin -> Features -> asym_keys on -> Save (key vault; default off)
 ```
 
 ### See also

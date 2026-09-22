@@ -11,6 +11,7 @@
 | Bootstrap `admin_token.txt` | Critical |
 | Session/shell channels and task results | High |
 | LLM API keys (server-side) | High |
+| Asymmetric private keys (vault) | Critical |
 | Plugin signing secret / secrets master key | High |
 | C2 profile configuration | Medium |
 | Audit log integrity | High |

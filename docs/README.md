@@ -75,7 +75,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [User guide](user-guide.md) | Feature reference (What / Why / How / Example) - Ops UI, INKO, Profiles, Artifacts, OAST, CLI |
+| [User guide](user-guide.md) | Feature reference (What / Why / How / Example) - Ops UI, INKO, Profiles, Artifacts, OAST, Keys, CLI |
 | [Operator runbook](operator-runbook.md) | Day-2 procedures: shells, beacons, OAST, implants, collab |
 | [Deployment](deployment.md) | Docker lab, OAST, TLS, binary prod + systemd |
 
