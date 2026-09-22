@@ -124,6 +124,7 @@ Nav labels in `/ops` (match [User guide](user-guide.md#ops-console-layout)):
 | Dashboard | [Status overview](user-guide.md#status-overview) |
 | Sessions | [Sessions](user-guide.md#sessions) |
 | Listeners | [Listeners](user-guide.md#listeners) |
+| Keys | [Asymmetric keys](user-guide.md#asymmetric-keys) |
 | Payloads | [Payloads and implants](user-guide.md#payloads-and-implants) |
 | Profiles | [C2 profiles](user-guide.md#c2-profiles-profiles) |
 | Artifacts | [Artifacts](user-guide.md#artifacts) |
