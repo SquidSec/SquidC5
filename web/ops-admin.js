@@ -1341,15 +1341,79 @@
     }
   }
 
+  let oastHitPollTimer = null;
+
+  function oastHitPollEnabled() {
+    return loadSel("sc5_oast_hit_poll_on") !== "0";
+  }
+
+  function oastHitPollSeconds() {
+    const n = parseInt(loadSel("sc5_oast_hit_poll_sec") || "5", 10);
+    if (!Number.isFinite(n)) return 5;
+    return Math.min(60, Math.max(1, n));
+  }
+
+  function stopOastHitPoll() {
+    if (oastHitPollTimer) {
+      clearInterval(oastHitPollTimer);
+      oastHitPollTimer = null;
+    }
+  }
+
+  function startOastHitPoll() {
+    stopOastHitPoll();
+    if (!oastHitPollEnabled()) return;
+    const ms = oastHitPollSeconds() * 1000;
+    oastHitPollTimer = setInterval(() => {
+      if (!currentIs("oast")) {
+        stopOastHitPoll();
+        return;
+      }
+      pollOastHits({ quiet: true }).catch(() => {});
+    }, ms);
+  }
+
   function renderOastView(force) {
     const root = el("view-oast");
     if (!root) return;
     if (!force && viewBuilt.oast && root.querySelector(".page-tabs")) {
       if (el("oastTbody")) loadOastTokens();
+      startOastHitPoll();
       return;
     }
     rememberAllPageTabs(root);
+    const pollOn = oastHitPollEnabled();
+    const pollSec = oastHitPollSeconds();
     root.innerHTML = tabbedHtml([
+      { id: "oasthits", label: "Hits", html: `
+        <p class="muted" id="oastHitsMintedOnly">Only callbacks tied to minted OAST tokens. Scanner noise (no token) is omitted.</p>
+        <div class="form-grid">
+          <div><label>Token</label><input id="oastHitToken" placeholder="hex token (minted)" /></div>
+          <div><label>Protocol</label>
+            <select id="oastHitProto">
+              <option value="">all</option>
+              <option value="http">http</option>
+              <option value="dns">dns</option>
+              <option value="smtp">smtp</option>
+            </select>
+          </div>
+        </div>
+        <div class="oast-poll-bar">
+          <label class="chk-inline"><input type="checkbox" id="oastHitPollOn" ${pollOn ? "checked" : ""} /> Auto-poll</label>
+          <label for="oastHitPollSec">Rate</label>
+          <input type="range" id="oastHitPollSec" min="1" max="60" value="${pollSec}" />
+          <span class="muted" id="oastHitPollSecLbl">${pollSec}s</span>
+          <button type="button" class="primary" id="oastPoll">Poll now</button>
+          ${can("oast:write") ? '<button type="button" class="danger" id="oastRevoke">Revoke selected</button>' : ""}
+        </div>
+         <p class="muted mono" id="oastHitCount" style="font-size:0.72rem;margin:6px 0 0">count: -</p>
+         <div class="row" style="margin-top:6px">
+           <button type="button" class="ghost sm" id="oastHitCopyJson">Copy JSON</button>
+           <button type="button" class="ghost sm" id="oastHitToggleJson">View JSON</button>
+         </div>
+         <div class="hit-cards" id="oastHitCards"></div>
+         <div class="outbox empty hidden" id="oastHitOut" style="flex:1;max-height:none">-</div>
+      `},
       { id: "oasttok", label: "Tokens", html: `
         <div class="form-grid" style="margin-bottom:8px">
           <div class="full"><label>Selected note</label><textarea id="oastEditNote" rows="4" placeholder="Select a token, then edit note"></textarea></div>
@@ -1380,32 +1444,7 @@
         <div id="oastMintCards" class="muted" style="margin-top:8px">Mint to get callback URLs</div>
         <div class="outbox empty" id="oastMintOut" style="flex:1;max-height:none">-</div>
       `},
-      { id: "oasthits", label: "Hits", html: `
-        <p class="muted" id="oastHitsMintedOnly">Only callbacks tied to minted OAST tokens. Scanner noise (no token) is omitted.</p>
-        <div class="form-grid">
-          <div><label>Token</label><input id="oastHitToken" placeholder="hex token (minted)" /></div>
-          <div><label>Protocol</label>
-            <select id="oastHitProto">
-              <option value="">all</option>
-              <option value="http">http</option>
-              <option value="dns">dns</option>
-              <option value="smtp">smtp</option>
-            </select>
-          </div>
-        </div>
-        <div class="row">
-          <button type="button" class="primary" id="oastPoll">Poll hits</button>
-          ${can("oast:write") ? '<button type="button" class="danger" id="oastRevoke">Revoke selected</button>' : ""}
-        </div>
-         <p class="muted mono" id="oastHitCount" style="font-size:0.72rem;margin:6px 0 0">count: -</p>
-         <div class="row" style="margin-top:6px">
-           <button type="button" class="ghost sm" id="oastHitCopyJson">Copy JSON</button>
-           <button type="button" class="ghost sm" id="oastHitToggleJson">View JSON</button>
-         </div>
-         <div class="hit-cards" id="oastHitCards"></div>
-         <div class="outbox empty hidden" id="oastHitOut" style="flex:1;max-height:none">-</div>
-      `},
-    ], { id: "oastTabs" });
+    ], { id: "oastTabs", active: "oasthits" });
     viewBuilt.oast = true;
     bindPageTabs(root);
     loadOastTokens();
@@ -1440,6 +1479,21 @@
       navigator.clipboard.writeText(blob).then(() => showOk("Copied labeled URLs")).catch(() => showError("Copy failed"));
     };
     if (el("oastPoll")) el("oastPoll").onclick = () => pollOastHits();
+    if (el("oastHitPollOn")) el("oastHitPollOn").onchange = () => {
+      saveSel("sc5_oast_hit_poll_on", el("oastHitPollOn").checked ? "1" : "0");
+      startOastHitPoll();
+      if (el("oastHitPollOn").checked) pollOastHits({ quiet: true }).catch(() => {});
+    };
+    if (el("oastHitPollSec")) {
+      const applySec = () => {
+        const sec = oastHitPollSecondsFromInput();
+        saveSel("sc5_oast_hit_poll_sec", String(sec));
+        if (el("oastHitPollSecLbl")) el("oastHitPollSecLbl").textContent = sec + "s";
+        startOastHitPoll();
+      };
+      el("oastHitPollSec").oninput = applySec;
+      el("oastHitPollSec").onchange = applySec;
+    }
     if (el("oastRevoke")) el("oastRevoke").onclick = () => deleteSelectedOast();
     if (el("oastHitCopyJson")) el("oastHitCopyJson").onclick = async () => {
       if (!lastOastHitsJson) return showError("Poll hits first");
@@ -1450,6 +1504,8 @@
       const out = el("oastHitOut");
       if (out) out.classList.toggle("hidden");
     };
+    pollOastHits({ quiet: true }).catch(() => {});
+    startOastHitPoll();
   }
 
   async function loadOastTokens() {
@@ -1461,6 +1517,13 @@
       if (!list.length) {
         tb.innerHTML = '<tr><td colspan="4" class="muted">No OAST tokens</td></tr>';
         return;
+      }
+      if (!selectedOastId) {
+        selectedOastId = list[0].id;
+        if (el("oastHitToken") && !el("oastHitToken").value.trim()) {
+          el("oastHitToken").value = list[0].token || "";
+        }
+        pollOastHits({ quiet: true }).catch(() => {});
       }
       tb.innerHTML = list.map((r) => {
         const sel = r.id === selectedOastId ? " selected" : "";
@@ -1505,7 +1568,14 @@
     } catch (e) { showError(String(e.message || e)); }
   }
 
-  async function pollOastHits() {
+  function oastHitPollSecondsFromInput() {
+    const n = parseInt((el("oastHitPollSec") && el("oastHitPollSec").value) || "5", 10);
+    if (!Number.isFinite(n)) return 5;
+    return Math.min(60, Math.max(1, n));
+  }
+
+  async function pollOastHits(opts) {
+    const quiet = !!(opts && opts.quiet);
     const tok = el("oastHitToken") && el("oastHitToken").value.trim();
     const proto = el("oastHitProto") && el("oastHitProto").value;
     const q = new URLSearchParams();
@@ -1546,7 +1616,9 @@
           </article>`;
         }).join("") : '<p class="muted">No hits yet.</p>';
       }
-    } catch (e) { showError(String(e.message || e)); }
+    } catch (e) {
+      if (!quiet) showError(String(e.message || e));
+    }
   }
 
   /* -- Asymmetric key vault -- */
@@ -4112,7 +4184,12 @@
       case "sessions": renderSessionsView(false); break;
       case "hosts": renderHostsView(false); break;
       case "listeners": renderListenersView(false); break;
-      case "oast": renderOastView(false); break;
+      case "oast":
+        renderOastView(false);
+        applyPageTab(el("oastTabs"), "oasthits");
+        startOastHitPoll();
+        pollOastHits({ quiet: true }).catch(() => {});
+        break;
       case "keys": renderKeysView(false); break;
       case "payloads": renderPayloadsView(false); break;
       case "profiles": renderProfilesView(false); break;
@@ -4151,7 +4228,10 @@
     }
     if (currentIs("hosts") && !typing) renderHostsView(false);
     if (currentIs("listeners")) renderListenersView(false);
-    if (currentIs("oast") && !typing) renderOastView(false);
+    if (currentIs("oast") && !typing) {
+      renderOastView(false);
+      pollOastHits({ quiet: true }).catch(() => {});
+    }
     if (currentIs("keys") && !typing) renderKeysView(false);
     if (currentIs("payloads") && !typing) renderPayloadsView(false);
     if (currentIs("profiles") && !typing) renderProfilesView(false);

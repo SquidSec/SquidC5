@@ -19,6 +19,7 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 - Docs: Diátaxis index, Artifacts / Profiles / OAST / TLS cert library chapters, Ops nav map
 
 ### Changed
+- Ops **OAST** Hits is the default tab; auto-poll with on/off toggle and 1–60s rate slider
 - Ops **Collab** chat: select open channels, auto-poll new messages, composer at the bottom (no Reload)
 - OAST Hits page and `GET /api/v1/oast/hits` list only callbacks tied to minted tokens (scanner noise omitted)
 - Ops UI and chat system prompt use **INKO** naming; user guide / runbook / README / AGENTS updated
