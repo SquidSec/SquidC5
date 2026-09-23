@@ -14,7 +14,7 @@ jobs:
   squidgate:
     # Same-repo PRs only — do not run fork PR code with LLM_API_KEY
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, squidsec]
+    runs-on: ubuntu-latest
     env:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
     steps:
