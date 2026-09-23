@@ -6,6 +6,8 @@ import base64
 
 import pytest
 from conftest import bearer, mint_token
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 
 from squidc5.crypto.asymmetric import generate_keypair, open_message, public_encodings, rsa_oaep_encrypt, seal
 from squidc5.db.migrate import MIGRATIONS
@@ -23,6 +25,17 @@ def test_derive_public_and_roundtrip():
     sealed = seal(public_pem, b"hello vault")
     assert sealed.startswith("sc5e1:")
     assert open_message(private_pem, sealed) == b"hello vault"
+
+
+def test_openssl_default_oaep_sha1():
+    """OpenSSL `pkeyutl -pkeyopt rsa_padding_mode:oaep` uses SHA-1 unless md is set."""
+    private_pem, public_pem = generate_keypair(2048)
+    pub = serialization.load_pem_public_key(public_pem.encode())
+    ct = pub.encrypt(
+        b"YOUR_STRING_HERE",
+        padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA1()), algorithm=hashes.SHA1(), label=None),
+    )
+    assert open_message(private_pem, base64.b64encode(ct).decode()) == b"YOUR_STRING_HERE"
 
 
 def test_rejects_bad_key_size():

@@ -1608,7 +1608,7 @@
       { id: "keydec", label: "Decrypt", html: `
         ${can("keys:decrypt") ? `
           <div class="form-grid">
-            <div class="full"><label>Ciphertext (sc5e1: envelope or base64 RSA-OAEP)</label>
+            <div class="full"><label>Ciphertext (sc5e1: or base64 RSA-OAEP, including OpenSSL default SHA-1)</label>
               <textarea id="keyCipher" rows="6" placeholder="sc5e1:..."></textarea>
             </div>
           </div>

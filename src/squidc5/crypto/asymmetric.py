@@ -46,10 +46,11 @@ def validate_key_size(key_size: int) -> int:
     return size
 
 
-def _oaep() -> padding.OAEP:
+def _oaep(algorithm: hashes.HashAlgorithm | None = None) -> padding.OAEP:
+    digest = algorithm or hashes.SHA256()
     return padding.OAEP(
-        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-        algorithm=hashes.SHA256(),
+        mgf=padding.MGF1(algorithm=digest),
+        algorithm=digest,
         label=None,
     )
 
@@ -117,13 +118,17 @@ def public_encodings(private_pem: str, *, comment: str = "") -> dict[str, str | 
 
 
 def rsa_oaep_decrypt(private_pem: str, ciphertext: bytes) -> bytes:
+    """Decrypt raw RSA-OAEP. SHA-256 first, then SHA-1 (OpenSSL pkeyutl default)."""
     key = _load_private(private_pem)
     if len(ciphertext) != key.key_size // 8:
         raise AsymKeyError("decrypt_failed", "decryption failed")
-    try:
-        return key.decrypt(ciphertext, _oaep())
-    except Exception as e:
-        raise AsymKeyError("decrypt_failed", "decryption failed") from e
+    last: Exception | None = None
+    for digest in (hashes.SHA256(), hashes.SHA1()):
+        try:
+            return key.decrypt(ciphertext, _oaep(digest))
+        except Exception as e:
+            last = e
+    raise AsymKeyError("decrypt_failed", "decryption failed") from last
 
 
 def rsa_oaep_encrypt(public_pem: str, plaintext: bytes) -> bytes:
