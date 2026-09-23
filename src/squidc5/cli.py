@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sys
@@ -697,6 +698,70 @@ def cmd_oast_hits(args: argparse.Namespace, client: Client) -> None:
 cmd_oast_mint = cmd_oast_token_create
 cmd_oast_list = cmd_oast_tokens_list
 cmd_oast_poll = cmd_oast_hits
+
+
+def cmd_keys_create(args: argparse.Namespace, client: Client) -> None:
+    pp(client.post("/api/v1/keys", json={"name": args.name, "key_size": args.bits}))
+
+
+def cmd_keys_list(args: argparse.Namespace, client: Client) -> None:
+    pp(client.get("/api/v1/keys"))
+
+
+def cmd_keys_public(args: argparse.Namespace, client: Client) -> None:
+    kid = quote(str(args.key_id), safe="")
+    pp(client.get(f"/api/v1/keys/{kid}/public"))
+
+
+def cmd_keys_delete(args: argparse.Namespace, client: Client) -> None:
+    kid = quote(str(args.key_id), safe="")
+    pp(client.delete(f"/api/v1/keys/{kid}"))
+
+
+def _load_ciphertext(args: argparse.Namespace) -> str:
+    if getattr(args, "file", None):
+        data = Path(args.file).read_bytes()
+        if data.startswith(b"sc5e1:") or _looks_b64_text(data):
+            return data.decode("utf-8").strip()
+        return base64.b64encode(data).decode("ascii")
+    text = getattr(args, "ciphertext", None) or ""
+    if not text:
+        raise SystemExit("pass ciphertext or --file")
+    return text
+
+
+def _looks_b64_text(data: bytes) -> bool:
+    try:
+        text = data.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return False
+    if not text or len(text) > 96_000:
+        return False
+    return all(c.isalnum() or c in "+/=\n\r-_" for c in text)
+
+
+def cmd_keys_decrypt(args: argparse.Namespace, client: Client) -> None:
+    kid = quote(str(args.key_id), safe="")
+    body = client.post(
+        f"/api/v1/keys/{kid}/decrypt",
+        json={"ciphertext": _load_ciphertext(args)},
+    )
+    if getattr(args, "raw", False) and isinstance(body, dict) and body.get("plaintext") is not None:
+        print(body["plaintext"])
+        return
+    pp(body)
+
+
+def cmd_keys_encrypt(args: argparse.Namespace, client: Client) -> None:
+    kid = quote(str(args.key_id), safe="")
+    payload: dict[str, str] = {}
+    if getattr(args, "file", None):
+        payload["plaintext_b64"] = base64.b64encode(Path(args.file).read_bytes()).decode("ascii")
+    elif getattr(args, "plaintext", None):
+        payload["plaintext"] = args.plaintext
+    else:
+        raise SystemExit("pass plaintext or --file")
+    pp(client.post(f"/api/v1/keys/{kid}/encrypt", json=payload))
 
 
 def cmd_tokens_list(args: argparse.Namespace, client: Client) -> None:
@@ -1396,6 +1461,32 @@ def build_parser() -> argparse.ArgumentParser:
     o_poll.add_argument("--since", type=float, default=None)
     o_poll.add_argument("--limit", type=int, default=100)
     o_poll.set_defaults(func=cmd_oast_hits, needs_client=True)
+
+    keys = sub.add_parser("keys", help="Asymmetric key vault (feature asym_keys)")
+    keys_sub = keys.add_subparsers(dest="keys_cmd", required=True)
+    k_create = keys_sub.add_parser("create", help="Create an RSA keypair")
+    k_create.add_argument("name")
+    k_create.add_argument("--bits", type=int, default=2048, choices=[2048, 4096])
+    k_create.set_defaults(func=cmd_keys_create, needs_client=True)
+    k_list = keys_sub.add_parser("list", help="List keys (public material only)")
+    k_list.set_defaults(func=cmd_keys_list, needs_client=True)
+    k_pub = keys_sub.add_parser("public", help="Derive public key encodings from the private key")
+    k_pub.add_argument("key_id")
+    k_pub.set_defaults(func=cmd_keys_public, needs_client=True)
+    k_enc = keys_sub.add_parser("encrypt", help="Seal a message to a stored public key")
+    k_enc.add_argument("key_id")
+    k_enc.add_argument("plaintext", nargs="?")
+    k_enc.add_argument("--file")
+    k_enc.set_defaults(func=cmd_keys_encrypt, needs_client=True)
+    k_dec = keys_sub.add_parser("decrypt", help="Decrypt a message sealed to a stored public key")
+    k_dec.add_argument("key_id")
+    k_dec.add_argument("ciphertext", nargs="?")
+    k_dec.add_argument("--file")
+    k_dec.add_argument("--raw", action="store_true", help="Print UTF-8 plaintext only")
+    k_dec.set_defaults(func=cmd_keys_decrypt, needs_client=True)
+    k_del = keys_sub.add_parser("delete", help="Delete a keypair")
+    k_del.add_argument("key_id")
+    k_del.set_defaults(func=cmd_keys_delete, needs_client=True)
 
     return p
 

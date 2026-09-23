@@ -756,3 +756,38 @@ sc5 report --raw > engagement-report.md
 ### See also
 
 - [User guide - Timeline and reports](user-guide.md#timeline-and-reports)
+
+---
+
+## Asymmetric key vault
+
+### Goal
+
+Create an RSA keypair, export public keys derived from the private key, and decrypt ciphertext sealed to that public key.
+
+### Prerequisites
+
+- Admin token, or `keys:read` plus privileged `keys:write` / `keys:decrypt`
+- Feature `asym_keys` enabled (default off)
+
+### Steps
+
+```bash
+# Admin -> Features -> asym_keys on, or:
+curl -sk -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
+  -X PUT -d '{"features":{"asym_keys":true}}' https://C2:8443/api/v1/features
+# Ops -> Keys, or:
+sc5 --insecure keys create lab-vault --bits 2048
+sc5 --insecure keys public <id>
+sc5 --insecure keys decrypt <id> --file ciphertext.txt --raw
+```
+
+### Verify
+
+- `keys public` fingerprint matches `keys create`
+- API responses contain no `PRIVATE KEY` block
+- Audit shows `keys.decrypt` with length only, not plaintext
+
+### See also
+
+- [User guide - Asymmetric keys](user-guide.md#asymmetric-keys)

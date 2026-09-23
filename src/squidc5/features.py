@@ -28,6 +28,7 @@ DEFAULT_FEATURES: dict[str, bool] = {
     "oast_enabled": True,
     "dns_listeners": True,
     "smtp_oast": False,  # deny by default (port 25 often restricted)
+    "asym_keys": False,  # deny by default; admin enables key vault
 }
 
 FEATURE_LABELS: dict[str, str] = {
@@ -50,6 +51,7 @@ FEATURE_LABELS: dict[str, str] = {
     "oast_enabled": "OAST Collaborator (unique IDs + poll)",
     "dns_listeners": "DNS C2 + DNS OAST proof logging",
     "smtp_oast": "SMTP OAST listener",
+    "asym_keys": "Asymmetric key vault (RSA-OAEP)",
 }
 
 
