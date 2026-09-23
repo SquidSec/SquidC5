@@ -1518,6 +1518,13 @@
         tb.innerHTML = '<tr><td colspan="4" class="muted">No OAST tokens</td></tr>';
         return;
       }
+      if (!selectedOastId) {
+        selectedOastId = list[0].id;
+        if (el("oastHitToken") && !el("oastHitToken").value.trim()) {
+          el("oastHitToken").value = list[0].token || "";
+        }
+        pollOastHits({ quiet: true }).catch(() => {});
+      }
       tb.innerHTML = list.map((r) => {
         const sel = r.id === selectedOastId ? " selected" : "";
         return `<tr data-oid="${esc(r.id)}" data-tok="${esc(r.token)}" data-note="${esc(r.note || "")}" class="${sel}">
@@ -4177,7 +4184,12 @@
       case "sessions": renderSessionsView(false); break;
       case "hosts": renderHostsView(false); break;
       case "listeners": renderListenersView(false); break;
-      case "oast": renderOastView(false); break;
+      case "oast":
+        renderOastView(false);
+        applyPageTab(el("oastTabs"), "oasthits");
+        startOastHitPoll();
+        pollOastHits({ quiet: true }).catch(() => {});
+        break;
       case "keys": renderKeysView(false); break;
       case "payloads": renderPayloadsView(false); break;
       case "profiles": renderProfilesView(false); break;
