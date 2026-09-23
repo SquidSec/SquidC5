@@ -811,7 +811,7 @@ Operators can publish a public key and later open ciphertext on the teamserver w
 1. Admin enables feature `asym_keys` (default **off**).
 2. Ops **Keys** page, or `sc5 keys create <name> [--bits 2048|4096]` (scopes `keys:write` or `admin`).
 3. `sc5 keys public <id>` re-derives SPKI PEM, PKCS#1 PEM, and OpenSSH public keys (`keys:read`).
-4. Seal with `sc5 keys encrypt <id> "message"` (hybrid `sc5e1:` envelope) or with raw RSA-OAEP-SHA256 (MGF1-SHA256) against the public PEM.
+4. Seal with `sc5 keys encrypt <id> "message"` (hybrid `sc5e1:` envelope) or raw RSA-OAEP against the public PEM. Decrypt accepts SHA-256 and OpenSSL's default SHA-1 (`pkeyutl -pkeyopt rsa_padding_mode:oaep`).
 5. `sc5 keys decrypt <id> <ciphertext>` (`keys:decrypt` or `admin`). Plaintext is not written to the audit log.
 
 `keys:write` and `keys:decrypt` are privileged (admin must grant them). MCP and INKO cannot call these endpoints.

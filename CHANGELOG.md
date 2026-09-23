@@ -9,6 +9,7 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - Asymmetric key vault: create RSA keypair, derive public key encodings, decrypt RSA-OAEP and `sc5e1` envelopes (`asym_keys` default off)
 - Ops **Keys** page: list, create, copy public encodings, decrypt
+- Key vault decrypt accepts OpenSSL default RSA-OAEP (SHA-1) as well as SHA-256
 - Release assets `sc5-linux-arm64` / `squidc5-linux-arm64` (Raspberry Pi OS 64-bit)
 - **INKO** (Intelligent Neural Kinetic Operator): rebrand of ops neural operator chat
 - INKO opens from a **top-bar button** as a right flyout panel (full-screen on mobile); floating FAB removed
