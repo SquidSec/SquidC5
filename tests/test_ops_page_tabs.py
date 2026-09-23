@@ -111,6 +111,10 @@ async def test_all_views_use_page_tabs(tmp_path):
             assert "startOastHitPoll" in js
             assert "overflow-wrap: anywhere" in html
             assert "applyPageTab(el(\"oastTabs\"), \"oasthits\")" in js
+            assert '<select id="oastHitToken"' in js
+            assert ">All</option>" in js
+            assert 'placeholder="hex token (minted)"' not in js
+            assert ".hit-card { overflow: hidden" not in html
             assert 'min="1"' in js and 'max="60"' in js
             assert "llm-card" in js
             assert "min-height:240px" in js
