@@ -1297,6 +1297,7 @@
   }
 
   let selectedOastId = null;
+  let oastHitTokenPref = "";
   let lastOastMint = null;
   let lastOastHitsJson = "";
 
@@ -1388,7 +1389,11 @@
       { id: "oasthits", label: "Hits", html: `
         <p class="muted" id="oastHitsMintedOnly">Only callbacks tied to minted OAST tokens. Scanner noise (no token) is omitted.</p>
         <div class="form-grid">
-          <div><label>Token</label><input id="oastHitToken" placeholder="hex token (minted)" /></div>
+          <div><label>Token</label>
+            <select id="oastHitToken">
+              <option value="">All</option>
+            </select>
+          </div>
           <div><label>Protocol</label>
             <select id="oastHitProto">
               <option value="">all</option>
@@ -1468,7 +1473,7 @@
         selectedOastId = r.id;
         lastOastMint = r;
         renderOastMintResult(r);
-        if (el("oastHitToken")) el("oastHitToken").value = r.token || "";
+        oastHitTokenPref = r.token || "";
         showOk("OAST token minted");
         await loadOastTokens();
       } catch (e) { showError(String(e.message || e)); }
@@ -1479,6 +1484,10 @@
       navigator.clipboard.writeText(blob).then(() => showOk("Copied labeled URLs")).catch(() => showError("Copy failed"));
     };
     if (el("oastPoll")) el("oastPoll").onclick = () => pollOastHits();
+    if (el("oastHitToken")) el("oastHitToken").onchange = () => {
+      syncOastSelectionFromToken();
+      pollOastHits();
+    };
     if (el("oastHitPollOn")) el("oastHitPollOn").onchange = () => {
       saveSel("sc5_oast_hit_poll_on", el("oastHitPollOn").checked ? "1" : "0");
       startOastHitPoll();
@@ -1508,22 +1517,47 @@
     startOastHitPoll();
   }
 
+  function fillOastHitTokenSelect(list) {
+    const sel = el("oastHitToken");
+    if (!sel) return;
+    const current = oastHitTokenPref || sel.value || "";
+    oastHitTokenPref = "";
+    const opts = ['<option value="">All</option>'];
+    (list || []).forEach((r) => {
+      const tok = String(r.token || "");
+      if (!tok) return;
+      const note = String(r.note || "").trim();
+      const label = note ? note + " (" + tok + ")" : tok;
+      opts.push('<option value="' + esc(tok) + '">' + esc(label) + "</option>");
+    });
+    sel.innerHTML = opts.join("");
+    const has = Array.from(sel.options).some((o) => o.value === current);
+    sel.value = has ? current : "";
+  }
+
+  function syncOastSelectionFromToken() {
+    const tok = (el("oastHitToken") && el("oastHitToken").value) || "";
+    const tb = el("oastTbody");
+    if (!tok) {
+      selectedOastId = null;
+      if (tb) tb.querySelectorAll("tr").forEach((x) => x.classList.remove("selected"));
+      return;
+    }
+    const tr = tb && Array.from(tb.querySelectorAll("tr[data-tok]")).find((row) => row.getAttribute("data-tok") === tok);
+    selectedOastId = tr ? tr.getAttribute("data-oid") : selectedOastId;
+    if (tb) tb.querySelectorAll("tr").forEach((x) => x.classList.toggle("selected", x === tr));
+  }
+
   async function loadOastTokens() {
     const tb = el("oastTbody");
     if (!tb) return;
     try {
       const rows = await api("GET", "/api/v1/oast/tokens?limit=200");
       const list = Array.isArray(rows) ? rows : [];
+      fillOastHitTokenSelect(list);
       if (!list.length) {
         tb.innerHTML = '<tr><td colspan="4" class="muted">No OAST tokens</td></tr>';
         return;
-      }
-      if (!selectedOastId) {
-        selectedOastId = list[0].id;
-        if (el("oastHitToken") && !el("oastHitToken").value.trim()) {
-          el("oastHitToken").value = list[0].token || "";
-        }
-        pollOastHits({ quiet: true }).catch(() => {});
       }
       tb.innerHTML = list.map((r) => {
         const sel = r.id === selectedOastId ? " selected" : "";

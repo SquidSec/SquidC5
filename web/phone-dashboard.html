@@ -794,18 +794,19 @@
     .oast-poll-bar input[type="range"] { width: min(140px, 100%); flex: 1 1 120px; padding: 0; min-height: 0; accent-color: var(--pink2); }
     .oast-poll-bar #oastHitPollSecLbl { font-family: var(--mono); font-size: 0.72rem; min-width: 2.2rem; }
     #oastHitCards, #oastHitOut, .hit-card {
-      min-width: 0; max-width: 100%;
+      min-width: 0; max-width: 100%; width: 100%;
     }
     #oastHitCards { overflow-x: hidden; overflow-y: auto; }
-    .hit-card { overflow: hidden; }
+    .hit-card { overflow: visible; flex: 0 0 auto; height: auto; }
     .hit-card h4, .hit-card dd, .hit-card .mono, #oastHitOut, #oastHitsMintedOnly {
       overflow-wrap: anywhere;
       word-break: break-word;
-      white-space: pre-wrap;
+      white-space: normal;
+      min-width: 0;
       max-width: 100%;
     }
-    .hit-card dl { grid-template-columns: minmax(4.5rem, 7.5rem) minmax(0, 1fr); min-width: 0; }
-    #oastHitOut { overflow-x: hidden; overflow-y: auto; }
+    .hit-card dl { grid-template-columns: minmax(4.5rem, 7.5rem) minmax(0, 1fr); min-width: 0; width: 100%; }
+    #oastHitOut { overflow-x: hidden; overflow-y: auto; white-space: pre-wrap; }
     .admin-stack {
       display: flex; flex-direction: column; gap: 16px;
       height: 100%; min-height: 0; overflow: auto; padding: 4px 2px 16px;
