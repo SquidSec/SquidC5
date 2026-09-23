@@ -7,6 +7,9 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Asymmetric key vault: create RSA keypair, derive public key encodings, decrypt RSA-OAEP and `sc5e1` envelopes (`asym_keys` default off)
+- Ops **Keys** page: list, create, copy public encodings, decrypt
+- Key vault decrypt accepts OpenSSL default RSA-OAEP (SHA-1) as well as SHA-256
 - Release assets `sc5-linux-arm64` / `squidc5-linux-arm64` (Raspberry Pi OS 64-bit)
 - **INKO** (Intelligent Neural Kinetic Operator): rebrand of ops neural operator chat
 - INKO opens from a **top-bar button** as a right flyout panel (full-screen on mobile); floating FAB removed
@@ -16,12 +19,15 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 - Docs: Diátaxis index, Artifacts / Profiles / OAST / TLS cert library chapters, Ops nav map
 
 ### Changed
+- Ops **Collab** chat: select open channels, auto-poll new messages, composer at the bottom (no Reload)
 - OAST Hits page and `GET /api/v1/oast/hits` list only callbacks tied to minted tokens (scanner noise omitted)
 - Ops UI and chat system prompt use **INKO** naming; user guide / runbook / README / AGENTS updated
 - INKO chat: **persisted history** (browser localStorage), clear input on send, pending indicator, block send while waiting, **markdown** rendering for assistant replies
 - **Documentation consistency pass:** user guide What/Why/How/Example/See also; runbook Goal/Prereqs/Steps/Verify; deployment Context/Config/Commands/Verify; fixed cross-links and Ops Docs menu anchors
 
 ### Security / OPSEC
+- Key vault private keys encrypted at rest; never returned by API or written to decrypt audit details
+- `keys:write` and `keys:decrypt` are privileged scopes; feature `asym_keys` defaults off
 - Native agent remains AEAD-only with full TLS verify
 
 ## [0.1.126] - 2026-08-01

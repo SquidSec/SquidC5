@@ -54,6 +54,7 @@ async def test_all_views_use_page_tabs(tmp_path):
                 "artifactsTabs",
                 "assetsTabs",
                 "oastTabs",
+                "keysTabs",
             ):
                 assert tid in js, f"missing tabs shell {tid}"
             assert "labeledOastUrls" in js
@@ -84,6 +85,12 @@ async def test_all_views_use_page_tabs(tmp_path):
             assert 'id="ctxTask" rows="4"' in js
             assert 'id="tskCmd" rows="4"' in js
             assert 'id="chMsg" rows="4"' in js
+            assert "team-chat" in js
+            assert 'id="chLog"' in js
+            assert 'id="chTeam"' in js
+            assert "startCollabPoll" in js
+            assert "loadCollabChat" in js
+            assert "id=\"chReload\"" not in js
             assert 'id="tmNote" rows="4"' in js
             assert 'id="oastNote" rows="4"' in js
             assert 'id="aiPromptGlobal" rows="4"' in html
@@ -91,6 +98,12 @@ async def test_all_views_use_page_tabs(tmp_path):
             assert "oastHitCards" in js
             assert "oastHitCopyJson" in js
             assert "oastHitsMintedOnly" in js
+            assert 'data-view="keys"' in html
+            assert 'id="view-keys"' in html
+            assert "renderKeysView" in js
+            assert "keyDecryptBtn" in js
+            assert "keyLoadPublic" in js
+            assert "keys:read" in html
             assert "tied to minted OAST tokens" in js
             assert "llm-card" in js
             assert "min-height:240px" in js

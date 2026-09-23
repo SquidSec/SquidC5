@@ -110,6 +110,7 @@ Administrators configure BYO LLM connections (Ops **Admin** UI or CLI). **INKO**
 | **Profiles** | Malleable HTTP(S) surface; active profile contract |
 | **Artifacts** | Saved payloads/templates/profiles for reuse |
 | **OAST** | DNS/HTTP/SMTP collaborator hits |
+| **Keys** | RSA vault; public export; decrypt; private key encrypted at rest, never returned |
 | **Files / SOCKS** | Scoped post-ex on sessions |
 | **Collab** | Claim, handoff, spectator, presence, team chat |
 

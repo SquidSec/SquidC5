@@ -91,6 +91,13 @@ DEFAULT_POLICY: dict[str, Any] = {
         "tokens.roll": 7,
         "tokens.connection_link": 5,
         "policy.update": 9,
+        "keys.list": 0,
+        "keys.get": 0,
+        "keys.public": 1,
+        "keys.encrypt": 2,
+        "keys.create": 6,
+        "keys.delete": 5,
+        "keys.decrypt": 6,
     },
 }
 

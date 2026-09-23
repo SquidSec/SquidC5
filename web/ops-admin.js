@@ -165,6 +165,10 @@
       { a: "oast-collaborator", t: "OAST" },
       { a: "listeners", t: "Listeners" },
     ],
+    keys: [
+      { a: "asymmetric-keys", t: "Asymmetric keys" },
+      { a: "feature-toggles", t: "Feature toggles" },
+    ],
     payloads: [
       { a: "payloads-and-implants", t: "Payloads & implants" },
       { a: "c2-profiles-profiles", t: "C2 profiles" },
@@ -1545,6 +1549,189 @@
     } catch (e) { showError(String(e.message || e)); }
   }
 
+  /* -- Asymmetric key vault -- */
+  let selectedKeyId = null;
+  let lastKeyPublic = null;
+
+  function renderKeysView(force) {
+    const root = el("view-keys");
+    if (!root) return;
+    if (!force && viewBuilt.keys && root.querySelector(".page-tabs")) {
+      if (el("keyTbody")) loadKeys();
+      return;
+    }
+    rememberAllPageTabs(root);
+    root.innerHTML = tabbedHtml([
+      { id: "keylist", label: "Keys", html: `
+        <p class="muted">Public keys only. Private keys stay on the server. Feature <span class="mono">asym_keys</span> must be on (Admin → Features).</p>
+        <div class="row" style="margin-bottom:8px">
+          <button type="button" class="primary" id="keyRefresh">Refresh</button>
+          ${can("keys:write") ? '<button type="button" class="danger" id="keyDeleteBtn">Delete</button>' : ""}
+        </div>
+        <div style="flex:1;min-height:0;overflow:auto">
+          <table class="data"><thead><tr>
+            <th>Name</th><th>ID</th><th>Bits</th><th>Fingerprint</th>
+          </tr></thead><tbody id="keyTbody"></tbody></table>
+        </div>
+      `},
+      { id: "keycreate", label: "Create", html: `
+        ${can("keys:write") ? `
+          <div class="form-grid">
+            <div><label>Name</label><input id="keyName" placeholder="lab-vault" maxlength="64" /></div>
+            <div><label>Bits</label>
+              <select id="keyBits">
+                <option value="2048">2048</option>
+                <option value="4096">4096</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <button type="button" class="primary" id="keyCreateBtn">Create keypair</button>
+          </div>
+        ` : '<p class="muted">Need keys:write (admin) to create keypairs</p>'}
+        <p class="muted" id="keyCreateHint">Creates an RSA keypair. The private key is encrypted at rest and never shown.</p>
+      `},
+      { id: "keypub", label: "Public", html: `
+        <div class="row" style="margin-bottom:8px">
+          <button type="button" class="primary" id="keyLoadPublic">Load public keys</button>
+          <button type="button" id="keyCopyPem">Copy PEM</button>
+          <button type="button" id="keyCopyPkcs1">Copy PKCS#1</button>
+          <button type="button" id="keyCopyOpenssh">Copy OpenSSH</button>
+        </div>
+        <div class="form-grid">
+          <div class="full"><label>Fingerprint</label><input id="keyFp" readonly /></div>
+          <div class="full"><label>SPKI PEM</label><textarea id="keyPubPem" rows="6" readonly></textarea></div>
+          <div class="full"><label>PKCS#1 PEM</label><textarea id="keyPkcs1" rows="6" readonly></textarea></div>
+          <div class="full"><label>OpenSSH</label><textarea id="keyOpenssh" rows="3" readonly></textarea></div>
+        </div>
+      `},
+      { id: "keydec", label: "Decrypt", html: `
+        ${can("keys:decrypt") ? `
+          <div class="form-grid">
+            <div class="full"><label>Ciphertext (sc5e1: or base64 RSA-OAEP, including OpenSSL default SHA-1)</label>
+              <textarea id="keyCipher" rows="6" placeholder="sc5e1:..."></textarea>
+            </div>
+          </div>
+          <div class="row">
+            <button type="button" class="primary" id="keyDecryptBtn">Decrypt</button>
+            <button type="button" id="keyClearPlain">Clear</button>
+          </div>
+          <div class="full"><label>Plaintext</label>
+            <textarea id="keyPlain" rows="6" readonly placeholder="Select a key, paste ciphertext, decrypt."></textarea>
+          </div>
+        ` : '<p class="muted">Need keys:decrypt (admin) to open ciphertext</p>'}
+      `},
+    ], { id: "keysTabs" });
+    viewBuilt.keys = true;
+    bindPageTabs(root);
+    loadKeys();
+    if (el("keyRefresh")) el("keyRefresh").onclick = () => loadKeys();
+    if (el("keyDeleteBtn")) el("keyDeleteBtn").onclick = () => deleteSelectedKey();
+    if (el("keyCreateBtn")) el("keyCreateBtn").onclick = () => createKey();
+    if (el("keyLoadPublic")) el("keyLoadPublic").onclick = () => loadKeyPublic();
+    if (el("keyCopyPem")) el("keyCopyPem").onclick = () => copyKeyField("public_pem", "PEM copied");
+    if (el("keyCopyPkcs1")) el("keyCopyPkcs1").onclick = () => copyKeyField("public_pkcs1_pem", "PKCS#1 copied");
+    if (el("keyCopyOpenssh")) el("keyCopyOpenssh").onclick = () => copyKeyField("public_openssh", "OpenSSH copied");
+    if (el("keyDecryptBtn")) el("keyDecryptBtn").onclick = () => decryptSelectedKey();
+    if (el("keyClearPlain")) el("keyClearPlain").onclick = () => {
+      if (el("keyCipher")) el("keyCipher").value = "";
+      if (el("keyPlain")) el("keyPlain").value = "";
+    };
+  }
+
+  function fillKeyPublic(pub) {
+    lastKeyPublic = pub || null;
+    if (el("keyFp")) el("keyFp").value = (pub && pub.fingerprint_sha256) || "";
+    if (el("keyPubPem")) el("keyPubPem").value = (pub && pub.public_pem) || "";
+    if (el("keyPkcs1")) el("keyPkcs1").value = (pub && pub.public_pkcs1_pem) || "";
+    if (el("keyOpenssh")) el("keyOpenssh").value = (pub && pub.public_openssh) || "";
+  }
+
+  function copyKeyField(field, okMsg) {
+    const text = lastKeyPublic && lastKeyPublic[field];
+    if (!text) return showError("Load public keys first");
+    navigator.clipboard.writeText(text).then(() => showOk(okMsg)).catch(() => showError("Copy failed"));
+  }
+
+  async function loadKeys() {
+    const tb = el("keyTbody");
+    if (!tb) return;
+    try {
+      const rows = await api("GET", "/api/v1/keys?limit=100");
+      const list = Array.isArray(rows) ? rows : [];
+      if (!list.length) {
+        tb.innerHTML = '<tr><td colspan="4" class="muted">No keys yet</td></tr>';
+        return;
+      }
+      tb.innerHTML = list.map((r) => {
+        const sel = r.id === selectedKeyId ? " selected" : "";
+        return `<tr data-kid="${esc(r.id)}" class="${sel}">
+          <td>${esc(r.name || "")}</td>
+          <td class="mono">${esc(r.id || "")}</td>
+          <td>${esc(String(r.key_size || ""))}</td>
+          <td class="mono" style="font-size:0.68rem">${esc(r.fingerprint_sha256 || "")}</td>
+        </tr>`;
+      }).join("");
+      tb.querySelectorAll("tr[data-kid]").forEach((tr) => {
+        tr.onclick = () => {
+          selectedKeyId = tr.getAttribute("data-kid");
+          tb.querySelectorAll("tr").forEach((x) => x.classList.toggle("selected", x === tr));
+          loadKeyPublic(true);
+        };
+      });
+    } catch (e) {
+      tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(String(e.message || e))}</td></tr>`;
+    }
+  }
+
+  async function createKey() {
+    const name = (el("keyName") && el("keyName").value.trim()) || "";
+    const bits = Number((el("keyBits") && el("keyBits").value) || 2048);
+    if (!name) return showError("Name required");
+    try {
+      const r = await api("POST", "/api/v1/keys", { name, key_size: bits });
+      selectedKeyId = r.id;
+      showOk("Key created");
+      await loadKeys();
+      await loadKeyPublic(true);
+    } catch (e) { showError(String(e.message || e)); }
+  }
+
+  async function loadKeyPublic(silent) {
+    if (!selectedKeyId) return showError("Select a key");
+    try {
+      const pub = await api("GET", "/api/v1/keys/" + encodeURIComponent(selectedKeyId) + "/public");
+      fillKeyPublic(pub);
+      if (!silent) showOk("Public keys derived");
+    } catch (e) { showError(String(e.message || e)); }
+  }
+
+  async function decryptSelectedKey() {
+    if (!selectedKeyId) return showError("Select a key");
+    const ciphertext = (el("keyCipher") && el("keyCipher").value.trim()) || "";
+    if (!ciphertext) return showError("Ciphertext required");
+    try {
+      const r = await api("POST", "/api/v1/keys/" + encodeURIComponent(selectedKeyId) + "/decrypt", { ciphertext });
+      const box = el("keyPlain");
+      if (box) box.value = r.plaintext != null ? r.plaintext : (r.plaintext_b64 || "");
+      showOk("Decrypted");
+    } catch (e) { showError(String(e.message || e)); }
+  }
+
+  async function deleteSelectedKey() {
+    if (!selectedKeyId) return showError("Select a key");
+    const ok = await askConfirm("Delete this keypair? Ciphertext sealed to it cannot be opened.", { danger: true, okLabel: "Delete" });
+    if (!ok) return;
+    try {
+      await api("DELETE", "/api/v1/keys/" + encodeURIComponent(selectedKeyId));
+      selectedKeyId = null;
+      lastKeyPublic = null;
+      fillKeyPublic(null);
+      showOk("Deleted");
+      await loadKeys();
+    } catch (e) { showError(String(e.message || e)); }
+  }
+
   /* -- Payloads -- */
   function renderPayloadsView(force) {
     const root = el("view-payloads");
@@ -1738,22 +1925,131 @@
   }
 
   /* -- Collab -- */
+  let collabPollTimer = null;
+  let lastCollabBeat = 0;
+
+  function stopCollabPoll() {
+    if (collabPollTimer) {
+      clearInterval(collabPollTimer);
+      collabPollTimer = null;
+    }
+  }
+
+  function startCollabPoll() {
+    stopCollabPoll();
+    collabPollTimer = setInterval(() => {
+      if (!currentIs("collab")) {
+        stopCollabPoll();
+        return;
+      }
+      loadCollabChat().catch(() => {});
+      const now = Date.now();
+      if (now - lastCollabBeat > 30000) {
+        lastCollabBeat = now;
+        beatCollabPresence().then(() => loadCollabPresence()).catch(() => {});
+      } else {
+        loadCollabPresence().catch(() => {});
+      }
+    }, 2500);
+  }
+
+  function fmtChatTs(ts) {
+    const n = Number(ts);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    const ms = n > 1e12 ? n : n * 1000;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function loadCollabChannels() {
+    const sel = el("chTeam");
+    if (!sel) return;
+    const cur = sel.value || loadSel("sc5_ops_ch_team") || "";
+    let teams = [];
+    try {
+      const rows = await api("GET", "/api/v1/teams");
+      teams = Array.isArray(rows) ? rows : [];
+    } catch (_) {
+      teams = [];
+    }
+    sel.innerHTML = ['<option value="">Global</option>'].concat(
+      teams.map((t) => `<option value="${esc(t.id)}">${esc(t.name || t.id)}</option>`)
+    ).join("");
+    if (cur && Array.from(sel.options).some((o) => o.value === cur)) sel.value = cur;
+    else sel.value = "";
+    saveSel("sc5_ops_ch_team", sel.value || "");
+  }
+
+  async function beatCollabPresence() {
+    try {
+      await api("POST", "/api/v1/collab/presence", { status: "online", viewing_session: selectedId });
+    } catch (_) {}
+  }
+
+  async function loadCollabPresence() {
+    const n = el("chOnline");
+    if (!n) return;
+    try {
+      const r = await api("GET", "/api/v1/collab/presence");
+      const ops = r.operators || [];
+      n.textContent = ops.length ? ("online: " + ops.map((o) => o.actor || o.name || "?").join(", ")) : "online: —";
+    } catch (_) {
+      n.textContent = "";
+    }
+  }
+
+  async function loadCollabChat() {
+    const log = el("chLog");
+    if (!log) return;
+    const sel = el("chTeam");
+    const tid = sel ? (sel.value || "").trim() : "";
+    const q = tid ? "?team_id=" + encodeURIComponent(tid) + "&limit=200" : "?limit=200";
+    const r = await api("GET", "/api/v1/collab/chat" + q);
+    const messages = r.messages || [];
+    const sig = messages.map((m) => String(m.id || "") + ":" + String(m.ts || "") + ":" + String(m.message || "")).join("|");
+    if (log.getAttribute("data-sig") === sig) return;
+    const nearBottom = (log.scrollHeight - log.scrollTop - log.clientHeight) < 64;
+    log.setAttribute("data-sig", sig);
+    const me = String((state.actor || "")).toLowerCase();
+    log.innerHTML = messages.length ? messages.map((m) => {
+      const mine = String(m.actor || "").toLowerCase() === me;
+      const when = fmtChatTs(m.ts);
+      return `<article class="team-msg${mine ? " mine" : ""}">
+        <div class="who">${esc(m.actor || "?")}${when ? ` <span class="when">${esc(when)}</span>` : ""}</div>
+        <div class="body">${esc(m.message || "")}</div>
+      </article>`;
+    }).join("") : '<p class="muted">No messages yet.</p>';
+    if (nearBottom || !log.scrollTop) log.scrollTop = log.scrollHeight;
+  }
+
   function renderCollabView(force) {
     const root = el("view-collab");
     if (!root) return;
-    if (!force && viewBuilt.collab && root.children.length) return;
+    if (!force && viewBuilt.collab && root.querySelector(".page-tabs")) {
+      startCollabPoll();
+      loadCollabChat().catch(() => {});
+      return;
+    }
     rememberAllPageTabs(root);
+    const canChat = can("collab:use") || can("admin");
     root.innerHTML = tabbedHtml([
       { id: "chchat", label: "Chat", html: `
-        <label>Team channel (optional id)</label>
-        <input id="chTeam" placeholder="leave empty for global" />
-        <label>Message</label>
-        <textarea id="chMsg" rows="4" placeholder="status update..."></textarea>
-        <div class="row">
-          <button type="button" class="primary" id="chSend" ${can("collab:use") || can("admin") ? "" : "disabled"}>Send</button>
-          <button type="button" class="ghost" id="chReload">Reload</button>
+        <div class="team-chat">
+          <div class="team-chat-head">
+            <label for="chTeam">Channel</label>
+            <select id="chTeam" title="Open channels"><option value="">Global</option></select>
+            <span class="muted" id="chOnline"></span>
+          </div>
+          <div class="team-chat-log" id="chLog"></div>
+          <div class="team-chat-compose">
+            <textarea id="chMsg" rows="4" placeholder="Message the team..." ${canChat ? "" : "disabled"}></textarea>
+            <div class="row">
+              <button type="button" class="primary" id="chSend" ${canChat ? "" : "disabled"}>Send</button>
+            </div>
+            <p class="muted" style="margin:6px 0 0;font-size:0.62rem">Enter to send  /  Shift+Enter newline</p>
+          </div>
         </div>
-        <div class="outbox empty" id="chOut" style="flex:1;max-height:none">-</div>
       `},
       { id: "chteams", label: "Teams / handoff", html: `
         <div class="row">
@@ -1778,24 +2074,30 @@
       n.textContent = typeof r === "string" ? r : JSON.stringify(r, null, 2);
       n.classList.remove("empty");
     };
-    async function loadChat() {
-      const tid = (el("chTeam").value || "").trim();
-      const q = tid ? "?team_id=" + encodeURIComponent(tid) : "";
-      const r = await api("GET", "/api/v1/collab/chat" + q);
-      const lines = (r.messages || []).map((m) => `${m.actor}: ${m.message}`);
-      out("chOut", lines.join("\n") || "(empty)");
-    }
-    if (el("chReload")) el("chReload").onclick = () => loadChat().catch((e) => showError(String(e.message || e)));
-    if (el("chSend")) el("chSend").onclick = async () => {
+    async function sendCollabChat() {
       try {
         const message = (el("chMsg").value || "").trim();
         if (!message) return showError("Message required");
-        const team_id = (el("chTeam").value || "").trim() || null;
+        const team_id = (el("chTeam") && el("chTeam").value || "").trim() || null;
         await api("POST", "/api/v1/collab/chat", { message, team_id });
         el("chMsg").value = "";
-        await loadChat();
-        showOk("Sent");
+        await loadCollabChat();
+        const log = el("chLog");
+        if (log) log.scrollTop = log.scrollHeight;
       } catch (e) { showError(String(e.message || e)); }
+    }
+    if (el("chSend")) el("chSend").onclick = () => sendCollabChat();
+    if (el("chMsg")) el("chMsg").onkeydown = (ev) => {
+      if (ev.key === "Enter" && !ev.shiftKey) {
+        ev.preventDefault();
+        sendCollabChat();
+      }
+    };
+    if (el("chTeam")) el("chTeam").onchange = () => {
+      saveSel("sc5_ops_ch_team", el("chTeam").value || "");
+      const log = el("chLog");
+      if (log) log.removeAttribute("data-sig");
+      loadCollabChat().catch((e) => showError(String(e.message || e)));
     };
     if (el("tmList")) el("tmList").onclick = async () => {
       try { out("tmOut", await api("GET", "/api/v1/teams")); } catch (e) { showError(String(e.message || e)); }
@@ -1804,14 +2106,20 @@
       try {
         await api("POST", "/api/v1/collab/presence", { status: "online", viewing_session: selectedId });
         out("tmOut", await api("GET", "/api/v1/collab/presence"));
+        loadCollabPresence().catch(() => {});
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("tmCreate")) el("tmCreate").onclick = async () => {
       try {
         const name = (el("tmName").value || "").trim();
         if (!name) return showError("Name required");
-        out("tmOut", await api("POST", "/api/v1/teams", { name }));
+        const created = await api("POST", "/api/v1/teams", { name });
+        out("tmOut", created);
         showOk("Team created");
+        if (created && created.id && el("chTeam")) {
+          saveSel("sc5_ops_ch_team", created.id);
+        }
+        await loadCollabChannels();
       } catch (e) { showError(String(e.message || e)); }
     };
     if (el("tmHandoff")) el("tmHandoff").onclick = async () => {
@@ -1825,7 +2133,9 @@
         showOk("Handoff sent");
       } catch (e) { showError(String(e.message || e)); }
     };
-    loadChat().catch(() => {});
+    loadCollabChannels().then(() => loadCollabChat()).catch(() => {});
+    beatCollabPresence().then(() => loadCollabPresence()).catch(() => {});
+    startCollabPoll();
   }
 
   /* -- Observe -- */
@@ -3803,6 +4113,7 @@
       case "hosts": renderHostsView(false); break;
       case "listeners": renderListenersView(false); break;
       case "oast": renderOastView(false); break;
+      case "keys": renderKeysView(false); break;
       case "payloads": renderPayloadsView(false); break;
       case "profiles": renderProfilesView(false); break;
       case "artifacts": renderArtifactsView(false); break;
@@ -3841,11 +4152,15 @@
     if (currentIs("hosts") && !typing) renderHostsView(false);
     if (currentIs("listeners")) renderListenersView(false);
     if (currentIs("oast") && !typing) renderOastView(false);
+    if (currentIs("keys") && !typing) renderKeysView(false);
     if (currentIs("payloads") && !typing) renderPayloadsView(false);
     if (currentIs("profiles") && !typing) renderProfilesView(false);
     if (currentIs("artifacts") && !typing) renderArtifactsView(false);
     if (currentIs("postex") && !typing) renderPostexView(false);
-    if (currentIs("collab") && !typing) renderCollabView(false);
+    if (currentIs("collab") && !typing) {
+      loadCollabChat().catch(() => {});
+      loadCollabPresence().catch(() => {});
+    }
     if (currentIs("observe") && !typing) renderObserveView(false);
     if (currentIs("admin") && !typing) renderAdminView(false);
     if (currentIs("ai") && !typing) renderAiView(false);
