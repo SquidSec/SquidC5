@@ -413,6 +413,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         async def ops_dashboard_alias():
             return RedirectResponse("/ops", status_code=307)
 
+        sw_file = wdir / "notify-sw.js"
+
+        @app.get("/ops/notify-sw.js")
+        async def ops_notify_sw():
+            if not sw_file.is_file():
+                raise HTTPException(404, "Not found")
+            return FileResponse(
+                sw_file,
+                media_type="application/javascript",
+                headers={
+                    "Cache-Control": "no-store",
+                    "Service-Worker-Allowed": "/ops",
+                },
+            )
+
     @app.get("/")
     async def root() -> dict[str, str]:
         # Minimal banner - no docs/OpenAPI pointers
