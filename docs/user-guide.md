@@ -199,7 +199,7 @@ Operators need a phone-friendly and desktop console without shipping secrets bac
 2. Paste **API token** -> **Save & Connect**.
 3. Connection panel collapses when a token is saved.
 4. Use left nav for workspaces; top-bar **INKO** for chat flyout.
-5. **Notify** asks the browser for notification permission, then alerts on a new shell (`shell.connected`) and an OAST hit while `/ops` is open. Toggle again to disable. Preference stays in localStorage (`sc5_ops_notify`).
+5. **Notify** asks the browser for notification permission, then alerts on a new shell (`shell.connected`), a beacon attach (`session.created` with `kind=beacon`), and an OAST hit while `/ops` is open. Toggle again to disable. Preference stays in localStorage (`sc5_ops_notify`).
 
 ### Example
 

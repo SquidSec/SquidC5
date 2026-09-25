@@ -18,6 +18,7 @@ def test_ops_html_notify_toggle():
     assert "sc5_ops_notify" in html
     assert "shell.connected" in html
     assert "oast.hit" in html
+    assert 'p.kind === "beacon"' in html
     assert "/api/v1/events/stream" in html
     assert "Notification.requestPermission" in html
     sw = Path(web_file("notify-sw.js")).read_text(encoding="utf-8")
