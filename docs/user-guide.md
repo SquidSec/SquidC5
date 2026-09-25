@@ -199,6 +199,7 @@ Operators need a phone-friendly and desktop console without shipping secrets bac
 2. Paste **API token** -> **Save & Connect**.
 3. Connection panel collapses when a token is saved.
 4. Use left nav for workspaces; top-bar **INKO** for chat flyout.
+5. **Notify** asks the browser for notification permission, then alerts on a new shell (`shell.connected`) and an OAST hit while `/ops` is open. Toggle again to disable. Preference stays in localStorage (`sc5_ops_notify`).
 
 ### Example
 
@@ -222,7 +223,7 @@ The `/ops` console is an **app shell** (multi-page nav + context rail + dock).
 
 | Region | Purpose |
 |--------|---------|
-| **Top bar** | Host, online status, Connect, Refresh, **INKO** flyout |
+| **Top bar** | Host, online status, **Notify** (shell + OAST browser alerts), Connect, Refresh, **INKO** flyout |
 | **Left nav** | Dashboard - Sessions - **Assets** - Listeners - **OAST** - **Keys** - Payloads - **Profiles** - **Artifacts** - Post-Ex - Collab - **INKO** - Observe - Admin |
 | **Main** | Active workspace for the selected nav item |
 | **Right rail** | Selected session context (claim, shell, task) |

@@ -210,6 +210,11 @@
       color: #facc15;
       background: rgba(250, 204, 21, 0.1);
     }
+    #btnNotify.active {
+      border-color: rgba(52, 211, 153, 0.55);
+      color: #34d399;
+      background: rgba(52, 211, 153, 0.1);
+    }
     .top button { padding: 5px 10px; font-size: 0.78rem; }
 
     /* Sidebar / mobile drawer */
@@ -1301,6 +1306,12 @@
       }
       .top #btnRefresh { min-width: 36px; padding: 0 8px; }
       .top #btnPrivacy { padding: 0 8px; font-size: 0.68rem; }
+      .top #btnNotify {
+        padding: 0 8px; min-width: 36px; font-size: 0;
+      }
+      .top #btnNotify::before {
+        content: "N"; font-size: 0.72rem; font-weight: 700;
+      }
       .top #privacyBadge {
         max-width: 88px; font-size: 0.55rem; padding: 3px 5px;
         overflow: hidden; text-overflow: ellipsis;
@@ -1498,6 +1509,7 @@
       <span class="pill privacy hidden" id="privacyBadge" title="PII masked in the UI (local only)">Privacy Mode Active</span>
       <span class="pill" id="statusBadge">offline</span>
       <span class="pill live hidden" id="roleBadge">-</span>
+      <button type="button" id="btnNotify" title="Desktop and phone alerts for shells and OAST hits" aria-pressed="false">Notify</button>
       <button type="button" id="btnPrivacy" title="Toggle privacy mode (mask IPs, keys, server address)">Privacy</button>
       <button type="button" id="btnInko" class="inko-top-btn hidden" title="INKO - Intelligent Neural Kinetic Operator">INKO</button>
       <button type="button" id="btnPhoneQr" title="Phone QR - scan to open ops and auto-connect">Phone QR</button>
@@ -1711,7 +1723,7 @@
 
   <script>
 (function () {
-  const KEYS = { url: "sc5_dash_url", token: "sc5_dash_token", refresh: "sc5_dash_refresh" };
+  const KEYS = { url: "sc5_dash_url", token: "sc5_dash_token", refresh: "sc5_dash_refresh", notify: "sc5_ops_notify" };
   const $ = (id) => document.getElementById(id);
   const state = { scopes: [], actor: null, meta: null, token: "", sessions: [], listeners: [], selectedId: null };
 
@@ -2228,6 +2240,7 @@
       await refresh();
       if (timer) clearInterval(timer);
       timer = setInterval(() => refresh().catch(() => {}), c.refresh * 1000);
+      if (notifyOn()) startNotifyStream();
       showOk("Connected as " + state.actor);
       // Drop onto a view the token may open
       const want = currentView || "dashboard";
@@ -2465,6 +2478,126 @@
     }
   }
   function closeQrModal() { $("qrModal").classList.remove("show"); }
+  function notifyOn() {
+    try { return localStorage.getItem(KEYS.notify) === "1"; } catch (_) { return false; }
+  }
+  function applyNotifyBtn(on) {
+    const btn = $("btnNotify");
+    if (!btn) return;
+    btn.classList.toggle("active", !!on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.textContent = on ? "Notify on" : "Notify";
+  }
+  let notifyAbort = null;
+  let notifySw = null;
+  async function ensureNotifySw() {
+    if (!("serviceWorker" in navigator)) return null;
+    if (notifySw) return notifySw;
+    try {
+      notifySw = await navigator.serviceWorker.register("/ops/notify-sw.js", { scope: "/ops" });
+      return notifySw;
+    } catch (_) {
+      return null;
+    }
+  }
+  async function pushNote(title, body, tag) {
+    const text = privacyModeOn() ? maskPii(body) : body;
+    const reg = await ensureNotifySw();
+    if (reg && reg.showNotification) {
+      try {
+        await reg.showNotification(title, {
+          body: text,
+          tag: tag || "sc5",
+          renotify: true,
+          icon: "/ops/assets/squidsec-logo-96.png",
+        });
+        return;
+      } catch (_) {}
+    }
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: "sc5-notify", title, body: text, tag: tag || "sc5",
+      });
+      return;
+    }
+    try { new Notification(title, { body: text, tag: tag || "sc5" }); } catch (_) {}
+  }
+  function handleNotifyEvent(ev) {
+    if (!ev || !notifyOn()) return;
+    const p = ev.payload || {};
+    if (ev.type === "shell.connected") {
+      const where = privacyModeOn() ? "new session" : (p.remote || "unknown host");
+      pushNote("Shell received", String(where), "shell-" + (p.session_id || "new"));
+    } else if (ev.type === "oast.hit") {
+      const proto = String(p.protocol || "callback").toUpperCase();
+      pushNote("OAST hit", proto + " callback", "oast-" + (p.id || "hit"));
+    }
+  }
+  function stopNotifyStream() {
+    if (notifyAbort) {
+      notifyAbort.abort();
+      notifyAbort = null;
+    }
+  }
+  async function startNotifyStream() {
+    stopNotifyStream();
+    if (!notifyOn() || !cfg().token || !apiBase()) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const ac = new AbortController();
+    notifyAbort = ac;
+    try {
+      const r = await fetch(apiBase() + "/api/v1/events/stream", {
+        headers: { Authorization: "Bearer " + cfg().token, Accept: "text/event-stream" },
+        signal: ac.signal,
+      });
+      if (!r.ok || !r.body) throw new Error("events " + r.status);
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buf += dec.decode(chunk.value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) >= 0) {
+          const block = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          const line = block.split("\n").find((l) => l.indexOf("data: ") === 0);
+          if (!line) continue;
+          try { handleNotifyEvent(JSON.parse(line.slice(6))); } catch (_) {}
+        }
+      }
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+    }
+    if (notifyAbort === ac && notifyOn()) setTimeout(startNotifyStream, 4000);
+  }
+  async function toggleNotify() {
+    if (notifyOn()) {
+      try { localStorage.setItem(KEYS.notify, "0"); } catch (_) {}
+      applyNotifyBtn(false);
+      stopNotifyStream();
+      return;
+    }
+    if (!("Notification" in window)) {
+      showError("This browser does not support notifications");
+      return;
+    }
+    let perm = Notification.permission;
+    if (perm === "default") perm = await Notification.requestPermission();
+    if (perm !== "granted") {
+      showError("Notification permission denied");
+      applyNotifyBtn(false);
+      return;
+    }
+    await ensureNotifySw();
+    try { localStorage.setItem(KEYS.notify, "1"); } catch (_) {}
+    applyNotifyBtn(true);
+    if (cfg().token) startNotifyStream();
+    else showOk("Alerts on — connect to receive them");
+  }
+  $("btnNotify").onclick = () => toggleNotify().catch((e) => showError(String(e.message || e)));
+  applyNotifyBtn(notifyOn() && ("Notification" in window) && Notification.permission === "granted");
   $("btnPrivacy").onclick = togglePrivacyMode;
   applyPrivacyMode(privacyModeOn(), { silent: true });
   $("btnPhoneQr").onclick = openQrModal;
