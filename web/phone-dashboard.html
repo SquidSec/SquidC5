@@ -1509,7 +1509,7 @@
       <span class="pill privacy hidden" id="privacyBadge" title="PII masked in the UI (local only)">Privacy Mode Active</span>
       <span class="pill" id="statusBadge">offline</span>
       <span class="pill live hidden" id="roleBadge">-</span>
-      <button type="button" id="btnNotify" title="Desktop and phone alerts for shells and OAST hits" aria-pressed="false">Notify</button>
+      <button type="button" id="btnNotify" title="Desktop and phone alerts for shells, beacons, and OAST hits" aria-pressed="false">Notify</button>
       <button type="button" id="btnPrivacy" title="Toggle privacy mode (mask IPs, keys, server address)">Privacy</button>
       <button type="button" id="btnInko" class="inko-top-btn hidden" title="INKO - Intelligent Neural Kinetic Operator">INKO</button>
       <button type="button" id="btnPhoneQr" title="Phone QR - scan to open ops and auto-connect">Phone QR</button>
@@ -2528,6 +2528,9 @@
     if (ev.type === "shell.connected") {
       const where = privacyModeOn() ? "new session" : (p.remote || "unknown host");
       pushNote("Shell received", String(where), "shell-" + (p.session_id || "new"));
+    } else if (ev.type === "session.created" && p.kind === "beacon") {
+      const where = privacyModeOn() ? "new beacon" : (p.remote_addr || p.remote || "unknown host");
+      pushNote("Beacon attached", String(where), "beacon-" + (p.id || "new"));
     } else if (ev.type === "oast.hit") {
       const proto = String(p.protocol || "callback").toUpperCase();
       pushNote("OAST hit", proto + " callback", "oast-" + (p.id || "hit"));

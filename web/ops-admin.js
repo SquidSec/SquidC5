@@ -1101,38 +1101,48 @@
     }
     try {
       if (!selectedId) {
-        box.innerHTML = '<div class="muted" style="padding:8px">Select a session to list pending tasks</div>';
+        box.innerHTML = '<div class="muted" style="padding:8px">Select a session to list tasks</div>';
         selectedTaskId = null;
         return;
       }
-      const q = `/api/v1/tasks?session_id=${encodeURIComponent(selectedId)}&status=pending`;
+      const q = `/api/v1/tasks?session_id=${encodeURIComponent(selectedId)}`;
       let tasks = await api("GET", q);
       if (!Array.isArray(tasks)) tasks = tasks.tasks || [];
       if (!tasks.length) {
-        box.innerHTML = '<div class="muted" style="padding:8px">No pending tasks for this session</div>';
+        box.innerHTML = '<div class="muted" style="padding:8px">No tasks for this session</div>';
         selectedTaskId = null;
         return;
       }
-      box.innerHTML = `<table class="data"><thead><tr><th>ID</th><th>Session</th><th>Command</th><th>Status</th></tr></thead><tbody>
+      const clip = (s) => {
+        const t = String(s || "").replace(/\s+/g, " ").trim();
+        return t.length > 80 ? t.slice(0, 80) + "…" : t;
+      };
+      box.innerHTML = `<table class="data"><thead><tr><th>ID</th><th>Command</th><th>Status</th><th>Result</th></tr></thead><tbody>
         ${tasks.map((t) => `<tr data-tid="${esc(t.id)}" class="${t.id === selectedTaskId ? "selected" : ""}">
           <td class="mono">${esc(shortId(t.id))}</td>
-          <td class="mono">${esc(shortId(t.session_id))}</td>
           <td>${esc(t.command || "")}</td>
           <td><span class="chip">${esc(t.status || "")}</span></td>
+          <td class="mono">${esc(clip(t.result))}</td>
         </tr>`).join("")}
       </tbody></table>`;
+      const showTask = (t) => {
+        if (!t) return;
+        const done = t.status && t.status !== "pending";
+        if (el("tskCmd")) el("tskCmd").value = done ? (t.result || "") : (t.command || "");
+        if (el("tskHint")) el("tskHint").textContent = done
+          ? `${t.status} ${t.id}  /  ${t.command || ""}`
+          : `Editing ${t.id} (${t.status})  /  session ${t.session_id}`;
+        if (done && t.result && showOutput) showOutput(String(t.result), t.command || t.id);
+      };
       box.querySelectorAll("tr[data-tid]").forEach((tr) => {
         tr.onclick = () => {
           selectedTaskId = tr.getAttribute("data-tid");
           box.querySelectorAll("tr").forEach((x) => x.classList.remove("selected"));
           tr.classList.add("selected");
-          const t = tasks.find((x) => x.id === selectedTaskId);
-          if (t && el("tskCmd")) el("tskCmd").value = t.command || "";
-          if (el("tskHint")) el("tskHint").textContent = t
-            ? `Editing ${t.id} (${t.status})  /  session ${t.session_id}`
-            : "-";
+          showTask(tasks.find((x) => x.id === selectedTaskId));
         };
       });
+      if (selectedTaskId) showTask(tasks.find((x) => x.id === selectedTaskId));
     } catch (e) {
       box.innerHTML = `<div class="muted" style="padding:8px">${esc(String(e.message || e))}</div>`;
     }
