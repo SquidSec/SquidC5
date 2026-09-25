@@ -272,6 +272,8 @@ Beacon flow:
 - `sanitize_untrusted` on untrusted input; tool results sanitized before model re-entry
 - Offline fallbacks when no LLM configured (deterministic intents + capability offline JSON)
 - Ops UI: top-bar **INKO** opens right flyout (full-screen mobile); nav **INKO** page for workspace chat
+- Ops UI: top-bar **Notify** alerts on `shell.connected`, beacon `session.created`, and `oast.hit` while `/ops` is open (`sc5_ops_notify`)
+- Ops UI: Sessions -> Tasks shows completed beacon results, not only `status=pending`
 - Status: `GET /api/v1/ai/status` (+ `?debug=true`) - **never returns API keys**
 - Tool catalog: `GET /api/v1/ai/tools` (names/descriptions only)
 

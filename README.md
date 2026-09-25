@@ -61,7 +61,8 @@ Security-first, AI-native C5 teamserver for **authorized** red team and penetrat
 - **File ops** - `file:list|read|write|delete` (+ chunk offset/length)
 - **Engagement ROE** - banned commands, end time, HITL file-write
 - **Multi-op collab** - session claim/lock, handoff packs, spectator, presence, team chat, per-op audit
-- **Ops console** - multi-page nav (Sessions, Listeners, Payloads, Profiles, Artifacts, Post-Ex, Collab, INKO, Observe, Admin), mobile drawer, **INKO** flyout, resizable dock
+- **Ops console** - multi-page nav (Sessions, Assets, Listeners, OAST, Keys, Payloads, Profiles, Artifacts, Post-Ex, Collab, INKO, Observe, Admin), mobile drawer, **INKO** flyout, **Notify** alerts (shell, beacon, OAST), resizable dock
+- **Beacon task results** - Sessions -> Tasks shows completed output, not only the pending queue
 - **Secure defaults** - TLS on, empty CORS (no null), no public OpenAPI, admin.js gated, MCP scoped+HITL, implant AEAD on all listeners
 - **Binary CI** - Linux/Windows server+CLI, native agents, SBOM
 

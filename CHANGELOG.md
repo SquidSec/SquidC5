@@ -7,6 +7,7 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Ops **Notify**: browser alerts for a new shell, a beacon attach, and an OAST hit while `/ops` is open (localStorage toggle; not background Web Push)
 - Asymmetric key vault: create RSA keypair, derive public key encodings, decrypt RSA-OAEP and `sc5e1` envelopes (`asym_keys` default off)
 - Ops **Keys** page: list, create, copy public encodings, decrypt
 - Key vault decrypt accepts OpenSSL default RSA-OAEP (SHA-1) as well as SHA-256
@@ -19,6 +20,7 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 - Docs: Diátaxis index, Artifacts / Profiles / OAST / TLS cert library chapters, Ops nav map
 
 ### Changed
+- Ops Sessions **Tasks** lists every task for the session, including completed results (no longer pending-only)
 - Ops **OAST** Hits is the default tab; auto-poll with on/off toggle and 1–60s rate slider
 - Ops **Collab** chat: select open channels, auto-poll new messages, composer at the bottom (no Reload)
 - OAST Hits page and `GET /api/v1/oast/hits` list only callbacks tied to minted tokens (scanner noise omitted)

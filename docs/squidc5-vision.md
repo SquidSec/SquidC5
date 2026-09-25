@@ -25,7 +25,7 @@ SquidC5 is a professional, lightweight, **military-grade**, security-first, AI-n
 
 ### Why
 
-Hardened posture includes: no public API documentation surface, scoped tokens, server-gated admin UI, feature flags, false-shell filtering, shell exec verification, dual AI controls (restricted MCP + sandboxed Admin AI / INKO), malleable profiles, OAST, and binary-only production deploys.
+Hardened posture includes: no public API documentation surface, scoped tokens, server-gated admin UI, feature flags, false-shell filtering, shell exec verification, implant AEAD on beacon check-in, dual AI controls (restricted MCP + sandboxed Admin AI / INKO), malleable profiles, OAST, and binary-only production deploys. The ops console can raise local browser alerts for shells, beacon attach, and OAST hits; those alerts are not a server push channel.
 
 ### How (architecture sketch)
 

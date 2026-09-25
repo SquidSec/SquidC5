@@ -183,8 +183,10 @@ sc5 tasks get <task_id>
 
 | Symptom | Check |
 |---------|--------|
-| No session | Wrong host/port/scheme; profile URI mismatch |
+| No session | Wrong host/port/scheme; profile URI mismatch; plain HTTP against an `https` listener |
+| HTTP 403 `Authenticated implant envelope required` | Check-in body must be the AEAD envelope sealed with `data/implant_psk.txt`, not a raw identity token |
 | Task stuck pending | Beacon sleep; listener down; profile change without regen |
+| Task completed but not on screen | Sessions -> Tasks lists all statuses and the result. Reload `/ops` if the page is old |
 
 ### See also
 
