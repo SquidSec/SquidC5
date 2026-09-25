@@ -122,8 +122,10 @@ Nav labels in `/ops` (match [User guide](user-guide.md#ops-console-layout)):
 | Nav | Guide section |
 |-----|---------------|
 | Dashboard | [Status overview](user-guide.md#status-overview) |
-| Sessions | [Sessions](user-guide.md#sessions) |
+| Sessions | [Sessions](user-guide.md#sessions) - [Tasks](user-guide.md#tasks) |
+| Assets | [Sessions](user-guide.md#sessions) |
 | Listeners | [Listeners](user-guide.md#listeners) |
+| OAST | [OAST Collaborator](user-guide.md#oast-collaborator) |
 | Keys | [Asymmetric keys](user-guide.md#asymmetric-keys) |
 | Payloads | [Payloads and implants](user-guide.md#payloads-and-implants) |
 | Profiles | [C2 profiles](user-guide.md#c2-profiles-profiles) |
@@ -134,7 +136,7 @@ Nav labels in `/ops` (match [User guide](user-guide.md#ops-console-layout)):
 | Observe | [Observability](user-guide.md#observability) |
 | Admin | [Tokens](user-guide.md#tokens) - [LLM connections](user-guide.md#llm-connections) - [Feature toggles](user-guide.md#feature-toggles) - [TLS certificates](user-guide.md#tls-certificate-library) |
 
-Top bar **INKO** opens the chat flyout (same INKO stack as the nav page).
+Top bar **INKO** opens the chat flyout (same INKO stack as the nav page). Top bar **Notify** is [browser alerts](user-guide.md#notify) for shells, beacon attach, and OAST hits.
 
 ---
 

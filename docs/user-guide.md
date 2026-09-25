@@ -53,35 +53,37 @@ Background reading for industry meaning of terms (external). SquidC5 still only 
 4. [Ops console layout](#ops-console-layout)
 5. [Connection](#connection)
 6. [Event stream](#event-stream)
-7. [Status overview](#status-overview)
-8. [Identity](#identity)
-9. [Sessions](#sessions)
-10. [Shell](#shell)
-11. [Tasks](#tasks)
-12. [Listeners](#listeners)
-13. [Payloads and implants](#payloads-and-implants)
-14. [C2 profiles (Profiles)](#c2-profiles-profiles)
-15. [Artifacts](#artifacts)
-16. [Post-Ex](#post-ex)
-17. [OAST Collaborator](#oast-collaborator)
-18. [Plugins](#plugins)
-19. [Redirector and certificates](#redirector-and-certificates)
-20. [TLS certificate library](#tls-certificate-library)
-21. [Observability](#observability)
-22. [Timeline and reports](#timeline-and-reports)
-23. [INKO (Intelligent Neural Kinetic Operator)](#inko-intelligent-neural-kinetic-operator)
-24. [LLM connections](#llm-connections)
-25. [Tokens](#tokens)
-26. [Multi-operator collab](#multi-operator-collab)
-27. [Feature toggles](#feature-toggles)
-28. [Policy](#policy)
-29. [MCP tools](#mcp-tools)
-30. [Verified reverse shells](#verified-reverse-shells)
-31. [Signal](#signal)
-32. [CLI reference](#cli-reference)
-33. [Deployment](#deployment)
-34. [Troubleshooting](#troubleshooting)
-35. [Authorized use reminder](#authorized-use-reminder)
+7. [Notify](#notify)
+8. [Status overview](#status-overview)
+9. [Identity](#identity)
+10. [Sessions](#sessions)
+11. [Shell](#shell)
+12. [Tasks](#tasks)
+13. [Listeners](#listeners)
+14. [Payloads and implants](#payloads-and-implants)
+15. [C2 profiles (Profiles)](#c2-profiles-profiles)
+16. [Artifacts](#artifacts)
+17. [Post-Ex](#post-ex)
+18. [OAST Collaborator](#oast-collaborator)
+19. [Asymmetric keys](#asymmetric-keys)
+20. [Plugins](#plugins)
+21. [Redirector and certificates](#redirector-and-certificates)
+22. [TLS certificate library](#tls-certificate-library)
+23. [Observability](#observability)
+24. [Timeline and reports](#timeline-and-reports)
+25. [INKO (Intelligent Neural Kinetic Operator)](#inko-intelligent-neural-kinetic-operator)
+26. [LLM connections](#llm-connections)
+27. [Tokens](#tokens)
+28. [Multi-operator collab](#multi-operator-collab)
+29. [Feature toggles](#feature-toggles)
+30. [Policy](#policy)
+31. [MCP tools](#mcp-tools)
+32. [Verified reverse shells](#verified-reverse-shells)
+33. [Signal](#signal)
+34. [CLI reference](#cli-reference)
+35. [Deployment](#deployment)
+36. [Troubleshooting](#troubleshooting)
+37. [Authorized use reminder](#authorized-use-reminder)
 
 ---
 
@@ -223,7 +225,7 @@ The `/ops` console is an **app shell** (multi-page nav + context rail + dock).
 
 | Region | Purpose |
 |--------|---------|
-| **Top bar** | Host, online status, **Notify** (shell + OAST browser alerts), Connect, Refresh, **INKO** flyout |
+| **Top bar** | Host, online status, **Privacy**, **Notify** (shell, beacon, OAST alerts), Phone QR, Connect, Refresh, **INKO** flyout |
 | **Left nav** | Dashboard - Sessions - **Assets** - Listeners - **OAST** - **Keys** - Payloads - **Profiles** - **Artifacts** - Post-Ex - Collab - **INKO** - Observe - Admin |
 | **Main** | Active workspace for the selected nav item |
 | **Right rail** | Selected session context (claim, shell, task) |
@@ -305,13 +307,57 @@ Operators need immediate feedback when a shell lands or a listener fails to bind
 |-------|---------|
 | `shell.connected` | Inbound reverse shell TCP accepted |
 | `shell.verified` | Exec probe passed |
+| `session.created` (`kind=beacon`) | New beacon session registered |
+| `oast.hit` | Callback matched a minted OAST token |
 | `shell.false_positive` / `session.rejected` | Noise dropped |
 | `listener.started` | Listener bound and running |
 
 ### See also
 
+- [Notify](#notify)
 - [Observability](#observability)
 - [Shell](#shell)
+
+---
+
+## Notify
+
+### What
+
+Browser notifications from the ops console. The header **Notify** button asks for permission, then shows an OS alert while `/ops` is open.
+
+### Why
+
+Operators on a phone or another desktop should not have to stare at the event dock to notice a shell, a beacon, or an OAST hit.
+
+### How
+
+1. Click **Notify**. Allow the browser prompt.
+2. The button stays on (`sc5_ops_notify` in localStorage). Click again to disable.
+3. Alerts fire for `shell.connected`, `session.created` with `kind=beacon`, and `oast.hit`.
+4. Heartbeats do not alert. A beacon that is already connected will not alert again until it registers a new session.
+5. This is the page Notification API, not background Web Push. Close the tab and alerts stop.
+
+### Example
+
+```text
+Top bar -> Notify -> Allow
+Land a shell or a new beacon -> OS notification
+```
+
+### Pitfalls
+
+| Symptom | Check |
+|---------|--------|
+| No prompt | Browser already denied notifications for the site |
+| No alert after Allow | Page not open, or event is a heartbeat not a new session |
+| iOS silent | Web notifications need a supported browser; tab must stay open |
+
+### See also
+
+- [Event stream](#event-stream)
+- [Sessions](#sessions)
+- [OAST Collaborator](#oast-collaborator)
 
 ---
 
@@ -492,8 +538,9 @@ Beacons sleep between check-ins (interval + optional jitter via profiles). Tasks
 ### How
 
 1. Get beacon `session_id` from Sessions.
-2. Create task with command.
-3. Wait for next check-in; poll task status/result.
+2. Create a task with the command.
+3. Wait for the next check-in.
+4. In Ops, open Sessions -> **Tasks**. The list includes **completed** tasks and a result column. Click a row to put the full result in the dock. The list is not pending-only.
 
 Do **not** use Shell for pure beacons; use Tasks.
 
@@ -507,7 +554,7 @@ sc5 tasks get <task_id>
 
 ### Lifecycle detail
 
-`pending` -> picked up by beacon -> `running` / `completed` (or cancelled). HITL may gate high-risk commands per policy.
+`pending` -> picked up on check-in -> `completed` (or cancelled). HITL may gate high-risk commands per policy. A completed task stays visible in the Tasks tab; it does not vanish when it leaves `pending`.
 
 ### See also
 
@@ -624,6 +671,8 @@ sc5 implants build --os linux --arch amd64 C2_HOST 8443
 - [ ] Written authorization / ROE covers the target
 - [ ] Callback host/port are *your* infrastructure
 - [ ] Listener is `running` before execution
+- [ ] HTTP(S) beacon uses the server implant envelope (`data/implant_psk.txt`). A raw identity string returns **403** `Authenticated implant envelope required`
+- [ ] HTTPS listener on 443 expects TLS. Plain HTTP to that port will not check in
 - [ ] Payload archived ([Artifacts](#artifacts))
 - [ ] Cleanup plan exists
 
@@ -1545,7 +1594,10 @@ C2 ops failures are often listener, network, or scope issues - not "the UI is br
 | Shell listed but mute | Exec probe failed -> reaped; false-shell filter / stage-2 |
 | Admin panels missing | Token scopes? Hard-refresh? Admin JS 403? |
 | CORS errors | Open `/ops` on the C2 host, not `file://` or wrong origin |
-| Beacon no tasks | Wrong session id? [Profile mismatch](#c2-profiles-profiles)? Listener kind `http`? |
+| Beacon 403 on check-in | Body is not a sealed implant envelope. Use `implant_psk.txt`. Do not send a raw base64 identity token |
+| Beacon no tasks | Wrong session id? [Profile mismatch](#c2-profiles-profiles)? Listener kind `http`/`https`? |
+| Task ran but UI looks empty | Tasks tab used to hide completed rows. Reload `/ops` and open Sessions -> Tasks (all statuses, with result) |
+| Notify silent | Permission denied, tab closed, or event was a heartbeat not a new session |
 | AI offline only | No LLM under [LLM connections](#llm-connections) |
 | OAST DNS silent | Zone NS / [OAST deploy](deployment.md#oast-collaborator-dns-http-smtp) |
 | TLS still old after activate | Restart process after [TLS library](#tls-certificate-library) activate |

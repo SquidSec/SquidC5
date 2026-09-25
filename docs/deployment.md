@@ -27,7 +27,7 @@ Primary **lab** path. Compose defaults to `network_mode: host` so reverse-shell/
 
 ```bash
 docker compose up --build -d
-docker exec squidc5 cat /data/admin_token.txt # once; store securely
+docker compose exec squidc5 cat /data/admin_token.txt # once; store securely
 curl -sk https://127.0.0.1:8443/api/v1/health
 ```
 
