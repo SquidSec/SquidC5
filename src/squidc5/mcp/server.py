@@ -168,11 +168,13 @@ def build_mcp_router() -> APIRouter:
     async def mcp_jsonrpc(
         request: Request,
         auth: AuthContext = Depends(_auth),
-    ) -> dict[str, Any]:
+    ) -> Any:
         """MCP JSON-RPC over HTTP (OpenCode / Grok / Cursor remote MCP).
 
         Supports initialize, notifications/initialized, tools/list, tools/call,
         ping. Same auth + allow-list + policy gates as /mcp/call.
+
+        Returns a single response object, or a list for JSON-RPC batch requests.
         """
         state = _get_state(request)
         try:
