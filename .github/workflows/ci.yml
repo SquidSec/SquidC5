@@ -294,18 +294,22 @@ jobs:
             -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag"
           $asset = $rel.assets | Where-Object { $_.name -eq "SHA256SUMS.txt" }
           if (-not $asset) { throw "SHA256SUMS.txt not found on release $tag" }
+
+          # Read as raw bytes: Invoke-WebRequest decodes the body to UTF-16
+          # code points, which corrupts the file when written back out.
           $dlHeaders = @{ Authorization = "Bearer $token"; Accept = "application/octet-stream" }
-          # The asset API answers with a 302 to blob storage; follow it.
-          $existing = (Invoke-WebRequest -Headers $dlHeaders -Uri $asset.url `
-            -MaximumRedirection 5 -UseBasicParsing).Content
-          # Normalize CRLF so `sha256sum -c` works on Linux
+          $resp = Invoke-WebRequest -Headers $dlHeaders -Uri $asset.url `
+            -MaximumRedirection 5 -UseBasicParsing
+          $raw = [byte[]]$resp.Content
+          $existing = [Text.Encoding]::ASCII.GetString($raw)
           $lines = @($existing -split "`r?`n" | Where-Object { $_.Trim() -ne "" })
+
           foreach ($f in @("sc5-windows-x64.exe", "squidc5-windows-x64.exe")) {
             $hash = (Get-FileHash "release/$f" -Algorithm SHA256).Hash.ToLower()
             $lines += "$hash  $f"
           }
           $out = ($lines -join "`n") + "`n"
-          [IO.File]::WriteAllText("$PWD/release/SHA256SUMS.txt", $out)
+          [IO.File]::WriteAllText("$PWD/release/SHA256SUMS.txt", $out, [Text.Encoding]::ASCII)
           Get-Content release/SHA256SUMS.txt
 
       - name: Upload to GitHub Release
