@@ -90,12 +90,11 @@ jobs:
           test "$code" -ne 0
           grep -qi config /tmp/sc5beacon_err_$$.txt || grep -qi psk /tmp/sc5beacon_err_$$.txt || grep -qi required /tmp/sc5beacon_err_$$.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
-        continue-on-error: true
         with:
           name: sc5beacon-native
           path: dist/sc5beacon*
           retention-days: 3
-          if-no-files-found: warn
+          if-no-files-found: error
 
   docker:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -163,21 +162,15 @@ jobs:
           exit 1
 
   # Standalone operator CLI + server binaries (no venv required).
+  # Linux builds + smoke-tests here; the release job rebuilds its own Linux
+  # assets, so this job deliberately uploads nothing (a ~173MB upload nothing
+  # consumes). Windows artifacts are needed by the release, so they live in the
+  # separate windows-binaries job below.
   binaries:
-    name: binaries (${{ matrix.artifact }})
+    name: binaries (linux-x64)
     needs: test
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: [self-hosted, Linux, X64, squidsec]
-            artifact: linux-x64
-            is_windows: false
-          - runner: [self-hosted, Windows, X64, squidsec]
-            artifact: windows-x64
-            is_windows: true
-    runs-on: ${{ matrix.runner }}
+    runs-on: [self-hosted, Linux, X64, squidsec]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
@@ -188,7 +181,6 @@ jobs:
           cache: ""
 
       - name: Install package + PyInstaller (Linux)
-        if: matrix.is_windows == false
         run: |
           set -euo pipefail
           # Always use the same interpreter as the build (setup-python tool cache)
@@ -198,45 +190,16 @@ jobs:
           python -m pip install -e ".[binaries]"
           python -m pip show pyinstaller
 
-      - name: Install package + PyInstaller (Windows)
-        if: matrix.is_windows == true
-        shell: pwsh
-        run: |
-          # Always install via `python -m pip` so PyInstaller matches this interpreter.
-          python -c "import sys; print(sys.executable)"
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -e ".[binaries]"
-          python -m pip show pyinstaller
-          python -c "import PyInstaller; print('PyInstaller', PyInstaller.__version__)"
-
       - name: Build binaries (Linux)
-        if: matrix.is_windows == false
         run: python packaging/build_binaries.py
 
-      - name: Build binaries (Windows)
-        if: matrix.is_windows == true
-        shell: pwsh
-        run: |
-          python -c "import sys; print(sys.executable); import PyInstaller; print(PyInstaller.__version__)"
-          python packaging/build_binaries.py
-
       - name: Smoke-test CLI (Linux)
-        if: matrix.is_windows == false
         run: |
           set -euo pipefail
           ./dist/binaries/sc5 --help
           ./dist/binaries/sc5 --url http://127.0.0.1:9 health || true
 
-      - name: Smoke-test CLI (Windows)
-        if: matrix.is_windows == true
-        shell: pwsh
-        run: |
-          ./dist/binaries/sc5.exe --help
-          ./dist/binaries/sc5.exe --url http://127.0.0.1:9 health; exit 0
-
       - name: Smoke-test server (Linux)
-        if: matrix.is_windows == false
         run: |
           set -euo pipefail
           export SQUIDC5_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
@@ -258,20 +221,106 @@ jobs:
           echo "server failed to become healthy on port $SQUIDC5_PORT"
           exit 1
 
-      - name: Upload binaries
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
-        continue-on-error: true
+  # Windows binaries are published straight to the release (no artifact round
+  # trip): the release job runs first, then this job adds its assets with
+  # overwrite_files. Cuts ~98MB of transfer down to ~49MB on a slow uplink.
+  windows-binaries:
+    name: binaries (windows-x64)
+    needs: [test, release]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: [self-hosted, Windows, X64, squidsec]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
-          name: squidc5-${{ matrix.artifact }}
-          path: |
-            dist/binaries/sc5
-            dist/binaries/sc5.exe
-            dist/binaries/squidc5
-            dist/binaries/squidc5.exe
-            dist/binaries/README.txt
-            dist/binaries/*/
-          if-no-files-found: error
-          retention-days: 3
+          python-version: "3.12"
+          cache: ""
+
+      - name: Install package + PyInstaller (Windows)
+        shell: pwsh
+        run: |
+          # Always install via `python -m pip` so PyInstaller matches this interpreter.
+          python -c "import sys; print(sys.executable)"
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -e ".[binaries]"
+          python -m pip show pyinstaller
+          python -c "import PyInstaller; print('PyInstaller', PyInstaller.__version__)"
+
+      - name: Build binaries (Windows)
+        shell: pwsh
+        run: |
+          python -c "import sys; print(sys.executable); import PyInstaller; print(PyInstaller.__version__)"
+          python packaging/build_binaries.py
+
+      - name: Smoke-test CLI (Windows)
+        shell: pwsh
+        run: |
+          ./dist/binaries/sc5.exe --help
+          ./dist/binaries/sc5.exe --url http://127.0.0.1:9 health; exit 0
+
+      - name: Stage release assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item dist/binaries/sc5.exe release/sc5-windows-x64.exe
+          Copy-Item dist/binaries/squidc5.exe release/squidc5-windows-x64.exe
+          Get-ChildItem release | Format-Table Name,Length
+
+      - name: Release metadata
+        id: relmeta
+        shell: pwsh
+        run: |
+          # Must match the tag created by the release job exactly, or this would
+          # publish a second, duplicate release instead of attaching to the first.
+          $shortSha = "${{ github.sha }}".Substring(0, 7)
+          $tag = "v0.1.${{ github.run_number }}-$shortSha"
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "attaching to tag $tag"
+
+      - name: Extend SHA256SUMS with Windows assets
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.relmeta.outputs.tag }}"
+          $token = $env:GITHUB_TOKEN
+          $headers = @{ Authorization = "Bearer $token"; Accept = "application/vnd.github+json" }
+          $rel = Invoke-RestMethod -Headers $headers `
+            -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag"
+          $asset = $rel.assets | Where-Object { $_.name -eq "SHA256SUMS.txt" }
+          if (-not $asset) { throw "SHA256SUMS.txt not found on release $tag" }
+          $dlHeaders = @{ Authorization = "Bearer $token"; Accept = "application/octet-stream" }
+          # The asset API answers with a 302 to blob storage; follow it.
+          $existing = (Invoke-WebRequest -Headers $dlHeaders -Uri $asset.url `
+            -MaximumRedirection 5 -UseBasicParsing).Content
+          # Normalize CRLF so `sha256sum -c` works on Linux
+          $lines = @($existing -split "`r?`n" | Where-Object { $_.Trim() -ne "" })
+          foreach ($f in @("sc5-windows-x64.exe", "squidc5-windows-x64.exe")) {
+            $hash = (Get-FileHash "release/$f" -Algorithm SHA256).Hash.ToLower()
+            $lines += "$hash  $f"
+          }
+          $out = ($lines -join "`n") + "`n"
+          [IO.File]::WriteAllText("$PWD/release/SHA256SUMS.txt", $out)
+          Get-Content release/SHA256SUMS.txt
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: ${{ steps.relmeta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          overwrite_files: true
+          files: |
+            release/sc5-windows-x64.exe
+            release/squidc5-windows-x64.exe
+            release/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Publish GitHub Release after tests. Builds Linux here (avoids Actions artifact quota).
   release:
@@ -313,13 +362,6 @@ jobs:
           done
           curl -skf "https://127.0.0.1:${SQUIDC5_PORT}/api/v1/health"
 
-      - name: Try Windows artifacts (optional)
-        continue-on-error: true
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
-        with:
-          name: squidc5-windows-x64
-          path: artifacts/windows
-
       - name: Try Linux ARM64 artifacts (Raspberry Pi)
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
@@ -337,10 +379,6 @@ jobs:
           cp dist/binaries/sc5 release/sc5-linux-x64
           cp dist/binaries/squidc5 release/squidc5-linux-x64
           chmod +x release/sc5-linux-x64 release/squidc5-linux-x64
-          if [[ -f artifacts/windows/sc5.exe && -f artifacts/windows/squidc5.exe ]]; then
-            cp artifacts/windows/sc5.exe release/sc5-windows-x64.exe
-            cp artifacts/windows/squidc5.exe release/squidc5-windows-x64.exe
-          fi
           if [[ -f artifacts/linux-arm64/sc5 && -f artifacts/linux-arm64/squidc5 ]]; then
             cp artifacts/linux-arm64/sc5 release/sc5-linux-arm64
             cp artifacts/linux-arm64/squidc5 release/squidc5-linux-arm64
@@ -397,8 +435,8 @@ jobs:
             | `squidc5-linux-x64` | Linux x64 | C2 server |
             | `sc5-linux-arm64` | Linux ARM64 / Raspberry Pi 64-bit | Operator CLI (when available) |
             | `squidc5-linux-arm64` | Linux ARM64 / Raspberry Pi 64-bit | C2 server (when available) |
-            | `sc5-windows-x64.exe` | Windows x64 | Operator CLI (when available) |
-            | `squidc5-windows-x64.exe` | Windows x64 | C2 server (when available) |
+            | `sc5-windows-x64.exe` | Windows x64 | Operator CLI (added by the windows-binaries job) |
+            | `squidc5-windows-x64.exe` | Windows x64 | C2 server (added by the windows-binaries job) |
             | `SHA256SUMS.txt` | - | Checksums |
 
             ### Server (Linux)
@@ -418,8 +456,6 @@ jobs:
             release/SHA256SUMS.txt
             release/README.txt
             release/sbom.cdx.json
-            release/sc5-windows-x64.exe
-            release/squidc5-windows-x64.exe
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
