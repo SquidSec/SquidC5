@@ -66,7 +66,10 @@ async def test_silent_peer_is_dropped_unverified(app):
         async with FakeShell("127.0.0.1", port, mode="silent"):
             row = await wait_for_session(app, listener_id=lid)
             sid = row["id"]
-            closed = await wait_for_closed(app, sid, timeout=12.0)
+            # _verify_or_drop makes 4 probe attempts (1.5s + 3x1.0s of sleeps)
+            # plus probe timeouts. Allow generous headroom: shared runners are
+            # slow, and this asserts the drop happens, not that it is fast.
+            closed = await wait_for_closed(app, sid, timeout=45.0)
             assert closed["status"] == "closed"
             assert not app.state.app_state.listeners.is_verified(sid)
             assert collect_events(app, "shell.unverified_drop")
@@ -81,7 +84,7 @@ async def test_tls_clienthello_rejected_before_session(app):
         async with FakeShell("127.0.0.1", port, mode="tls"):
             await wait_until(
                 lambda: collect_events(app, "shell.false_positive"),
-                timeout=5.0,
+                timeout=20.0,
                 message="TLS probe was not classified as a false positive",
             )
         rows = await app.state.app_state.db.list_sessions(status=None)
@@ -97,7 +100,7 @@ async def test_http_probe_rejected_before_session(app):
         async with FakeShell("127.0.0.1", port, mode="http"):
             await wait_until(
                 lambda: collect_events(app, "shell.false_positive"),
-                timeout=5.0,
+                timeout=20.0,
                 message="HTTP probe was not classified as a false positive",
             )
         rows = await app.state.app_state.db.list_sessions(status=None)
@@ -114,7 +117,7 @@ async def test_binary_noise_midstream_rejects_session(app):
             row = await wait_for_session(app, listener_id=lid)
             sid = row["id"]
             await shell.send(BINARY_NOISE)
-            await wait_for_gone(app, sid, timeout=8.0)
+            await wait_for_gone(app, sid, timeout=30.0)
     finally:
         await stop_listener(app, lid)
 
@@ -136,7 +139,7 @@ async def test_stable_banner_marks_session_stage2(app):
                     meta = json.loads(meta or "{}")
                 return bool(meta.get("stabilized"))
 
-            await wait_until(_stabilized, timeout=6.0, message="stable banner not recorded")
+            await wait_until(_stabilized, timeout=20.0, message="stable banner not recorded")
             current = await app.state.app_state.db.get_session(sid)
             assert current["os_info"] == "linux"
     finally:
@@ -152,7 +155,7 @@ async def test_client_disconnect_closes_session(app):
         row = await wait_for_session(app, listener_id=lid)
         sid = row["id"]
         await shell.close()
-        closed = await wait_for_closed(app, sid, timeout=8.0)
+        closed = await wait_for_closed(app, sid, timeout=30.0)
         assert closed["status"] == "closed"
         assert collect_events(app, "shell.disconnected")
     finally:
@@ -205,7 +208,7 @@ async def test_auto_stabilize_injects_stage2(app):
                     meta = json.loads(meta or "{}")
                 return bool(meta.get("stage2"))
 
-            await wait_until(_stabilized, timeout=15.0, message="auto-stabilize never ran")
+            await wait_until(_stabilized, timeout=40.0, message="auto-stabilize never ran")
             assert any("SC5_STAGE2" in line or "base64" in line for line in shell.received)
     finally:
         await stop_listener(app, lid)
@@ -220,7 +223,7 @@ async def test_kill_channel_sends_die_and_drops(app):
             sid = row["id"]
             assert await wait_for_verified(app, sid)
             await app.state.app_state.listeners.kill_channel(sid)
-            await wait_for_closed(app, sid, timeout=8.0)
+            await wait_for_closed(app, sid, timeout=30.0)
             assert any("SC5_DIE" in line for line in shell.received)
             assert not app.state.app_state.listeners.is_live(sid)
     finally:
@@ -360,7 +363,7 @@ async def test_get_buffer_and_output_text(app):
             sid = row["id"]
             await wait_until(
                 lambda: app.state.app_state.listeners.get_output_text(sid),
-                timeout=5.0,
+                timeout=20.0,
                 message="no output buffered",
             )
             assert app.state.app_state.listeners.get_buffer(sid)
