@@ -362,6 +362,28 @@ class ListenerManager:
             return str(sockname[0]), int(sockname[1] or listener_port)
         return "127.0.0.1", listener_port
 
+    async def _note_stable_banner(self, sid: str, text: str) -> None:
+        """Record that a stage-2 agent announced itself (banner may arrive in the peek read)."""
+        if "SC5_STABLE" not in text:
+            return
+        row = await self.db.get_session(sid)
+        meta: dict[str, Any] = {}
+        raw = (row or {}).get("metadata") or {}
+        if isinstance(raw, str):
+            try:
+                meta = json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                meta = {}
+        elif isinstance(raw, dict):
+            meta = dict(raw)
+        meta.update({"stabilized": True, "stage2": True, "stable_banner": True})
+        upper = text.upper()
+        os_info = "windows" if "WIN" in upper else "linux" if "LINUX" in upper else None
+        fields: dict[str, Any] = {"metadata": meta}
+        if os_info:
+            fields["os_info"] = os_info
+        await self.db.update_session(sid, **fields)
+
     async def _reject_session(self, sid: str, reason: str, remote: str) -> None:
         self._rejected.add(sid)
         self._shell_queues.pop(sid, None)
@@ -440,6 +462,9 @@ class ListenerManager:
             if first:
                 text0 = first.decode("utf-8", errors="replace")
                 self._shell_buffers[sid].append(text0)
+                # Stage-2 agents send the banner immediately on connect, so it
+                # usually lands in the peek read rather than the main loop.
+                await self._note_stable_banner(sid, text0)
                 await self.metrics.emit(
                     "shell.output",
                     {"session_id": sid, "data": text0[:2000]},
@@ -527,21 +552,7 @@ class ListenerManager:
                         ev.set()
 
                     if "SC5_STABLE" in text:
-                        await self.db.update_session(
-                            sid,
-                            metadata={
-                                "stabilized": True,
-                                "stage2": True,
-                                "stable_banner": True,
-                            },
-                            os_info=(
-                                "windows"
-                                if "WIN" in text.upper()
-                                else "linux"
-                                if "LINUX" in text.upper()
-                                else None
-                            ),
-                        )
+                        await self._note_stable_banner(sid, text)
 
                     await self.db.execute(
                         "UPDATE sessions SET last_seen_at = ? WHERE id = ?",
